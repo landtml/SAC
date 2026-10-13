@@ -56,8 +56,8 @@ shows the ceiling a rule could reach on that market. It is not a strategy.
 
 The planted signal is found with a deflated Sharpe ratio of 1.000. On the random walk, the agent
 loses to buy-and-hold. On the hidden-regime market, the agent beats buy-and-hold with an interval
-that stays above zero. Its deflated Sharpe ratio is 0.09, so the Sharpe ratio is unlikely to be
-real once the trials are counted.
+that stays above zero. Its deflated Sharpe ratio is 0.09: once every variant tried on this market is
+counted, luck alone could explain a Sharpe ratio this high.
 
 ![SAC against the simple rules](../assets/png/figures/sac-vs-rule.png)
 
@@ -84,8 +84,8 @@ residual on top of the funding rule. The "rule" column is the funding rule alone
 | Market | SAC Sharpe | Rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
 | --- | --- | --- | --- | --- |
 | Crypto [cash-and-carry](glossary.md#basis-cash-and-carry), long Binance spot, short perpetual; 10 coins, daily, 3.7 years | 10.61 | funding rule 10.12; passive carry 8.49 | +0.49 [0.15, 0.95], p=0.002 | 1.52, 0.88 (15) |
-| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.82 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
-| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | not reported | funding rule 8.02 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
+| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
+| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.39 | funding rule 8.09 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
 
 "Active over rule" is the Sharpe ratio of the agent's returns minus the rule's returns, and the
 deflated Sharpe ratio of that difference. Sharpe ratios in each row are measured on the same
