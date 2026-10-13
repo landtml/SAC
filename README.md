@@ -1,8 +1,9 @@
 # sactrader
 
 Distributional, risk-aware Soft Actor-Critic for trading many market types with one code path:
-crypto spot, perpetual futures and the spot-perp carry trade, forex, equity indices, oil and
-Treasuries, and binary prediction markets (Polymarket, Kalshi).
+crypto spot, perpetual futures (Binance, Hyperliquid), spot-perp and cross-venue funding carry
+trades, forex, equity indices, oil and Treasuries, and binary prediction markets (Polymarket,
+Kalshi), alone or pooled into one agent.
 
 - **One accounting model.** Every instrument becomes a tape of long-side and short-side returns,
   carry and costs. Perp funding, forex carry, short borrow, NO-token pricing, binary settlement and

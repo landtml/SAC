@@ -180,6 +180,19 @@ Set `purge` to at least the discount horizon `1 / (1 - gamma)` bars.
 | `macro` | FRED: S&P 500, Nasdaq, Nikkei, WTI, Brent; 10y and 2y Treasury excess returns | 1D |
 | `polymarket` | Gamma market list, CLOB price history in 14-day windows | 1h |
 | `kalshi` | Settled markets of macro series (Fed, CPI, payrolls, unemployment), hourly candles | 1h |
+| `hl_basis` | Long Binance spot, short Hyperliquid perp (Hyperliquid funding from May 2023) | 1D |
+| `perp_spread` | Long Binance perp, short Hyperliquid perp: the cross-venue funding spread | 1D |
+
+A config may list several universes under `sources`, each with its own costs, so one agent
+trains on, for example, crypto perps, forex and macro markets together. Volatility targeting
+makes that pooling sensible: a unit action carries the same risk on every market.
+
+Optional exogenous series: `data.implied_vol` joins Deribit's DVOL (30-day implied volatility of
+BTC or ETH options, hourly, re-stamped to each candle's end) onto crypto frames, and the features
+gain implied minus realized volatility (the variance risk premium) and the change in implied
+volatility. `data.regime_features` adds rolling variance ratios, efficiency ratios, lag-1
+autocorrelation, volatility of volatility and skewness over 16 and 64 bars, which tell the agent
+whether the market is trending or mean-reverting, calm or jumpy.
 
 Treasury markets are excess-return indices built from constant-maturity yields with a
 duration-convexity approximation, minus the 3-month bill rate, so a long position does not earn
