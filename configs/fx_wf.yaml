@@ -1,0 +1,22 @@
+name: fx_wf
+universe: fx
+data: {start: "2000-01"}
+costs: {fee_bps: 0.0, half_spread_bps: 1.0, max_leverage: 3.0, maint_margin: 0.02,
+        swap_apr_long: 0.005, swap_apr_short: 0.005}
+walk_forward:
+  first_test: "2014-01-01"
+  end: "2026-10-01"
+  test: "730D"
+  val: "730D"
+  embargo: "5D"
+  warm_start: true
+  fold_steps: 20000
+env: {window: 8, episode_len: 512, n_envs: 16, cost_mult_low: 0.5, cost_mult_high: 2.0}
+sac: {hidden: 128, critic_blocks: 1, actor_hidden: 64, gamma: 0.97, risk: mean,
+      target_entropy_scale: 0.5, smooth_coef: 0.5}
+train: {total_steps: 60000, warmup_steps: 10000, utd: 0.25, relabel_frac: 0.5, eval_every: 1250,
+        threads: 2, target_entropy_end_scale: 2.0}
+trend: {lookback: 120, vol_span: 60, target_vol: 0.1}
+deploy: {gate_psr: 0.8}
+seeds: [0, 1]
+reference: buy_and_hold
