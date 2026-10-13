@@ -106,3 +106,31 @@ def split_tapes(tapes: list[MarketTape], split: SplitSpec, min_rows: int = 64) -
             if len(part) >= min_rows:
                 out[name].append(part)
     return out
+
+
+def window_tapes(tapes: list[MarketTape], windows, min_rows: int = 64) -> list[MarketTape]:
+    """Tapes restricted to a list of ``(start, stop)`` windows (UTC, half-open).
+
+    A linear tape yields one slice per window it overlaps by at least ``min_rows`` rows. A binary
+    market is kept whole when its last bar falls in one of the windows, as in ``split_tapes``.
+    """
+    out: list[MarketTape] = []
+    for tp in tapes:
+        if tp.kind == "binary":
+            last = pd.Timestamp(int(tp.times[-1]), tz="UTC")
+            if any(_utc(a) <= last < _utc(b) for a, b in windows):
+                out.append(tp)
+            continue
+        for a, b in windows:
+            try:
+                part = tp.time_slice(a, b)
+            except ValueError:
+                continue
+            if len(part) >= min_rows:
+                out.append(part)
+    return out
+
+
+def _utc(ts) -> pd.Timestamp:
+    t = pd.Timestamp(ts)
+    return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")

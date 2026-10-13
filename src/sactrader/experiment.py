@@ -164,6 +164,10 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
 
 
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
+    if "cpcv" in cfg:
+        from sactrader.cpcv_experiment import run_cpcv
+
+        return run_cpcv(cfg, out_root)
     name = cfg["name"]
     out = Path(out_root) / name
     out.mkdir(parents=True, exist_ok=True)
