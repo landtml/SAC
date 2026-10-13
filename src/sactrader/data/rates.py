@@ -20,7 +20,8 @@ from sactrader.data.cache import cache_dir, http_get
 
 FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
-# Currency -> 3-month interbank rate, monthly average, in percent.
+# Currency -> monthly short rate in percent: the 3-month interbank rate where FRED has one,
+# otherwise the call money/interbank rate.
 SHORT_RATE_SERIES: dict[str, str] = {
     "USD": "IR3TIB01USM156N",
     "EUR": "IR3TIB01EZM156N",
@@ -30,7 +31,17 @@ SHORT_RATE_SERIES: dict[str, str] = {
     "NZD": "IR3TIB01NZM156N",
     "CAD": "IR3TIB01CAM156N",
     "CHF": "IR3TIB01CHM156N",
+    "MXN": "IR3TIB01MXM156N",
+    "ZAR": "IR3TIB01ZAM156N",
+    "BRL": "IRSTCI01BRM156N",
+    "INR": "IRSTCI01INM156N",
+    "KRW": "IR3TIB01KRM156N",
+    "CNY": "IR3TIB01CNM156N",
 }
+
+# Currencies with neither a 3-month nor a call money/interbank series on FRED. Their pairs read
+# NaN, which attach_rate_diff stores as 0.0.
+NO_SHORT_RATE: tuple[str, ...] = ("THB", "SGD")
 
 # Currency -> daily FRED rate that takes over once the monthly series stops early.
 SHORT_RATE_EXTENSION: dict[str, str] = {
@@ -108,8 +119,9 @@ def _split(pair: str) -> tuple[str, str]:
     if len(pair) != 6:
         raise ValueError(f"pair must be six letters such as 'EURUSD', got {pair!r}")
     base, quote = pair[:3], pair[3:]
-    _check_currency(base)
-    _check_currency(quote)
+    for ccy in (base, quote):
+        if ccy not in NO_SHORT_RATE:
+            _check_currency(ccy)
     return base, quote
 
 
@@ -122,10 +134,12 @@ def rate_diff(pair: str, index: pd.DatetimeIndex) -> np.ndarray:
     """Base minus quote short rate at each timestamp, as a decimal per year.
 
     Each timestamp reads the last value stamped at or before it. The result is NaN wherever
-    either currency has no value yet.
+    either currency has no value yet, and everywhere when either one is in ``NO_SHORT_RATE``.
     """
     base, quote = _split(pair)
     t = _as_utc(index)
+    if base in NO_SHORT_RATE or quote in NO_SHORT_RATE:
+        return np.full(len(t), np.nan)
     r_base = load_short_rate(base).reindex(t, method="ffill").to_numpy(np.float64)
     r_quote = load_short_rate(quote).reindex(t, method="ffill").to_numpy(np.float64)
     return r_base - r_quote
