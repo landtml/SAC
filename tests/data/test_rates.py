@@ -187,9 +187,54 @@ def test_attach_rejects_non_fx_frame(monkeypatch):
         rates.attach_rate_diff(spot)
 
 
+@pytest.mark.parametrize("ccy", ["MXN", "ZAR", "BRL", "INR", "KRW", "CNY"])
+def test_em_short_rate_is_monthly_decimal(monkeypatch, ccy):
+    series_id = rates.SHORT_RATE_SERIES[ccy]
+    serve(monkeypatch, {series_id: fred_csv(series_id, [
+        ("2024-01-01", "7.0"), ("2024-02-01", "6.5")])})
+    s = rates.load_short_rate(ccy)
+    assert s.name == ccy
+    assert s[utc("2024-02-01")] == pytest.approx(0.07)
+    assert s[utc("2024-03-01")] == pytest.approx(0.065)
+
+
+def test_usdmxn_is_negative_when_mexican_rates_are_higher(monkeypatch):
+    serve(monkeypatch, {
+        rates.SHORT_RATE_SERIES["USD"]: fred_csv(rates.SHORT_RATE_SERIES["USD"], [
+            ("2024-01-01", "5.0")]),
+        rates.SHORT_RATE_SERIES["MXN"]: fred_csv(rates.SHORT_RATE_SERIES["MXN"], [
+            ("2024-01-01", "11.0")]),
+    })
+    idx = pd.DatetimeIndex([utc("2024-03-15")])
+    diff = rates.rate_diff("USDMXN", idx)[0]
+    assert diff == pytest.approx(0.05 - 0.11)
+    assert diff < 0
+
+
+def test_currency_without_short_rate_gives_nan_and_zero_diff(monkeypatch):
+    serve(monkeypatch, {"IR3TIB01USM156N": fred_csv("IR3TIB01USM156N", [
+        ("2024-01-01", "5.0")])})
+    idx = pd.DatetimeIndex([utc("2024-03-15")])
+    assert np.isnan(rates.rate_diff("USDTHB", idx)).all()
+    assert np.isnan(rates.rate_diff("SGDUSD", idx)).all()
+    out = rates.attach_rate_diff(fx_frame("USDSGD", ["2024-03-14", "2024-03-15"]))
+    assert (out["rate_diff"] == 0.0).all()
+    with pytest.raises(ValueError, match="no short rate"):
+        rates.load_short_rate("THB")
+
+
 @pytest.mark.network
 def test_eurusd_diff_over_2010_2024_live():
     index = pd.date_range("2010-01-01", "2024-12-31", freq="D", tz="UTC")
     diff = rates.rate_diff("EURUSD", index)
     assert np.isfinite(diff).all()
     assert np.abs(diff).max() <= 0.1
+
+
+@pytest.mark.network
+def test_usdmxn_diff_over_2010_2024_live():
+    index = pd.date_range("2010-01-01", "2024-12-31", freq="D", tz="UTC")
+    diff = rates.rate_diff("USDMXN", index)
+    assert np.isfinite(diff).all()
+    assert diff.min() >= -0.2
+    assert diff.max() <= 0.2
