@@ -25,6 +25,11 @@ class TrainConfig:
     reward_scale: float | None = None  # None: derive from training tapes
     eval_every: int = 2_000  # gradient updates between validation runs
     reset_every: int | None = None  # gradient updates between network resets
+    # Anneal the entropy target from sac.target_entropy_scale to this value over training.
+    target_entropy_end_scale: float | None = None
+    # Restore the best checkpoint when the mean |Q| exceeds this (scaled rewards keep |Q| near
+    # 1 / (1 - gamma) at most) or a loss is not finite.
+    q_abs_limit: float = 100.0
     seed: int = 0
     threads: int = 4
     env: EnvConfig = field(default_factory=EnvConfig)
@@ -78,15 +83,26 @@ def validation_score(agent: TQCSAC, val: TapeSet) -> tuple[float, dict]:
 
 
 def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg: TrainConfig,
-          log: Callable[[dict], None] | None = None) -> TrainResult:
+          log: Callable[[dict], None] | None = None, init_state: dict | None = None,
+          feature_names: tuple[str, ...] | None = None) -> TrainResult:
+    """Train one agent. ``init_state`` warm-starts from an earlier agent (its warm-up steps then
+    follow that agent's policy instead of uniform actions); ``feature_names`` pins the
+    observation layout so the warm-started networks see the same inputs."""
     torch.set_num_threads(cfg.threads)
     rng = np.random.default_rng(cfg.seed)
-    ts = TapeSet(train_tapes, cfg.env.window)
+    ts = TapeSet(train_tapes, cfg.env.window, feature_names)
     val = TapeSet(val_tapes, cfg.env.window, ts.feature_names) if val_tapes else None
     env = VecTradingEnv(ts, cfg.env, seed=cfg.seed)
     agent = TQCSAC(ts.obs_dim, 1, cfg.sac, seed=cfg.seed)
+    if init_state is not None:
+        agent.load_state_dict(init_state)
     replay = IndexReplay(cfg.replay_capacity)
     scale = cfg.reward_scale or auto_reward_scale(train_tapes, cfg.sac.gamma)
+    planned_updates = max(1.0, (cfg.total_steps - cfg.warmup_steps) * cfg.utd)
+    ent_start = cfg.sac.target_entropy_scale
+    ent_end = cfg.target_entropy_end_scale
+    n_updates = 0
+    restores = 0
 
     history: list[dict] = []
     best_score, best_state = -np.inf, agent.state_dict()
@@ -96,7 +112,7 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
     t0 = time.time()
     stats: dict[str, float] = {}
     while steps < cfg.total_steps:
-        if steps < cfg.warmup_steps:
+        if steps < cfg.warmup_steps and init_state is None:
             action = rng.uniform(-1.0, 1.0, cfg.env.n_envs)
         else:
             action = agent.act(env.observe())[:, 0]
@@ -110,13 +126,23 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
             sample = replay.sample(cfg.sac.batch_size, rng)
             relabel(sample, ts, cfg.relabel_frac, rng)
             obs, next_obs = materialize(sample, ts)
+            if ent_end is not None:
+                frac = min(1.0, n_updates / planned_updates)
+                agent.target_entropy = -(ent_start + (ent_end - ent_start) * frac)
             stats = agent.update(obs, sample["action"], sample["reward"] * scale, next_obs,
                                  sample["terminal"])
+            n_updates += 1
+            if not np.isfinite(stats["critic_loss"]) or abs(stats["q_mean"]) > cfg.q_abs_limit:
+                # Value divergence: growing |Q| does not recover on its own (arXiv 2609.32819).
+                agent.load_state_dict(best_state)
+                agent._make_optimizers()
+                restores += 1
             if cfg.reset_every and agent.updates % cfg.reset_every == 0:
                 agent.reset_networks(cfg.seed + agent.updates)
         if agent.updates - last_eval >= cfg.eval_every:
             last_eval = agent.updates
-            rec = {"steps": steps, "updates": agent.updates, "time": time.time() - t0, **stats}
+            rec = {"steps": steps, "updates": agent.updates, "time": time.time() - t0,
+                   "restores": restores, "target_entropy": agent.target_entropy, **stats}
             recent = env.completed_returns[-200:]
             rec["train_ep_log_growth"] = float(np.mean(recent)) if recent else float("nan")
             if val is not None:

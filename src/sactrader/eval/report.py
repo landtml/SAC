@@ -32,9 +32,10 @@ PER_TAPE_COLUMNS = [
 ]
 SUMMARY_COLUMNS = [
     "strategy", "total_return", "cagr", "sharpe", "sortino", "max_drawdown", "calmar",
-    "ann_vol", "psr", "dsr", "sharpe_diff", "diff_lo", "diff_hi", "p_value",
+    "ann_vol", "cvar_95", "psr", "dsr", "sharpe_diff", "diff_lo", "diff_hi", "p_value",
 ]
-_METRIC_KEYS = ("total_return", "cagr", "sharpe", "sortino", "max_drawdown", "calmar", "ann_vol")
+_METRIC_KEYS = ("total_return", "cagr", "sharpe", "sortino", "max_drawdown", "calmar", "ann_vol",
+                "cvar_95")
 _DIFF_KEYS = ("sharpe_diff", "diff_lo", "diff_hi", "p_value")
 
 
@@ -132,15 +133,34 @@ def summary_table(
 ) -> pd.DataFrame:
     """One row per strategy over its pooled series, with tests against ``reference``.
 
-    ``psr`` tests the per-bar Sharpe against zero. ``dsr`` deflates it for ``n_trials``
-    trials. Without ``sr_variance``, the variance comes from the per-bar Sharpe ratios of
-    the strategies in ``runs``. The diff columns run a paired bootstrap of the annualized
-    Sharpe difference on the timestamps both series share. The reference row leaves them NaN.
+    See ``summary_from_pooled``; bars_per_year is the median over ``tapes``.
     """
     if reference not in runs:
         raise ValueError(f"reference {reference!r} is not a strategy in runs")
     bpy = float(np.median([tape.bars_per_year for tape in tapes]))
     pooled = {name: pooled_returns(run, tapes, start_row) for name, run in runs.items()}
+    return summary_from_pooled(pooled, bpy, reference, n_trials, sr_variance, n_boot, seed)
+
+
+def summary_from_pooled(
+    pooled: dict[str, pd.Series],
+    bars_per_year: float,
+    reference: str,
+    n_trials: int = 1,
+    sr_variance: float | None = None,
+    n_boot: int = 1000,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """One row per strategy over a pooled return series, with tests against ``reference``.
+
+    ``psr`` tests the per-bar Sharpe against zero. ``dsr`` deflates it for ``n_trials``
+    trials. Without ``sr_variance``, the variance comes from the per-bar Sharpe ratios of
+    the strategies in ``pooled``. The diff columns run a paired bootstrap of the annualized
+    Sharpe difference on the timestamps both series share. The reference row leaves them NaN.
+    """
+    if reference not in pooled:
+        raise ValueError(f"reference {reference!r} is not a strategy in pooled")
+    bpy = float(bars_per_year)
     if sr_variance is None:
         per_bar = [float(sharpe(s.to_numpy(), 1.0)) for s in pooled.values()]
         sr_variance = float(np.var(per_bar, ddof=1)) if len(per_bar) > 1 else 0.0

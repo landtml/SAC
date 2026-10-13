@@ -1,8 +1,11 @@
-"""Config-driven experiment: train seeds, select on validation, evaluate once on test.
+"""Config-driven experiments: walk-forward folds, validation selection, one look at each test window.
 
-The test period is touched exactly once per run, after checkpoint selection, and every
-configuration evaluated is appended to ``trials.jsonl`` in the output root so the deflated Sharpe
-ratio can count the trials honestly.
+A config holds either one ``split`` or a ``walk_forward`` block. Each fold trains every seed on
+data before its validation window, keeps the checkpoint with the best validation Sharpe, picks a
+no-trade band on validation, and only then runs the test window. Test windows of successive folds
+do not overlap, so their results join into one out-of-sample record that the summary statistics
+use. Every experiment is appended to ``trials.jsonl`` in the output root so the deflated Sharpe
+ratio counts all configurations tried.
 """
 
 from __future__ import annotations
@@ -14,13 +17,21 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import yaml
 
 from sactrader.agent.sac import TQCSAC, SACConfig
 from sactrader.env.vec_env import N_CONTEXT, EnvConfig, TapeSet, rollout
 from sactrader.eval import baselines
-from sactrader.eval.report import per_tape_table, rollout_exposures, summary_table, to_markdown
+from sactrader.eval.metrics import sharpe as annual_sharpe
+from sactrader.eval.report import (
+    per_tape_table,
+    pooled_returns,
+    rollout_exposures,
+    summary_from_pooled,
+    to_markdown,
+)
 from sactrader.pipeline import Period, SplitSpec, load_frames, split_tapes, to_tapes
 from sactrader.tape import DEFAULT_COSTS, MarketTape
 from sactrader.train import TrainConfig, sharpe, train
@@ -51,7 +62,7 @@ def build_train_config(cfg: dict, seed: int) -> TrainConfig:
     return replace(tc, env=env, sac=sac, seed=seed)
 
 
-def build_tapes(cfg: dict) -> dict[str, list[MarketTape]]:
+def build_all_tapes(cfg: dict) -> list[MarketTape]:
     data = cfg.get("data", {})
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
                          symbols=cfg.get("symbols"), max_markets=data.get("max_markets", 300),
@@ -61,10 +72,34 @@ def build_tapes(cfg: dict) -> dict[str, list[MarketTape]]:
     def costs(frame):
         return replace(DEFAULT_COSTS[frame.attrs["kind"]], **overrides)
 
-    tapes = to_tapes(frames, costs)
-    s = cfg["split"]
-    split = SplitSpec(Period(*s["train"]), Period(*s["val"]), Period(*s["test"]))
-    return split_tapes(tapes, split)
+    return to_tapes(frames, costs)
+
+
+def make_splits(cfg: dict) -> list[SplitSpec]:
+    """One split from ``split``, or consecutive folds from ``walk_forward``.
+
+    ``walk_forward`` keys: ``first_test`` and ``end`` (dates), ``test`` and ``val`` (durations such
+    as "180D"), optional ``embargo`` (default "0D") and ``train_start`` (default: all history).
+    Fold k tests ``[first_test + k * test, first_test + (k + 1) * test)``, the last fold clipped at
+    ``end``; validation ends one embargo before the test window and training one embargo before
+    validation.
+    """
+    if "walk_forward" not in cfg:
+        s = cfg["split"]
+        return [SplitSpec(Period(*s["train"]), Period(*s["val"]), Period(*s["test"]))]
+    wf = cfg["walk_forward"]
+    t = pd.Timestamp(wf["first_test"])
+    end = pd.Timestamp(wf["end"])
+    test, val = pd.Timedelta(wf["test"]), pd.Timedelta(wf["val"])
+    emb = pd.Timedelta(wf.get("embargo", "0D"))
+    splits = []
+    while t < end:
+        v0 = t - emb - val
+        splits.append(SplitSpec(Period(wf.get("train_start"), str(v0 - emb)),
+                                Period(str(v0), str(t - emb)),
+                                Period(str(t), str(min(t + test, end)))))
+        t = t + test
+    return splits
 
 
 def ensemble_policy(agents: list[TQCSAC]):
@@ -94,28 +129,8 @@ def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
     return best, scores
 
 
-def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
-    name = cfg["name"]
-    out = Path(out_root) / name
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
-    parts = build_tapes(cfg)
-    if not parts["train"] or not parts["val"] or not parts["test"]:
-        raise ValueError({k: len(v) for k, v in parts.items()})
-    seeds = cfg.get("seeds", [0])
-    agents, histories, feature_names = [], {}, None
-    t0 = time.time()
-    for seed in seeds:
-        tc = build_train_config(cfg, seed)
-        res = train(parts["train"], parts["val"], tc,
-                    log=lambda r, s=seed: _append_jsonl(out / "train_log.jsonl", {"seed": s, **r}))
-        torch.save(res.best_state, out / f"agent_seed{seed}.pt")
-        agent = TQCSAC.from_state_dict(res.best_state)
-        agents.append(agent)
-        histories[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale}
-        feature_names = res.feature_names
-
-    window = build_train_config(cfg, seeds[0]).env.window
+def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, window: int,
+               feature_names: tuple[str, ...]) -> tuple[dict, dict]:
     start_row = window - 1
     test = parts["test"]
     test_ts = TapeSet(test, window, feature_names)
@@ -128,29 +143,97 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     band, band_scores = choose_band(policy, TapeSet(parts["val"], window, feature_names))
     runs["sac_banded"] = rollout(test_ts, banded(policy, band))
     runs["flat"] = [rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
-    runs["buy_and_hold"] = [rollout_exposures(tp, baselines.buy_and_hold(tp), start_row) for tp in test]
+    runs["buy_and_hold"] = [rollout_exposures(tp, baselines.buy_and_hold(tp), start_row)
+                            for tp in test]
     if test[0].kind != "binary":
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]
+    return runs, {"chosen": band, "val_sharpe": band_scores}
 
+
+def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
+    name = cfg["name"]
+    out = Path(out_root) / name
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
+    tapes = build_all_tapes(cfg)
+    splits = make_splits(cfg)
+    seeds = cfg.get("seeds", [0])
+    wf = cfg.get("walk_forward", {})
+    window = build_train_config(cfg, seeds[0]).env.window
+    start_row = window - 1
+
+    t0 = time.time()
+    feature_names: tuple[str, ...] | None = None
+    prev_states: dict[int, dict] = {}
+    reward_scales: dict[int, float] = {}
+    all_runs: dict[str, list[dict]] = {}
+    all_tapes: list[MarketTape] = []
+    folds, per_tape_tables = [], []
+    for k, split in enumerate(splits):
+        parts = split_tapes(tapes, split)
+        if not parts["train"] or not parts["val"] or not parts["test"]:
+            folds.append({"fold": k, "skipped": {n: len(v) for n, v in parts.items()}})
+            continue
+        agents, seed_info = [], {}
+        for seed in seeds:
+            tc = build_train_config(cfg, seed)
+            init = None
+            if wf.get("warm_start") and seed in prev_states:
+                init = prev_states[seed]
+                tc = replace(tc, total_steps=wf.get("fold_steps", tc.total_steps),
+                             warmup_steps=min(tc.warmup_steps, 2048),
+                             reward_scale=reward_scales[seed])
+            res = train(parts["train"], parts["val"], tc, init_state=init,
+                        feature_names=feature_names,
+                        log=lambda r, s=seed, f=k: _append_jsonl(out / "train_log.jsonl",
+                                                                 {"fold": f, "seed": s, **r}))
+            feature_names = res.feature_names
+            reward_scales[seed] = res.reward_scale
+            prev_states[seed] = res.best_state
+            torch.save(res.best_state, out / f"agent_fold{k}_seed{seed}.pt")
+            agents.append(TQCSAC.from_state_dict(res.best_state))
+            seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale}
+        runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names)
+        test = parts["test"]
+        fold_sharpe = {}
+        for strat, run in runs.items():
+            all_runs.setdefault(strat, []).extend(run)
+            r = pooled_returns(run, test, start_row).to_numpy()
+            fold_sharpe[strat] = float(annual_sharpe(r, np.median([tp.bars_per_year for tp in test])))
+        all_tapes.extend(test)
+        table = per_tape_table(runs, test, start_row)
+        table.insert(0, "fold", k)
+        per_tape_tables.append(table)
+        folds.append({"fold": k, "test": [split.test.start, split.test.stop], "seeds": seed_info,
+                      "no_trade_band": band, "n_tapes": {n: len(v) for n, v in parts.items()},
+                      "pooled_sharpe": fold_sharpe})
+
+    if not all_tapes:
+        raise ValueError(f"no fold had train, validation and test data: {folds}")
+    pooled = {strat: pooled_returns(run, all_tapes, start_row) for strat, run in all_runs.items()}
+    bpy = float(np.median([tp.bars_per_year for tp in all_tapes]))
     reference = cfg.get("reference", "buy_and_hold")
     n_trials = _count_trials(Path(out_root)) + 1
-    summary = summary_table(runs, test, start_row, reference=reference, n_trials=n_trials)
-    per_tape = per_tape_table(runs, test, start_row)
+    summary = summary_from_pooled(pooled, bpy, reference, n_trials=n_trials)
+    fold_table = pd.DataFrame([{"fold": f["fold"], **f["pooled_sharpe"]} for f in folds
+                               if "pooled_sharpe" in f])
     result = {
         "name": name,
-        "seeds": histories,
-        "no_trade_band": {"chosen": band, "val_sharpe": band_scores},
         "minutes": round((time.time() - t0) / 60, 1),
         "n_trials": n_trials,
-        "n_tapes": {k: len(v) for k, v in parts.items()},
+        "n_folds": len(fold_table),
+        "folds": folds,
         "summary": json.loads(summary.set_index("strategy").to_json(orient="index")),
     }
-    (out / "result.json").write_text(json.dumps(result, indent=2))
+    (out / "result.json").write_text(json.dumps(result, indent=2, default=str))
+    pd.concat(pooled, axis=1).to_csv(out / "pooled_returns.csv")
     (out / "report.md").write_text(
-        f"# {name}\n\nTest tapes: {len(test)}. Trials so far: {n_trials}.\n\n## Pooled\n\n"
-        + to_markdown(summary) + "\n\n## Per tape\n\n" + to_markdown(per_tape) + "\n"
+        f"# {name}\n\nFolds: {len(fold_table)}. Out-of-sample bars: {len(pooled[reference])}. "
+        f"Trials so far: {n_trials}.\n\n## Out-of-sample summary (all folds)\n\n"
+        + to_markdown(summary) + "\n\n## Pooled Sharpe per fold\n\n" + to_markdown(fold_table)
+        + "\n\n## Per tape\n\n" + to_markdown(pd.concat(per_tape_tables)) + "\n"
     )
     _append_jsonl(Path(out_root) / "trials.jsonl", {"name": name, "config": copy.deepcopy(cfg),
                                                      "summary": result["summary"]})

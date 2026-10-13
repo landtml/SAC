@@ -23,14 +23,33 @@ def test_run_experiment_writes_report_and_counts_trials(tmp_path):
     res = run_experiment(CFG, tmp_path)
     assert {"sac_seed0", "sac_seed1", "sac_ensemble", "sac_banded", "flat", "buy_and_hold",
             "trend"} <= set(res["summary"])
-    assert res["no_trade_band"]["chosen"] in res["no_trade_band"]["val_sharpe"]
+    band = res["folds"][0]["no_trade_band"]
+    assert band["chosen"] in band["val_sharpe"]
     assert res["summary"]["flat"]["sharpe"] == 0.0
     out = tmp_path / "tiny"
-    assert (out / "agent_seed0.pt").exists() and "## Pooled" in (out / "report.md").read_text()
+    assert (out / "agent_fold0_seed0.pt").exists() and "## Out-of-sample summary" in (out / "report.md").read_text()
     res2 = run_experiment({**CFG, "name": "tiny2", "seeds": [0]}, tmp_path)
     assert res2["n_trials"] == 2
     rows = [json.loads(line) for line in open(tmp_path / "trials.jsonl")]
     assert [r["name"] for r in rows] == ["tiny", "tiny2"]
+
+
+def test_walk_forward_folds_warm_start_and_stitch(tmp_path):
+    cfg = {**CFG, "name": "wf", "seeds": [0], "data": {"start": "2021-01", "end": "2021-04"},
+           "walk_forward": {"first_test": "2021-02-15", "end": "2021-04-01", "test": "21D",
+                            "val": "10D", "embargo": "1D", "warm_start": True, "fold_steps": 600},
+           "train": {**CFG["train"], "target_entropy_end_scale": 2.0}}
+    del cfg["split"]
+    res = run_experiment(cfg, tmp_path)
+    assert res["n_folds"] == 3
+    tests = [f["test"] for f in res["folds"]]
+    assert all(a[1] <= b[0] for a, b in zip(tests, tests[1:], strict=False))
+    pooled = __import__("pandas").read_csv(tmp_path / "wf" / "pooled_returns.csv", index_col=0)
+    # two full 21-day folds plus a last fold clipped at the data end (2021-04-01)
+    assert pooled.index.is_unique and len(pooled) > 2 * 21 * 24
+    logs = [json.loads(line) for line in open(tmp_path / "wf" / "train_log.jsonl")]
+    assert {r["fold"] for r in logs} == {0, 1, 2}
+    assert logs[-1]["target_entropy"] < -1.0
 
 
 def test_cli_run(tmp_path, capsys):

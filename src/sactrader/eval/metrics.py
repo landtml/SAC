@@ -64,6 +64,7 @@ def summarize(res_or_returns, bars_per_year: float) -> dict[str, float]:
     else:
         sortino = 0.0
 
+    # cvar_95 below: mean of the worst 5% of per-bar returns (expected shortfall).
     nonzero = r[r != 0.0]
     hit_rate = float(np.mean(nonzero > 0.0)) if nonzero.size else 0.0
 
@@ -84,6 +85,7 @@ def summarize(res_or_returns, bars_per_year: float) -> dict[str, float]:
         "hit_rate": hit_rate,
         "skew": skew,
         "kurtosis": kurt,
+        "cvar_95": float(np.sort(r)[: max(1, int(np.ceil(0.05 * n)))].mean()),
         "n_bars": float(n),
     }
     if is_result:
