@@ -32,7 +32,7 @@ from sactrader.eval.report import (
     summary_from_pooled,
     to_markdown,
 )
-from sactrader.eval.stats import probabilistic_sharpe_ratio
+from sactrader.eval.stats import dsr_summary, probabilistic_sharpe_ratio
 from sactrader.pipeline import Period, SplitSpec, load_frames, split_tapes, to_tapes
 from sactrader.tape import DEFAULT_COSTS, MarketTape
 from sactrader.train import TrainConfig, sharpe, train
@@ -226,8 +226,9 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     pooled = {strat: pooled_returns(run, all_tapes, start_row) for strat, run in all_runs.items()}
     bpy = float(np.median([tp.bars_per_year for tp in all_tapes]))
     reference = cfg.get("reference", "buy_and_hold")
-    n_trials = _count_trials(Path(out_root)) + 1
-    summary = summary_from_pooled(pooled, bpy, reference, n_trials=n_trials)
+    sac_sr = {s: _per_bar_sharpe(series) for s, series in pooled.items() if s.startswith("sac_")}
+    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()))
+    summary = summary_from_pooled(pooled, bpy, reference, n_trials=n_trials, sr_variance=sr_var)
     fold_table = pd.DataFrame([{"fold": f["fold"], **f["pooled_sharpe"]} for f in folds
                                if "pooled_sharpe" in f])
     result = {
@@ -246,9 +247,64 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
         + to_markdown(summary) + "\n\n## Pooled Sharpe per fold\n\n" + to_markdown(fold_table)
         + "\n\n## Per tape\n\n" + to_markdown(pd.concat(per_tape_tables)) + "\n"
     )
-    _append_jsonl(Path(out_root) / "trials.jsonl", {"name": name, "config": copy.deepcopy(cfg),
-                                                     "summary": result["summary"]})
+    _append_jsonl(Path(out_root) / "trials.jsonl", {
+        "name": name, "universe": cfg["universe"], "config": copy.deepcopy(cfg),
+        "sac_sr_bar": sac_sr, "n_bars": len(pooled[reference]), "summary": result["summary"]})
     return result
+
+
+def _per_bar_sharpe(series: pd.Series) -> float:
+    r = series.to_numpy()
+    sd = r.std(ddof=1)
+    return float(r.mean() / sd) if sd > 0 else 0.0
+
+
+def trial_stats(root: Path, universe: str, current: list[float]) -> tuple[int, float | None]:
+    """Trial count and cross-trial Sharpe variance for the deflated Sharpe ratio.
+
+    Every SAC variant reported on ``universe`` counts as one trial: each seed, the ensemble and
+    the banded and gated versions, across all earlier experiments in ``root`` plus ``current``.
+    The variance is that of their per-bar Sharpe ratios (None below two trials, which leaves the
+    zero-skill floor).
+    """
+    srs = list(current)
+    path = root / "trials.jsonl"
+    if path.exists():
+        for line in open(path):
+            row = json.loads(line)
+            if row.get("universe") == universe:
+                srs.extend(row.get("sac_sr_bar", {}).values())
+    n = max(len(srs), 1)
+    return n, (float(np.var(srs, ddof=1)) if len(srs) > 1 else None)
+
+
+def recompute_dsr(root: str | Path) -> pd.DataFrame:
+    """DSR table for every run under ``root`` that saved pooled returns, with trials and
+    cross-trial variance counted per universe over all those runs."""
+    root = Path(root)
+    runs = []
+    for d in sorted(p for p in root.iterdir() if (p / "pooled_returns.csv").exists()):
+        cfg = load_config(d / "config.yaml")
+        pooled = pd.read_csv(d / "pooled_returns.csv", index_col=0, parse_dates=True)
+        runs.append((d.name, cfg, pooled))
+    by_universe: dict[str, list[float]] = {}
+    for _, cfg, pooled in runs:
+        srs = [_per_bar_sharpe(pooled[c].dropna()) for c in pooled.columns if c.startswith("sac_")]
+        by_universe.setdefault(cfg["universe"], []).extend(srs)
+    rows = []
+    for name, cfg, pooled in runs:
+        srs = by_universe[cfg["universe"]]
+        var = float(np.var(srs, ddof=1)) if len(srs) > 1 else None
+        bpy = _bars_per_year(pooled.index)
+        for col in pooled.columns:
+            d = dsr_summary(pooled[col].dropna().to_numpy(), bpy, len(srs), var)
+            rows.append({"run": name, "universe": cfg["universe"], "strategy": col, **d})
+    return pd.DataFrame(rows)
+
+
+def _bars_per_year(index: pd.DatetimeIndex) -> float:
+    span = (index[-1] - index[0]).total_seconds() / (365.25 * 86400)
+    return (len(index) - 1) / span if span > 0 else float("nan")
 
 
 def _append_jsonl(path: Path, row: dict) -> None:
@@ -256,6 +312,3 @@ def _append_jsonl(path: Path, row: dict) -> None:
         f.write(json.dumps(row, default=float) + "\n")
 
 
-def _count_trials(root: Path) -> int:
-    path = root / "trials.jsonl"
-    return sum(1 for _ in open(path)) if path.exists() else 0

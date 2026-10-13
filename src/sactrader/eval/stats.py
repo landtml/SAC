@@ -69,6 +69,64 @@ def deflated_sharpe_ratio(returns, n_trials: int, sr_variance: float) -> float:
     return probabilistic_sharpe_ratio(returns, sr_benchmark=benchmark)
 
 
+def sharpe_moments(returns) -> dict[str, float]:
+    """Per-bar Sharpe ratio, skew, raw kurtosis and length of a return series."""
+    r = np.asarray(returns, dtype=np.float64)
+    sd = r.std(ddof=1)
+    sr = float(r.mean() / sd) if dispersion_ok(r, np.asarray(sd)) else 0.0
+    if sr == 0.0:
+        return {"n": float(r.size), "sr": 0.0, "skew": 0.0, "kurt": 3.0}
+    return {"n": float(r.size), "sr": sr, "skew": float(stats.skew(r)),
+            "kurt": float(stats.kurtosis(r, fisher=False))}
+
+
+def null_sr_variance(n: int) -> float:
+    """Variance of the per-bar Sharpe estimate of a zero-skill strategy over ``n`` bars.
+
+    With N such trials the estimates scatter with this variance, so it is the smallest honest
+    value for the cross-trial variance in the deflated Sharpe ratio.
+    """
+    return 1.0 / max(n - 1, 1)
+
+
+def min_track_record_length(returns, sr_benchmark: float = 0.0, prob: float = 0.95) -> float:
+    """Bars needed for PSR(sr_benchmark) to reach ``prob`` given the series' Sharpe and moments
+    (Bailey and Lopez de Prado, 2012). Infinite when the Sharpe does not exceed the benchmark."""
+    m = sharpe_moments(returns)
+    if m["sr"] <= sr_benchmark:
+        return float("inf")
+    var_term = 1.0 - m["skew"] * m["sr"] + (m["kurt"] - 1.0) / 4.0 * m["sr"] ** 2
+    z = stats.norm.ppf(prob)
+    return float(1.0 + max(var_term, 0.0) * (z / (m["sr"] - sr_benchmark)) ** 2)
+
+
+def dsr_summary(returns, bars_per_year: float, n_trials: int,
+                sr_variance: float | None = None) -> dict[str, float]:
+    """Deflated Sharpe ratio report for one series.
+
+    ``sr_variance`` is the variance of per-bar Sharpe ratios across the ``n_trials``
+    configurations tried on the same data. It is floored at ``null_sr_variance(n)``; ``None``
+    uses that floor alone. Keys: annualized Sharpe, per-bar moments, PSR against zero, the
+    expected maximum Sharpe of ``n_trials`` zero-skill trials (``sr0``, per bar and annualized),
+    DSR = PSR against ``sr0``, and the minimum track record (bars and years) for PSR(0) >= 0.95.
+    """
+    r = np.asarray(returns, dtype=np.float64)
+    m = sharpe_moments(r)
+    floor = null_sr_variance(r.size)
+    var = floor if sr_variance is None else max(float(sr_variance), floor)
+    sr0 = expected_max_sharpe(max(int(n_trials), 1), var)
+    ann = float(np.sqrt(bars_per_year))
+    min_trl = min_track_record_length(r)
+    return {
+        "sharpe": m["sr"] * ann, "sr_bar": m["sr"], "skew": m["skew"], "kurt": m["kurt"],
+        "n_bars": m["n"], "n_trials": float(n_trials), "sr_variance": var,
+        "psr": probabilistic_sharpe_ratio(r) if r.size >= 3 else float("nan"),
+        "sr0_bar": sr0, "sr0": sr0 * ann,
+        "dsr": probabilistic_sharpe_ratio(r, sr_benchmark=sr0) if r.size >= 3 else float("nan"),
+        "min_trl_bars": min_trl, "min_trl_years": min_trl / bars_per_year,
+    }
+
+
 def stationary_bootstrap_indices(
     n: int, mean_block: float, n_boot: int, rng: np.random.Generator
 ) -> np.ndarray:

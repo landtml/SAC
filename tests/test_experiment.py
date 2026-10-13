@@ -30,10 +30,26 @@ def test_run_experiment_writes_report_and_counts_trials(tmp_path):
     assert res["summary"]["flat"]["sharpe"] == 0.0
     out = tmp_path / "tiny"
     assert (out / "agent_fold0_seed0.pt").exists() and "## Out-of-sample summary" in (out / "report.md").read_text()
+    assert res["n_trials"] == 5  # two seeds, ensemble, banded, gated
     res2 = run_experiment({**CFG, "name": "tiny2", "seeds": [0]}, tmp_path)
-    assert res2["n_trials"] == 2
+    assert res2["n_trials"] == 8  # earlier five plus seed, banded, gated
     rows = [json.loads(line) for line in open(tmp_path / "trials.jsonl")]
     assert [r["name"] for r in rows] == ["tiny", "tiny2"]
+
+
+def test_recompute_dsr_counts_trials_per_universe(tmp_path):
+    from sactrader.experiment import recompute_dsr
+
+    run_experiment({**CFG, "name": "a", "seeds": [0]}, tmp_path)
+    run_experiment({**CFG, "name": "b", "seeds": [1]}, tmp_path)
+    table = recompute_dsr(tmp_path)
+    assert set(table["run"]) == {"a", "b"}
+    assert (table["n_trials"] == 6).all()
+    sac = table[table["strategy"].str.startswith("sac_")]
+    finite = sac.dropna(subset=["dsr", "psr"])  # a gated, never-deployed series is flat
+    assert (finite["dsr"] <= finite["psr"] + 1e-12).all()
+    assert main(["dsr", "--runs", str(tmp_path)]) == 0
+    assert (tmp_path / "dsr.md").exists()
 
 
 def test_walk_forward_folds_warm_start_and_stitch(tmp_path):

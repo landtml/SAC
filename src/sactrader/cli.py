@@ -1,4 +1,5 @@
-"""Command line: ``sactrader download <universe>`` and ``sactrader run <config.yaml>``."""
+"""Command line: ``sactrader download <universe>``, ``sactrader run <config.yaml>``,
+``sactrader dsr``."""
 
 from __future__ import annotations
 
@@ -22,7 +23,21 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("config")
     run.add_argument("--out", default="runs")
 
+    dsr = sub.add_parser("dsr", help="recompute deflated Sharpe ratios over all saved runs")
+    dsr.add_argument("--runs", default="runs")
+
     args = parser.parse_args(argv)
+    if args.cmd == "dsr":
+        from sactrader.eval.report import to_markdown
+        from sactrader.experiment import recompute_dsr
+
+        table = recompute_dsr(args.runs)
+        cols = ["run", "strategy", "sharpe", "psr", "n_trials", "sr0", "dsr", "min_trl_years",
+                "n_bars", "skew", "kurt"]
+        text = to_markdown(table[cols])
+        (__import__("pathlib").Path(args.runs) / "dsr.md").write_text(text + "\n")
+        print(text)
+        return 0
     if args.cmd == "download":
         from sactrader.pipeline import load_frames
 

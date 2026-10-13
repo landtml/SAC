@@ -16,12 +16,8 @@ import numpy as np
 import pandas as pd
 
 from sactrader.eval.backtest import backtest_exposures
-from sactrader.eval.metrics import sharpe, summarize
-from sactrader.eval.stats import (
-    deflated_sharpe_ratio,
-    probabilistic_sharpe_ratio,
-    sharpe_diff_test,
-)
+from sactrader.eval.metrics import summarize
+from sactrader.eval.stats import dsr_summary, sharpe_diff_test
 from sactrader.tape import MarketTape
 
 Run = list[dict[str, np.ndarray]]
@@ -32,7 +28,8 @@ PER_TAPE_COLUMNS = [
 ]
 SUMMARY_COLUMNS = [
     "strategy", "total_return", "cagr", "sharpe", "sortino", "max_drawdown", "calmar",
-    "ann_vol", "cvar_95", "psr", "dsr", "sharpe_diff", "diff_lo", "diff_hi", "p_value",
+    "ann_vol", "cvar_95", "psr", "sr0", "dsr", "min_trl_years", "sharpe_diff", "diff_lo",
+    "diff_hi", "p_value",
 ]
 _METRIC_KEYS = ("total_return", "cagr", "sharpe", "sortino", "max_drawdown", "calmar", "ann_vol",
                 "cvar_95")
@@ -153,17 +150,18 @@ def summary_from_pooled(
 ) -> pd.DataFrame:
     """One row per strategy over a pooled return series, with tests against ``reference``.
 
-    ``psr`` tests the per-bar Sharpe against zero. ``dsr`` deflates it for ``n_trials``
-    trials. Without ``sr_variance``, the variance comes from the per-bar Sharpe ratios of
-    the strategies in ``pooled``. The diff columns run a paired bootstrap of the annualized
-    Sharpe difference on the timestamps both series share. The reference row leaves them NaN.
+    Deflated Sharpe ratio framework (Bailey and Lopez de Prado, 2012 and 2014): ``psr`` is the
+    probability that the true Sharpe exceeds zero, ``sr0`` the annualized Sharpe that the best of
+    ``n_trials`` zero-skill configurations would show by luck, ``dsr`` the probability that the
+    true Sharpe exceeds ``sr0``, and ``min_trl_years`` the track record needed for ``psr`` to
+    reach 0.95. ``sr_variance`` is the cross-trial variance of per-bar Sharpe ratios, floored
+    at the zero-skill estimation variance; ``None`` uses the floor. The diff columns run a paired
+    bootstrap of the annualized Sharpe difference on the timestamps both series share. The
+    reference row leaves them NaN.
     """
     if reference not in pooled:
         raise ValueError(f"reference {reference!r} is not a strategy in pooled")
     bpy = float(bars_per_year)
-    if sr_variance is None:
-        per_bar = [float(sharpe(s.to_numpy(), 1.0)) for s in pooled.values()]
-        sr_variance = float(np.var(per_bar, ddof=1)) if len(per_bar) > 1 else 0.0
     ref = pooled[reference]
     rows = []
     for name, series in pooled.items():
@@ -171,8 +169,8 @@ def summary_from_pooled(
         m = summarize(r, bpy)
         row: dict[str, float | str] = {"strategy": name}
         row.update({k: m[k] for k in _METRIC_KEYS})
-        row["psr"] = probabilistic_sharpe_ratio(r)
-        row["dsr"] = deflated_sharpe_ratio(r, n_trials, sr_variance)
+        d = dsr_summary(r, bpy, n_trials, sr_variance)
+        row.update(psr=d["psr"], sr0=d["sr0"], dsr=d["dsr"], min_trl_years=d["min_trl_years"])
         if name == reference:
             row.update(dict.fromkeys(_DIFF_KEYS, np.nan))
         else:

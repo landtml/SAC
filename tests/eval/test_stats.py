@@ -88,3 +88,34 @@ def test_pbo_rejects_bad_shapes():
         pbo_cscv(np.zeros((40, 1)), n_splits=4)
     with pytest.raises(ValueError):
         pbo_cscv(np.zeros((40, 3)), n_splits=5)
+
+
+def test_min_track_record_length_is_where_psr_crosses_95pct():
+    from sactrader.eval.stats import min_track_record_length, probabilistic_sharpe_ratio
+
+    rng = np.random.default_rng(7)
+    r = rng.normal(0.02, 1.0, 50_000)
+    trl = min_track_record_length(r)
+    assert np.isfinite(trl) and trl > 1
+    # PSR uses sqrt(n - 1); at n = trl the z-score equals the 95% quantile by construction.
+    head = r[: int(np.ceil(trl)) + 1]
+    m_full = probabilistic_sharpe_ratio(r)
+    assert m_full > 0.95
+    assert min_track_record_length(-np.abs(r)) == np.inf
+    assert 0.80 < probabilistic_sharpe_ratio(head) < 0.999
+
+
+def test_dsr_summary_deflates_with_trials_and_floors_variance():
+    from sactrader.eval.stats import dsr_summary, null_sr_variance
+
+    rng = np.random.default_rng(3)
+    r = rng.normal(0.01, 1.0, 5000)
+    one = dsr_summary(r, 252, n_trials=1)
+    assert one["sr0"] == 0.0 and one["dsr"] == pytest.approx(one["psr"])
+    many = dsr_summary(r, 252, n_trials=50)
+    assert many["sr0"] > 0 and many["dsr"] < one["dsr"]
+    tiny = dsr_summary(r, 252, n_trials=50, sr_variance=1e-12)
+    assert tiny["sr_variance"] == pytest.approx(null_sr_variance(5000))
+    big = dsr_summary(r, 252, n_trials=50, sr_variance=1e-2)
+    assert big["dsr"] < many["dsr"]
+    assert one["sharpe"] == pytest.approx(one["sr_bar"] * np.sqrt(252))
