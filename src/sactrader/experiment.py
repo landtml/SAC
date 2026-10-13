@@ -88,7 +88,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
                          symbols=cfg.get("symbols"), max_markets=data.get("max_markets", 300),
                          min_volume=data.get("min_volume", 1e6),
-                         implied_vol=bool(data.get("implied_vol", False)))
+                         implied_vol=bool(data.get("implied_vol", False)),
+                         premium=bool(data.get("premium", False)))
     if data.get("resample"):
         frames = [resample_frame(f, data["resample"]) for f in frames]
     overrides = cfg.get("costs") or {}

@@ -75,6 +75,10 @@ def spread_frame(long_leg: pd.DataFrame, short_leg: pd.DataFrame, symbol: str) -
         common, open_, np.maximum(open_, close), np.minimum(open_, close), close, volume,
         symbol=symbol, kind="perp", bar=bar, funding_rate=funding,
     )
+    # The perp premium index leads funding; it nets across the legs with funding's sign.
+    if "premium" in a or "premium" in b:
+        frame["premium"] = (a["premium"].to_numpy(dtype=np.float64) if "premium" in a else zero) - (
+            b["premium"].to_numpy(dtype=np.float64) if "premium" in b else zero)
     # Shorting the spread shorts the long leg; a spot leg must then be borrowed.
     frame.attrs["short_borrow"] = long_leg.attrs.get("kind") == "spot"
     return frame

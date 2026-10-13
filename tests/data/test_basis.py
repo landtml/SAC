@@ -124,3 +124,15 @@ def test_short_basis_pays_spot_borrow_on_the_tape():
     extra = with_borrow.carry_short[:-1] - without.carry_short[:-1]
     np.testing.assert_allclose(extra, 0.1 / with_borrow.bars_per_year)
     np.testing.assert_array_equal(with_borrow.carry_long, without.carry_long)
+
+
+def test_spread_nets_the_premium_with_fundings_sign():
+    idx = pd.date_range("2024-01-01", periods=4, freq="1D", tz="UTC")
+    c = np.array([100.0, 101.0, 102.0, 103.0])
+    spot = make_frame(idx, c, c, c, c, np.ones(4), symbol="BTCUSDT", kind="spot", bar="1D")
+    perp = make_frame(idx, c, c, c, c, np.ones(4), symbol="BTCUSDT", kind="perp", bar="1D",
+                      funding_rate=np.full(4, 1e-4))
+    perp["premium"] = [2e-4, -1e-4, 0.0, 3e-4]
+    out = basis_frame(spot, perp)
+    np.testing.assert_allclose(out["premium"].to_numpy(), [-2e-4, 1e-4, 0.0, -3e-4])
+    assert "premium" not in basis_frame(spot, perp.drop(columns="premium")).columns

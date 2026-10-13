@@ -39,7 +39,8 @@ class SplitSpec:
 
 def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
-                min_volume: float = 1e6, implied_vol: bool = False) -> list[pd.DataFrame]:
+                min_volume: float = 1e6, implied_vol: bool = False,
+                premium: bool = False) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi`` or ``synthetic``.
 
@@ -50,7 +51,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     cross-venue funding spread (long Binance perp, short Hyperliquid perp), both daily from
     mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
     FRED. ``implied_vol`` joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
-    every other coin, the crypto market's implied volatility).
+    every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
+    premium index, which leads the next funding payment, onto Binance perp legs.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
     (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
@@ -77,6 +79,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
 
         load = binance.load_perp if universe == "crypto_perp" else binance.load_spot
         frames = [load(s, "1h", start, end) for s in (symbols or CRYPTO_SYMBOLS)]
+        if premium and universe == "crypto_perp":
+            frames = [_with_premium(f) for f in frames]
         if implied_vol:
             from sactrader.data.deribit import attach_implied_vol
 
@@ -96,7 +100,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 continue
             short = hyperliquid.load_perp(coin, "1d", hl_start, end)
             long_load = binance.load_spot if universe == "hl_basis" else binance.load_perp
-            long = resample_frame(long_load(s, "1h", start, end), "1D")
+            long = long_load(s, "1h", start, end)
+            if premium and universe == "perp_spread":
+                long = _with_premium(long)
+            long = resample_frame(long, "1D")
             tag = "HLBASIS" if universe == "hl_basis" else "XVENUE"
             frames.append(spread_frame(long, short, f"{coin}-{tag}"))
         return frames
@@ -104,7 +111,9 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         from sactrader.data import binance
         from sactrader.data.basis import basis_frame
 
-        return [basis_frame(binance.load_spot(s, "1h", start, end), binance.load_perp(s, "1h", start, end))
+        perp = binance.load_perp
+        return [basis_frame(binance.load_spot(s, "1h", start, end),
+                            _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
                 for s in (symbols or CRYPTO_SYMBOLS)]
     if universe == "macro":
         from sactrader.data.fred_markets import load_fred_market
@@ -148,6 +157,12 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 continue  # too short, no start date, or no price history
         return frames
     raise ValueError(f"unknown universe {universe!r}")
+
+
+def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
+    from sactrader.data.premium import attach_premium
+
+    return attach_premium(frame)
 
 
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,

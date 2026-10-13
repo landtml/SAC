@@ -282,3 +282,15 @@ def test_implied_vol_features_compare_implied_with_realized(bar):
     assert abs(float(out["iv_rv"].iloc[300]) - np.log(0.5 / sigma_ann)) < 0.3
     assert float(out["iv_change"].iloc[401]) == pytest.approx(np.log(0.8 / 0.5), rel=1e-5)
     assert float(out["iv_change"].iloc[410]) == 0.0
+
+
+def test_premium_features_in_basis_points():
+    from sactrader.data.synthetic import gbm, with_funding
+
+    frame = with_funding(gbm(400, sigma=0.01, seed=2, symbol="P"), seed=3)
+    frame["premium"] = 2e-4
+    frame.iloc[:10, frame.columns.get_loc("premium")] = np.nan
+    out = compute_features(frame, FeatureConfig(horizons=(1, 4), ema_spans=(4,), vol_long_span=16))
+    assert (out["premium_bps"].iloc[:10] == 0).all()
+    assert out["premium_bps"].iloc[-1] == pytest.approx(2.0)
+    assert 0 < out["premium_ewm"].iloc[12] < 2.0

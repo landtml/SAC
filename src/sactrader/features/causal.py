@@ -24,6 +24,7 @@ _FLOOR = 1e-8
 _BINARY_LAGS = (1, 4, 24)
 _FUNDING_EWM_SPAN = 64
 _TAKER_SPAN = 8
+_PREMIUM_EWM_SPAN = 8
 _PARKINSON = 4.0 * np.log(2.0)
 
 
@@ -141,6 +142,12 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         iv = frame["implied_vol"].astype("float64").clip(lower=_FLOOR)
         cols["iv_rv"] = np.log(iv / (sigma * np.sqrt(bars_per_year))).fillna(0.0)
         cols["iv_change"] = np.log(iv / iv.shift(cfg.horizons[1])).fillna(0.0)
+
+    if "premium" in frame.columns:
+        # The perp premium over its index sets the next funding payment, so it leads funding.
+        prem_bps = frame["premium"].astype("float64").fillna(0.0) * 1e4
+        cols["premium_bps"] = prem_bps
+        cols["premium_ewm"] = prem_bps.ewm(span=_PREMIUM_EWM_SPAN, adjust=False).mean()
 
     if "rate_diff" in frame.columns:
         # 5% differential maps to 1.0, the carry signal behind forex carry trades.
