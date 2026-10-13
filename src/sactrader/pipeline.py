@@ -16,6 +16,8 @@ CRYPTO_SYMBOLS = (
 )
 FX_PAIRS = ("EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF")
 FRED_MARKET_NAMES = ("SPX", "NDX", "NKY", "WTI", "BRENT", "UST10", "UST2")
+# Emerging-market pairs with a short-rate series on both sides (THB and SGD have none on FRED).
+EM_CARRY_PAIRS = ("USDMXN", "USDZAR", "USDBRL", "USDINR", "USDKRW", "USDCNY")
 # Hyperliquid funding history starts in May 2023.
 HYPERLIQUID_START = "2023-06"
 # Binary markets live for weeks, not years: shorter horizons keep more of each market after warm-up.
@@ -41,7 +43,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi`` or ``synthetic``.
 
-    ``crypto_basis`` is the cash-and-carry spread of each symbol (long spot, short perp), a
+    ``fx_em`` holds emerging-market dollar pairs with their short-rate differentials, where the
+    carry premium is larger than among G10 pairs. ``crypto_basis`` is the cash-and-carry spread of each symbol (long spot, short perp), a
     carry trade whose return is mostly funding. ``hl_basis`` is the same trade against
     Hyperliquid's perp (long Binance spot, short Hyperliquid perp) and ``perp_spread`` the
     cross-venue funding spread (long Binance perp, short Hyperliquid perp), both daily from
@@ -106,7 +109,17 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     if universe == "macro":
         from sactrader.data.fred_markets import load_fred_market
 
-        return [load_fred_market(m, start, end) for m in (symbols or FRED_MARKET_NAMES)]
+        frames = [load_fred_market(m, start, end) for m in (symbols or FRED_MARKET_NAMES)]
+        if implied_vol:
+            from sactrader.data.vol_indices import attach_fred_implied_vol
+
+            frames = [attach_fred_implied_vol(f) for f in frames]
+        return frames
+    if universe == "fx_em":
+        from sactrader.data import fx, rates
+
+        return [rates.attach_rate_diff(fx.load_fx_daily(p, start=f"{start}-01"))
+                for p in (symbols or EM_CARRY_PAIRS)]
     if universe == "fx":
         from sactrader.data import fx, rates
 

@@ -262,10 +262,15 @@ def test_warmup_follows_config():
         assert np.nanmax(np.abs(out.to_numpy())) <= 0.5
 
 
-def test_implied_vol_features_compare_implied_with_realized():
+@pytest.mark.parametrize("bar", ["1h", "1D"])
+def test_implied_vol_features_compare_implied_with_realized(bar):
     from sactrader.data.synthetic import gbm
 
     frame = gbm(600, sigma=0.01, seed=3, symbol="BTCUSDT")
+    if bar == "1D":
+        frame.index = pd.date_range("2020-01-01", periods=len(frame), freq="1D", tz="UTC",
+                                    name="time")
+        frame.attrs["bar"] = "1D"
     iv = np.full(len(frame), 0.5)
     iv[:100] = np.nan  # the implied series starts later than the prices
     iv[400:] = 0.8
@@ -273,7 +278,7 @@ def test_implied_vol_features_compare_implied_with_realized():
     out = compute_features(frame, FeatureConfig(horizons=(1, 4, 16), ema_spans=(16,),
                                                 vol_long_span=64))
     assert (out["iv_rv"].iloc[:100] == 0).all() and np.isfinite(out["iv_rv"]).all()
-    sigma_ann = 0.01 * np.sqrt(365.25 * 24)
+    sigma_ann = 0.01 * np.sqrt(365.25 * (24 if bar == "1h" else 1))
     assert abs(float(out["iv_rv"].iloc[300]) - np.log(0.5 / sigma_ann)) < 0.3
     assert float(out["iv_change"].iloc[401]) == pytest.approx(np.log(0.8 / 0.5), rel=1e-5)
     assert float(out["iv_change"].iloc[410]) == 0.0

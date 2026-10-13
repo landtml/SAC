@@ -133,7 +133,11 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
     if "implied_vol" in frame.columns:
         # Implied minus realized volatility (the variance risk premium) and the implied trend.
         # Values before the implied series starts are neutral zeros.
-        bars_per_year = pd.Timedelta("365.25D") / pd.Timedelta(to_offset(frame.attrs["bar"]))
+        # Bars per year from the trailing mean bar spacing, so weekday-only daily data
+        # annualizes with about 260 bars and 24/7 markets with 365 per day.
+        spacing = pd.Series(index.as_unit("ns").asi8, index=index).diff() / 1e9
+        spacing = spacing.fillna(pd.Timedelta(frame.attrs["bar"]).total_seconds())
+        bars_per_year = 365.25 * 86400.0 / spacing.rolling(256, min_periods=1).mean()
         iv = frame["implied_vol"].astype("float64").clip(lower=_FLOOR)
         cols["iv_rv"] = np.log(iv / (sigma * np.sqrt(bars_per_year))).fillna(0.0)
         cols["iv_change"] = np.log(iv / iv.shift(cfg.horizons[1])).fillna(0.0)
