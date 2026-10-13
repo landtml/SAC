@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "SoftEdge"
+type: software
+version: 0.2.0
+date-released: 2026-10-13
+license: MIT
+authors:
+  - name: landtml
+repository-code: "https://github.com/landtml/SAC"
+url: "https://github.com/landtml/SAC"
+keywords:
+  - reinforcement learning
+  - soft actor-critic
+  - algorithmic trading
+  - deflated Sharpe ratio
+  - backtesting
+  - prediction markets
+abstract: >-
+  Soft Actor-Critic trading agents evaluated with walk-forward and combinatorial purged
+  cross-validation, reporting out-of-sample statistics that count every reported variant.
