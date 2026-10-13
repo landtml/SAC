@@ -112,3 +112,22 @@ paired stationary-bootstrap interval for the Sharpe difference against a referen
   closes. This selects markets that drew attention and biases the universe.
 - Price history at hourly fidelity hides spikes inside the hour, and the spread is a constant
   assumption.
+
+## Recent work this design draws on
+
+Survey of the newest arXiv submissions on Soft Actor-Critic and its applications (query run
+through the arXiv API, sorted by submission date, October 2026), with what each changed here.
+
+| Paper | Finding | Use in sactrader |
+| --- | --- | --- |
+| 2609.32819, value divergence in high-UTD SAC | Growing \|Q\| predicts divergence; collapsed representations recover, growing \|Q\| does not | `q_abs_limit` restores the best checkpoint when mean \|Q\| passes a bound |
+| 2610.03369, MoE crypto execution | Seeds vary a lot; annealed exploration removed policy collapses | Multiple seeds and an ensemble; `target_entropy_end_scale` anneals the entropy target |
+| 2609.31870, actor-critic equity benchmark | Forward retraining before each test window helps SAC | `walk_forward` folds with optional warm start |
+| 2606.10448, low-SNR financial SAC | Noisy states plus bootstrapping inflate Q errors ("financial entropy trap") | Clipped scale-free features, truncated quantile critics, validation gate |
+| 2609.38903, DAMPER | Actor-critic policies oscillate; temporal-consistency gradients smooth them | `smooth_coef` penalty on action change between consecutive states |
+| 2609.09478, tanh Jacobian in SAC | Bypassing the tanh Jacobian for bang-bang actions hurts | Standard tanh-Gaussian kept unchanged |
+| 2609.34510, backtest-to-live gap in crypto | Backtests overstate live results under latency and slippage | Cost randomization, impact term; paper trading recommended before capital |
+| 2505.23150 (BRC), 2506.03758 (CrossQ + weight norm) | Categorical critics and weight normalization stabilize larger critics | Candidates for future critic variants |
+
+A JAX port of the full update ran 1.16x faster than PyTorch at 128-wide critics and 0.97x at
+256-wide critics on a 4-vCPU machine, so the reference implementation stays on PyTorch.
