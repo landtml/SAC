@@ -1,5 +1,8 @@
 # Code of Conduct
 
+This document sets the conduct expected of people who take part in SoftEdge, and how to report a
+concern.
+
 This project follows the Contributor Covenant, version 2.1. The full text is at
 https://www.contributor-covenant.org/version/2/1/code_of_conduct/.
 

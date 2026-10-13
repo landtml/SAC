@@ -42,9 +42,10 @@ premia.**
 | --- | --- | --- |
 | Synthetic market with a hidden signal (control) | Sharpe 15.1, signal found | the method works when an edge exists |
 | Random walk (control) | Sharpe -1.5, deflated Sharpe 0.004 | correctly rejected: no false discovery |
-| Synthetic market with hidden regimes and fat tails | Sharpe 3.8, 44% of a perfect-foresight oracle | learns structure a trend rule misses |
+| Synthetic market with hidden regimes and fat tails | Sharpe 3.8 (a perfect-foresight sign oracle reaches 8.6) | beats buy-and-hold, but deflated Sharpe is 0.09 after 40 trials |
 | Forex, 7 major pairs, 2014-2026 | Sharpe 0.35, deflated Sharpe 0.37 | no edge |
-| Crypto futures, 10 coins, price direction, 2023-2026 | Sharpe 0.41 vs 0.64 for a trend rule | no edge |
+| Crypto perpetual futures, 10 coins, price direction, 2023-2026 | Sharpe 0.41 vs 0.64 for a trend rule | no edge |
+| Macro: S&P 500, Nasdaq 100, Nikkei 225, WTI, Brent, 10y and 2y Treasuries, daily | Sharpe 0.07 vs 0.55 for buy-and-hold | no edge |
 | Crypto cash-and-carry, 10 coins, 2023-2026 | +0.49 Sharpe over its simple funding rule (95% CI 0.15 to 0.95) | small, significant gain |
 | Cross-exchange funding spread, 10 coins, 2024-2026 | +0.47 Sharpe over its simple rule (95% CI 0.14 to 0.85) | small, significant gain |
 

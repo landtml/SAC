@@ -1,5 +1,8 @@
 # Contributing to SoftEdge
 
+This page covers setup, the checks a change must pass, and what a result needs before it is
+reported.
+
 ## Setup
 
 ```bash

@@ -1,8 +1,8 @@
 # SoftEdge documentation
 
-SoftEdge asks whether a Soft Actor-Critic agent can find a trading edge that holds up on data it
-never trained on. The [project README](../README.md) gives the overview.
-When the validation gate finds no edge, the agent stays flat.
+This index lists the documentation pages. SoftEdge asks whether a Soft Actor-Critic agent can find
+a trading edge that holds up on data it never trained on. The [project README](../README.md) gives
+the overview.
 
 ## Pages
 
