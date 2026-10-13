@@ -28,7 +28,8 @@ PRICE_FLOOR = 0.001
 PRICE_CEIL = 0.999
 # Minimum gap between requests made by this module.
 REQUEST_INTERVAL_S = 0.2
-COLUMNS = ("id", "slug", "question", "start", "end", "yes_token", "resolution", "volume")
+COLUMNS = ("id", "slug", "question", "start", "end", "scheduled_end", "yes_token", "resolution",
+           "volume")
 
 _last_request = 0.0
 
@@ -97,6 +98,7 @@ def _resolved_row(market: dict) -> dict | None:
         "question": market.get("question") or "",
         "start": _iso(_optional_utc(market.get("startDate"))),
         "end": _iso(_latest(market.get("endDate"), market.get("closedTime"))),
+        "scheduled_end": _iso(_optional_utc(market.get("endDate"))),
         "yes_token": str(tokens[0]),
         "resolution": resolution,
         "volume": float(market.get("volumeNum") or 0.0),
@@ -131,6 +133,7 @@ def _markets_frame(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=list(COLUMNS))
     df["start"] = pd.to_datetime(df["start"], utc=True)
     df["end"] = pd.to_datetime(df["end"], utc=True)
+    df["scheduled_end"] = pd.to_datetime(df["scheduled_end"], utc=True)
     df["resolution"] = df["resolution"].astype(float)
     df["volume"] = df["volume"].astype(float)
     return df
@@ -139,7 +142,9 @@ def _markets_frame(rows: list[dict]) -> pd.DataFrame:
 def list_resolved_markets(min_volume: float = 1e5, max_markets: int = 500) -> pd.DataFrame:
     """Settled YES/NO markets, largest volume first, at most ``max_markets`` rows.
 
-    ``end`` is the later of the end date and the closing time. The result is cached per
+    ``end`` is the later of the end date and the closing time and bounds the price history.
+    ``scheduled_end`` is the end date alone: it was public while the market traded, whereas the
+    closing time reveals when (and often how) the market resolved. The result is cached per
     argument pair and never expires; delete the cache file to refresh it.
     """
     path = cache_dir("polymarket") / f"resolved-{max_markets}-{min_volume:g}.json"
@@ -236,5 +241,8 @@ def load_market(market: pd.Series | dict, bar: str = "1h") -> pd.DataFrame:
         symbol=str(row["slug"])[:60], kind="binary", bar=bar,
         resolution=float(row["resolution"]),
     )
-    frame.attrs["end_time"] = end.isoformat()
+    # Only the scheduled end may feed features; the closing time would leak early resolutions.
+    scheduled = row.get("scheduled_end")
+    if scheduled is not None and not pd.isna(scheduled):
+        frame.attrs["end_time"] = _utc(scheduled).isoformat()
     return frame

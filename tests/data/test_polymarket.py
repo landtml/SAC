@@ -87,6 +87,7 @@ def binary_market(hours: int = 60, **overrides) -> dict:
         "yes_token": TOKEN,
         "start": ts(T0),
         "end": ts(T0 + hours * HOUR),
+        "scheduled_end": ts(T0 + hours * HOUR),
         "resolution": 1.0,
     }
     row.update(overrides)
@@ -247,6 +248,14 @@ def test_frame_matches_binary_contract(monkeypatch):
     assert df.attrs["symbol"] == "s" * 60
     assert df.attrs["resolution"] == 0.0
     assert df.attrs["end_time"] == "2024-01-03T12:00:00+00:00"
+
+
+def test_end_time_is_the_scheduled_end_not_the_close(monkeypatch):
+    serve_clob(monkeypatch, hourly_points(range(60)))
+    df = polymarket.load_market(binary_market(hours=60, scheduled_end=ts(T0 + 100 * HOUR)))
+    assert pd.Timestamp(df.attrs["end_time"]) == pd.Timestamp(ts(T0 + 100 * HOUR))
+    df = polymarket.load_market(binary_market(hours=60, scheduled_end=None))
+    assert "end_time" not in df.attrs
 
 
 @pytest.mark.network
