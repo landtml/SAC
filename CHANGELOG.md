@@ -36,6 +36,8 @@ All notable changes to this project are recorded here. The format follows
   `compare` and `pbo`.
 - Docs: results with controls, real markets and ablations; glossary; getting started; configs
   index; roadmap; design notes. Result figures and method diagrams are in `assets/`.
+- Visuals: an animated README header, an animation of one learning step, PNG renderings for
+  viewers without SVG support, and a live in-browser explainer of SAC published with GitHub Pages.
 
 ### Known limitations
 
