@@ -1,0 +1,21 @@
+name: crypto_perp_1d_wf
+universe: crypto_perp
+data: {start: "2020-01", end: "2026-09", resample: "1D"}
+costs: {fee_bps: 4.5, half_spread_bps: 1.0, max_leverage: 2.0, maint_margin: 0.005}
+walk_forward:
+  first_test: "2023-01-01"
+  end: "2026-09-01"
+  test: "365D"
+  val: "180D"
+  embargo: "5D"
+  warm_start: true
+  fold_steps: 15000
+env: {window: 4, episode_len: 256, n_envs: 16, cost_mult_low: 0.5, cost_mult_high: 2.0}
+sac: {hidden: 64, critic_blocks: 1, actor_hidden: 32, gamma: 0.95, risk: mean,
+      target_entropy_scale: 0.5, smooth_coef: 0.5}
+train: {total_steps: 40000, warmup_steps: 5000, utd: 0.25, relabel_frac: 0.5, eval_every: 500,
+        threads: 1, target_entropy_end_scale: 2.0}
+trend: {lookback: 30, vol_span: 7, target_vol: 0.4}
+deploy: {gate_psr: 0.8}
+seeds: [0, 1]
+reference: buy_and_hold

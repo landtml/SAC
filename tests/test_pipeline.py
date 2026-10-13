@@ -20,3 +20,23 @@ def test_split_cuts_linear_tapes_and_keeps_binary_markets_whole():
     lin_train = parts["train"][0]
     assert pd.Timestamp(int(lin_train.times[-1]), tz="UTC") < pd.Timestamp("2021-02-01", tz="UTC")
     assert not lin_train.terminal_at_end and parts["test"][0].symbol == "L"
+
+
+def test_resample_hourly_perp_to_daily():
+    import numpy as np
+
+    from sactrader.data.schema import validate_frame
+    from sactrader.data.synthetic import with_funding
+    from sactrader.pipeline import resample_frame
+
+    fr = with_funding(gbm(24 * 10, seed=3, symbol="P"), seed=1)
+    fr["taker_buy_base"] = 1.0
+    day = resample_frame(fr, "1D")
+    validate_frame(day)
+    assert len(day) == 10 and day.attrs["bar"] == "1D" and day.attrs["kind"] == "perp"
+    first = fr.iloc[:24]
+    assert day["open"].iloc[0] == first["open"].iloc[0]
+    assert day["close"].iloc[0] == first["close"].iloc[-1]
+    assert day["high"].iloc[0] == first["high"].max() and day["low"].iloc[0] == first["low"].min()
+    assert np.isclose(day["funding_rate"].iloc[0], first["funding_rate"].sum())
+    assert day["taker_buy_base"].iloc[0] == 24.0

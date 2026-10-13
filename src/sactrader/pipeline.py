@@ -134,3 +134,24 @@ def window_tapes(tapes: list[MarketTape], windows, min_rows: int = 64) -> list[M
 def _utc(ts) -> pd.Timestamp:
     t = pd.Timestamp(ts)
     return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")
+
+
+_SUM_COLUMNS = ("volume", "funding_rate", "quote_volume", "trades", "taker_buy_base")
+
+
+def resample_frame(frame: pd.DataFrame, rule: str) -> pd.DataFrame:
+    """Aggregate a linear bar frame to coarser bars: first open, max high, min low, last close,
+    summed volume-like and funding columns, last value of other extras. Bars are labelled by
+    their open time; a coarse bar with no fine bar is dropped."""
+    if frame.attrs["kind"] == "binary":
+        raise ValueError("resample binary markets at download time instead")
+    agg = {"open": "first", "high": "max", "low": "min", "close": "last"}
+    for col in frame.columns:
+        if col not in agg:
+            agg[col] = "sum" if col in _SUM_COLUMNS else "last"
+    out = frame.resample(rule, closed="left", label="left").agg(agg)
+    out = out.dropna(subset=["close"])
+    if "volume" in out and frame["volume"].isna().all():
+        out["volume"] = float("nan")
+    out.attrs = {**frame.attrs, "bar": rule}
+    return out

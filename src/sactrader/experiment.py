@@ -33,7 +33,14 @@ from sactrader.eval.report import (
     to_markdown,
 )
 from sactrader.eval.stats import dsr_summary, probabilistic_sharpe_ratio
-from sactrader.pipeline import Period, SplitSpec, load_frames, split_tapes, to_tapes
+from sactrader.pipeline import (
+    Period,
+    SplitSpec,
+    load_frames,
+    resample_frame,
+    split_tapes,
+    to_tapes,
+)
 from sactrader.tape import DEFAULT_COSTS, MarketTape
 from sactrader.train import TrainConfig, sharpe, train
 
@@ -68,6 +75,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
                          symbols=cfg.get("symbols"), max_markets=data.get("max_markets", 300),
                          min_volume=data.get("min_volume", 1e6))
+    if data.get("resample"):
+        frames = [resample_frame(f, data["resample"]) for f in frames]
     overrides = cfg.get("costs") or {}
 
     def costs(frame):
