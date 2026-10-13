@@ -1,0 +1,13 @@
+name: polymarket
+universe: polymarket
+data: {max_markets: 300, min_volume: 1000000}
+costs: {fee_bps: 0.0, half_spread_abs: 0.005}
+split:
+  train: [null, "2024-07-01"]
+  val: ["2024-07-01", "2025-01-01"]
+  test: ["2025-01-01", null]
+env: {window: 8, episode_len: 1024, n_envs: 16, cost_mult_low: 0.5, cost_mult_high: 2.0, tape_weighting: uniform}
+sac: {hidden: 256, critic_blocks: 2, actor_hidden: 128, gamma: 0.995, risk: mean}
+train: {total_steps: 150000, warmup_steps: 10000, utd: 0.25, relabel_frac: 0.5, eval_every: 2500}
+seeds: [0, 1]
+reference: flat

@@ -35,7 +35,19 @@ class SplitSpec:
 def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6) -> list[pd.DataFrame]:
-    """Bar frames for ``crypto_perp``, ``crypto_spot``, ``fx`` or ``polymarket``."""
+    """Bar frames for ``crypto_perp``, ``crypto_spot``, ``fx``, ``polymarket`` or ``synthetic``.
+
+    ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
+    (column ``signal``) from ``start``; it needs no network and serves as a learnability check.
+    """
+    if universe == "synthetic":
+        from sactrader.data.synthetic import planted_signal
+
+        n = int((pd.Timestamp(end) - pd.Timestamp(start)) / pd.Timedelta("1h"))
+        names = list(symbols or [f"SIG{i}" for i in range(4)])
+        return [planted_signal(n, strength=0.1, sigma=0.01, rho=0.9, seed=i, symbol=name,
+                               start=f"{start}-01" if len(start) == 7 else start)
+                for i, name in enumerate(names)]
     if universe in ("crypto_perp", "crypto_spot"):
         from sactrader.data import binance
 

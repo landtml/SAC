@@ -1,0 +1,13 @@
+name: crypto_perp
+universe: crypto_perp
+data: {start: "2020-01", end: "2026-09"}
+costs: {fee_bps: 4.5, half_spread_bps: 1.0, max_leverage: 2.0, maint_margin: 0.005}
+split:
+  train: [null, "2024-01-01"]
+  val: ["2024-01-01", "2025-01-01"]
+  test: ["2025-01-01", null]
+env: {window: 8, episode_len: 2048, n_envs: 16, cost_mult_low: 0.5, cost_mult_high: 2.0}
+sac: {hidden: 256, critic_blocks: 2, actor_hidden: 128, gamma: 0.99, risk: mean}
+train: {total_steps: 200000, warmup_steps: 10000, utd: 0.25, relabel_frac: 0.5, eval_every: 2500}
+seeds: [0, 1]
+reference: buy_and_hold
