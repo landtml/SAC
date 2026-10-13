@@ -18,12 +18,14 @@ import torch
 import yaml
 
 from sactrader.agent.sac import TQCSAC, SACConfig
-from sactrader.env.vec_env import EnvConfig, TapeSet, rollout
+from sactrader.env.vec_env import N_CONTEXT, EnvConfig, TapeSet, rollout
 from sactrader.eval import baselines
 from sactrader.eval.report import per_tape_table, rollout_exposures, summary_table, to_markdown
 from sactrader.pipeline import Period, SplitSpec, load_frames, split_tapes, to_tapes
 from sactrader.tape import DEFAULT_COSTS, MarketTape
-from sactrader.train import TrainConfig, train
+from sactrader.train import TrainConfig, sharpe, train
+
+NO_TRADE_BANDS = (0.0, 0.05, 0.1, 0.2)
 
 
 def _dataclass_from(cls, overrides: dict | None, base=None):
@@ -71,6 +73,27 @@ def ensemble_policy(agents: list[TQCSAC]):
     return act
 
 
+def banded(act_fn, band: float):
+    """Keep the current exposure unless the policy's target differs from it by more than
+    ``band`` (in units of max leverage). Small rebalances cost spread and fees for little gain."""
+    def act(obs: np.ndarray) -> np.ndarray:
+        a = np.asarray(act_fn(obs), dtype=np.float64).reshape(-1)
+        current = obs[:, -N_CONTEXT].astype(np.float64)
+        return np.where(np.abs(a - current) > band, a, current)
+    return act
+
+
+def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
+    """Band with the best mean validation Sharpe; ties go to the smaller band."""
+    scores = {}
+    for band in NO_TRADE_BANDS:
+        out = rollout(val, banded(act_fn, band))
+        scores[band] = float(np.mean([sharpe(o["ret"], tp.bars_per_year)
+                                      for o, tp in zip(out, val.tapes, strict=True)]))
+    best = max(NO_TRADE_BANDS, key=lambda b: (scores[b], -b))
+    return best, scores
+
+
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     name = cfg["name"]
     out = Path(out_root) / name
@@ -99,8 +122,11 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     runs = {}
     for seed, agent in zip(seeds, agents, strict=True):
         runs[f"sac_seed{seed}"] = rollout(test_ts, lambda o, a=agent: a.act(o, deterministic=True))
+    policy = ensemble_policy(agents)
     if len(agents) > 1:
-        runs["sac_ensemble"] = rollout(test_ts, ensemble_policy(agents))
+        runs["sac_ensemble"] = rollout(test_ts, policy)
+    band, band_scores = choose_band(policy, TapeSet(parts["val"], window, feature_names))
+    runs["sac_banded"] = rollout(test_ts, banded(policy, band))
     runs["flat"] = [rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
     runs["buy_and_hold"] = [rollout_exposures(tp, baselines.buy_and_hold(tp), start_row) for tp in test]
     if test[0].kind != "binary":
@@ -115,6 +141,7 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     result = {
         "name": name,
         "seeds": histories,
+        "no_trade_band": {"chosen": band, "val_sharpe": band_scores},
         "minutes": round((time.time() - t0) / 60, 1),
         "n_trials": n_trials,
         "n_tapes": {k: len(v) for k, v in parts.items()},

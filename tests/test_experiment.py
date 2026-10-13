@@ -21,7 +21,9 @@ CFG = {
 
 def test_run_experiment_writes_report_and_counts_trials(tmp_path):
     res = run_experiment(CFG, tmp_path)
-    assert {"sac_seed0", "sac_seed1", "sac_ensemble", "flat", "buy_and_hold", "trend"} <= set(res["summary"])
+    assert {"sac_seed0", "sac_seed1", "sac_ensemble", "sac_banded", "flat", "buy_and_hold",
+            "trend"} <= set(res["summary"])
+    assert res["no_trade_band"]["chosen"] in res["no_trade_band"]["val_sharpe"]
     assert res["summary"]["flat"]["sharpe"] == 0.0
     out = tmp_path / "tiny"
     assert (out / "agent_seed0.pt").exists() and "## Pooled" in (out / "report.md").read_text()
@@ -38,3 +40,15 @@ def test_cli_run(tmp_path, capsys):
     path.write_text(yaml.safe_dump({**CFG, "seeds": [0]}))
     assert main(["run", str(path), "--out", str(tmp_path / "runs")]) == 0
     assert "sac_seed0" in json.loads(capsys.readouterr().out)
+
+
+def test_band_holds_exposure_inside_threshold():
+    import numpy as np
+
+    from sactrader.env.vec_env import N_CONTEXT
+    from sactrader.experiment import banded
+
+    obs = np.zeros((3, 5 + N_CONTEXT), dtype=np.float32)
+    obs[:, -N_CONTEXT] = [0.5, 0.5, -0.2]
+    act = banded(lambda o: np.array([0.55, 0.9, -0.2]), 0.1)
+    np.testing.assert_allclose(act(obs), [0.5, 0.9, -0.2])
