@@ -101,3 +101,26 @@ def test_recency_weighting_skews_episode_starts_late():
     hi = ts.last_step_row[0]
     assert (late_env.t >= ts.first_row).all() and (late_env.t <= hi).all()
     assert np.median(hi - late_env.t) < 40 < np.median(hi - flat_env.t)
+
+
+def test_train_warm_start_shrink_and_redo_log_dormancy():
+    import json  # noqa: F401
+
+    from sactrader.agent.sac import SACConfig
+    from sactrader.train import TrainConfig, train
+
+    tapes = _tapes()[:2]
+    cfg = TrainConfig(total_steps=640, warmup_steps=160, utd=0.25, eval_every=40, threads=1,
+                      redo_every=50, env=EnvConfig(window=4, episode_len=32, n_envs=8),
+                      sac=SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, batch_size=32))
+    first = train(tapes, tapes[:1], cfg)
+    assert all(0.0 <= h["critic_dormant"] <= 1.0 for h in first.history)
+    warm = train(tapes, tapes[:1], replace_cfg(cfg, warm_shrink=0.8), init_state=first.best_state,
+                 feature_names=first.feature_names)
+    assert warm.history and np.isfinite(warm.history[-1]["critic_loss"])
+
+
+def replace_cfg(cfg, **kw):
+    from dataclasses import replace
+
+    return replace(cfg, **kw)

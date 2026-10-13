@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 from sactrader.agent.factory import make_agent
+from sactrader.agent.plasticity import dormant_fraction, redo_reset, shrink_perturb
 from sactrader.agent.replay import IndexReplay, materialize, relabel
 from sactrader.agent.sac import TQCSAC, SACConfig
 from sactrader.env.vec_env import EnvConfig, TapeSet, VecTradingEnv, rollout
@@ -34,6 +35,11 @@ class TrainConfig:
     # "cosine" decays actor and critic learning rates to lr_min_frac of their start value.
     lr_schedule: str | None = None
     lr_min_frac: float = 0.1
+    # With init_state: interpolate weights toward a fresh initialization by this factor
+    # (shrink-and-perturb, Ash and Adams 2020) so a warm-started agent can still learn.
+    warm_shrink: float | None = None
+    # Gradient updates between ReDo resets of dormant units (Sokar et al., 2023); None disables.
+    redo_every: int | None = None
     seed: int = 0
     threads: int = 4
     env: EnvConfig = field(default_factory=EnvConfig)
@@ -86,6 +92,27 @@ def validation_score(agent: TQCSAC, val: TapeSet) -> tuple[float, dict]:
     }
 
 
+def _critic_input(agent, obs: np.ndarray, action: np.ndarray) -> tuple:
+    x = agent.obs_norm(torch.as_tensor(obs, dtype=torch.float32))
+    a = torch.as_tensor(action, dtype=torch.float32).reshape(-1, 1)
+    net = getattr(agent.critic, "net", agent.critic)
+    # Continuous-action critics take (obs, action); categorical-action critics take obs only.
+    return net, (torch.cat([x, a], dim=-1) if net.inp.weight.shape[1] == x.shape[1] + 1 else x), x
+
+
+def critic_dormant(agent, obs: np.ndarray, action: np.ndarray) -> float:
+    net, inp, _ = _critic_input(agent, obs, action)
+    return dormant_fraction(net, inp)
+
+
+def redo(agent, obs: np.ndarray, action: np.ndarray) -> int:
+    """ReDo on the critic and actor networks; the target critic follows by Polyak averaging."""
+    net, inp, x = _critic_input(agent, obs, action)
+    n = redo_reset(net, inp)
+    n += redo_reset(getattr(agent.actor, "net", agent.actor), x)
+    return n
+
+
 def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg: TrainConfig,
           log: Callable[[dict], None] | None = None, init_state: dict | None = None,
           feature_names: tuple[str, ...] | None = None) -> TrainResult:
@@ -100,6 +127,11 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
     agent = make_agent(ts.obs_dim, cfg.sac, cfg.seed)
     if init_state is not None:
         agent.load_state_dict(init_state)
+        if cfg.warm_shrink is not None and cfg.warm_shrink < 1.0:
+            fresh = make_agent(ts.obs_dim, cfg.sac, cfg.seed + 7919)
+            shrink_perturb(agent.actor, fresh.actor, cfg.warm_shrink)
+            shrink_perturb(agent.critic, fresh.critic, cfg.warm_shrink)
+            agent.critic_target.load_state_dict(agent.critic.state_dict())
     replay = IndexReplay(cfg.replay_capacity)
     scale = cfg.reward_scale or auto_reward_scale(train_tapes, cfg.sac.gamma)
     planned_updates = max(1.0, (cfg.total_steps - cfg.warmup_steps) * cfg.utd)
@@ -147,12 +179,18 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
                 agent.load_state_dict(best_state)
                 agent._make_optimizers()
                 restores += 1
+            if cfg.redo_every and n_updates % cfg.redo_every == 0:
+                redo(agent, obs, sample["action"])
             if cfg.reset_every and agent.updates % cfg.reset_every == 0:
                 agent.reset_networks(cfg.seed + agent.updates)
         if agent.updates - last_eval >= cfg.eval_every:
             last_eval = agent.updates
             rec = {"steps": steps, "updates": agent.updates, "time": time.time() - t0,
                    "restores": restores, "target_entropy": agent.target_entropy, **stats}
+            if replay.size >= cfg.sac.batch_size:
+                probe = replay.sample(cfg.sac.batch_size, rng)
+                rec["critic_dormant"] = critic_dormant(agent, materialize(probe, ts)[0],
+                                                       probe["action"])
             recent = env.completed_returns[-200:]
             rec["train_ep_log_growth"] = float(np.mean(recent)) if recent else float("nan")
             if val is not None:

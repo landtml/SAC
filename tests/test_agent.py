@@ -99,3 +99,16 @@ def test_dropout_and_obs_noise_options_train():
     for _ in range(5):
         stats = agent.update(obs, rng.uniform(-1, 1, 32), rng.normal(size=32), obs, np.zeros(32, bool))
     assert all(np.isfinite(v) for v in stats.values())
+
+
+def test_hlgauss_critic_learns_constant_reward_value():
+    cfg = SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, gamma=0.5, init_alpha=1e-4,
+                    lr_alpha=0.0, lr_critic=3e-3, tau=0.05, critic_type="hlgauss", hl_bins=51,
+                    hl_vmax=5.0)
+    agent = TQCSAC(2, 1, cfg, seed=0)
+    obs = np.random.default_rng(0).normal(size=(64, 2)).astype(np.float32)
+    for _ in range(600):
+        stats = agent.update(obs, np.zeros(64), np.ones(64), obs, np.zeros(64, bool))
+    assert stats["q_mean"] == pytest.approx(2.0, abs=0.2)
+    clone = TQCSAC.from_state_dict(agent.state_dict())
+    np.testing.assert_allclose(clone.act(obs, True), agent.act(obs, True))

@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from sactrader.agent.hlgauss import CategoricalCritic
 from sactrader.agent.networks import QuantileCritic, RunningNorm, TanhGaussianActor
 
 
@@ -50,6 +51,12 @@ class SACConfig:
     critic_dropout: float = 0.0
     # Std of Gaussian noise added to normalized observations in updates (0 disables).
     obs_noise: float = 0.0
+    # "quantile": truncated quantile critics (TQC). "hlgauss": categorical critics trained by
+    # cross-entropy on HL-Gauss projected targets (Farebrother et al., 2024), with clipped
+    # double-Q targets over the ensemble.
+    critic_type: str = "quantile"
+    hl_bins: int = 101
+    hl_vmax: float = 10.0
     # Position levels for categorical SAC; None keeps the continuous tanh-Gaussian policy.
     discrete_levels: tuple[float, ...] | None = None
 
@@ -96,13 +103,23 @@ class TQCSAC:
         self.obs_dim, self.act_dim = obs_dim, act_dim
         self.obs_norm = RunningNorm(obs_dim)
         self.actor = TanhGaussianActor(obs_dim, act_dim, cfg.actor_hidden, cfg.actor_blocks)
-        self.critic = QuantileCritic(obs_dim, act_dim, cfg.n_critics, cfg.n_quantiles,
-                                     cfg.hidden, cfg.critic_blocks, cfg.critic_dropout)
+        self.critic = self._build_critic()
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self.log_alpha = nn.Parameter(torch.tensor(float(np.log(cfg.init_alpha))))
         self.target_entropy = -float(act_dim) * cfg.target_entropy_scale
         self._make_optimizers()
         self.updates = 0
+
+    def _build_critic(self) -> nn.Module:
+        c = self.cfg
+        if c.critic_type == "hlgauss":
+            return CategoricalCritic(self.obs_dim, self.act_dim, c.n_critics, c.hl_bins,
+                                     -c.hl_vmax, c.hl_vmax, c.hidden, c.critic_blocks,
+                                     c.critic_dropout)
+        if c.critic_type != "quantile":
+            raise ValueError(c.critic_type)
+        return QuantileCritic(self.obs_dim, self.act_dim, c.n_critics, c.n_quantiles,
+                              c.hidden, c.critic_blocks, c.critic_dropout)
 
     def _make_optimizers(self) -> None:
         c = self.cfg
@@ -150,23 +167,31 @@ class TQCSAC:
         not_done = 1.0 - torch.as_tensor(terminal, dtype=f32).reshape(-1, 1)
         alpha = self.log_alpha.exp().detach()
 
+        hl = c.critic_type == "hlgauss"
         with torch.no_grad():
             a2, logp2 = self.actor(o2)
-            zt = self.critic_target(o2, a2)  # (E, B, M)
-            b = zt.shape[1]
-            pooled = zt.permute(1, 0, 2).reshape(b, -1).sort(dim=-1).values
-            keep = pooled.shape[-1] - c.drop_quantiles * c.n_critics
-            target = r + not_done * c.gamma * (pooled[:, :keep] - alpha * logp2[:, None])
+            if hl:
+                q2 = self.critic_target.q(o2, a2).min(dim=0).values  # (B,)
+                target = r[:, 0] + not_done[:, 0] * c.gamma * (q2 - alpha * logp2)
+            else:
+                zt = self.critic_target(o2, a2)  # (E, B, M)
+                b = zt.shape[1]
+                pooled = zt.permute(1, 0, 2).reshape(b, -1).sort(dim=-1).values
+                keep = pooled.shape[-1] - c.drop_quantiles * c.n_critics
+                target = r + not_done * c.gamma * (pooled[:, :keep] - alpha * logp2[:, None])
 
         z = self.critic(o, a)
-        critic_loss = quantile_huber(z, target)
+        critic_loss = self.critic.hl.loss(z, target) if hl else quantile_huber(z, target)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), c.grad_clip)
         self.critic_opt.step()
 
         a_pi, logp = self.actor(o)
-        q_pi = self._risk(self.critic(o, a_pi))
+        if hl:
+            q_pi = self.critic.q(o, a_pi).min(dim=0).values
+        else:
+            q_pi = self._risk(self.critic(o, a_pi))
         actor_loss = (alpha * logp - q_pi).mean()
         if c.smooth_coef > 0:
             mu, _ = self.actor(o, deterministic=True)
@@ -191,7 +216,7 @@ class TQCSAC:
             "actor_loss": actor_loss.item(),
             "alpha": float(alpha),
             "entropy": -logp.mean().item(),
-            "q_mean": z.mean().item(),
+            "q_mean": (self.critic.hl.value(z) if hl else z).mean().item(),
         }
 
     def reset_networks(self, seed: int) -> None:
@@ -199,8 +224,7 @@ class TQCSAC:
         torch.manual_seed(seed)
         c = self.cfg
         self.actor = TanhGaussianActor(self.obs_dim, self.act_dim, c.actor_hidden, c.actor_blocks)
-        self.critic = QuantileCritic(self.obs_dim, self.act_dim, c.n_critics, c.n_quantiles,
-                                     c.hidden, c.critic_blocks, c.critic_dropout)
+        self.critic = self._build_critic()
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self._make_optimizers()
 
