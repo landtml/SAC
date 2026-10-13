@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sactrader"
+version = "0.1.0"
+description = "Distributional, risk-aware Soft Actor-Critic for trading crypto spot, perpetual futures, forex and prediction markets"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "scipy>=1.11",
+    "torch>=2.2",
+    "pyyaml>=6",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-xdist>=3", "ruff>=0.5"]
+
+[project.scripts]
+sactrader = "sactrader.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["network: test downloads data from the internet (deselect with -m 'not network')"]
+addopts = "-m 'not network'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY"]
+ignore = ["E501"]
