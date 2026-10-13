@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 440" width="1280" height="440" role="img" aria-labelledby="t">
+  <title id="t">SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly</title>
+  <defs>
+    <linearGradient id="line" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="1220" y2="0">
+      <stop offset="0" stop-color="#1E9E6A"/>
+      <stop offset="0.27586" stop-color="#1E9E6A"/>
+      <stop offset="0.27586" stop-color="#9AA5AE"/>
+      <stop offset="0.43103" stop-color="#9AA5AE"/>
+      <stop offset="0.43103" stop-color="#1E9E6A"/>
+      <stop offset="1" stop-color="#1E9E6A"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .edgar { transform-box: fill-box; transform-origin: 50% 100%; animation: curl 8s ease-in-out infinite; }
+    .spine { transform-box: fill-box; transform-origin: 50% 100%; animation: ripple 2s ease-in-out infinite; }
+    .eye { transform-box: fill-box; transform-origin: 50% 50%; animation: blink 8s ease-in-out infinite; }
+    .price { stroke-dasharray: 1; animation: trace 8s linear infinite; }
+    .band { opacity: 0; animation: band 8s ease-in-out infinite; }
+    .nolabel { opacity: 0; animation: nolabel 8s ease-in-out infinite; }
+
+    @keyframes curl {
+      0%, 15%, 29%, 100% { transform: scale(1, 1); }
+      18%, 26% { transform: scale(0.86, 0.74); }
+    }
+    @keyframes ripple {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-4deg); }
+    }
+    @keyframes blink {
+      0%, 40%, 44%, 76%, 80%, 100% { transform: scaleY(1); }
+      42%, 78% { transform: scaleY(0.1); }
+    }
+    @keyframes trace {
+      0% { stroke-dashoffset: 1; opacity: 0; }
+      3% { opacity: 1; }
+      62% { stroke-dashoffset: 0; opacity: 1; }
+      88% { stroke-dashoffset: 0; opacity: 1; }
+      98% { stroke-dashoffset: 0; opacity: 0; }
+      100% { stroke-dashoffset: 1; opacity: 0; }
+    }
+    @keyframes band {
+      0%, 2% { opacity: 0; }
+      10%, 88% { opacity: 0.2; }
+      98%, 100% { opacity: 0; }
+    }
+    @keyframes nolabel {
+      0%, 15%, 29%, 100% { opacity: 0; }
+      18%, 26% { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .edgar, .spine, .eye, .price, .band, .nolabel { animation: none; }
+      .band { opacity: 0.2; }
+      .price { stroke-dasharray: none; }
+    }
+  </style>
+
+  <rect x="0" y="0" width="1280" height="440" rx="40" fill="#EEF4F2"/>
+
+  <g transform="translate(70 36) scale(0.6)">
+    <g class="edgar">
+      <path class="spine" style="animation-delay: 0s" d="M153.8 251.1 L122.2 214.6 L175 222.4 Z" fill="#5C3A24"/>
+      <path class="spine" style="animation-delay: -0.25s" d="M181.3 216.8 L167.9 170.1 L215.8 195.9 Z" fill="#5C3A24"/>
+      <path class="spine" style="animation-delay: -0.5s" d="M224.6 192.3 L231.3 142.3 L267.5 182.3 Z" fill="#5C3A24"/>
+      <path class="spine" style="animation-delay: -0.75s" d="M277.4 181.4 L303.3 135.4 L322.4 183.7 Z" fill="#5C3A24"/>
+      <path class="spine" style="animation-delay: -1s" d="M332.1 185.5 L373.3 150.2 L372.6 199.8 Z" fill="#5C3A24"/>
+      <path class="spine" style="animation-delay: -1.25s" d="M380.6 204.2 L431.2 184.6 L410.8 228.4 Z" fill="#5C3A24"/>
+      <path class="spine" style="animation-delay: -1.5s" d="M415.9 234.6 L468.5 233.7 L431.4 265.2 Z" fill="#5C3A24"/>
+      <ellipse cx="290" cy="285" rx="150" ry="110" fill="#7A4B2E"/>
+      <rect x="190" y="372" width="44" height="40" rx="20" fill="#5C3A24"/>
+      <rect x="290" y="372" width="44" height="40" rx="20" fill="#5C3A24"/>
+      <ellipse cx="165" cy="300" rx="85" ry="80" fill="#F2D2A9"/>
+      <ellipse cx="91" cy="292" rx="13" ry="11" fill="#2B2D42"/>
+      <g class="eye">
+        <circle cx="150" cy="268" r="11" fill="#2B2D42"/>
+        <circle cx="154" cy="264" r="3.5" fill="#FFFFFF"/>
+      </g>
+      <path d="M112 326 Q124 336 137 326" fill="none" stroke="#2B2D42" stroke-width="6" stroke-linecap="round"/>
+      <polyline points="110,470 175,448 235,458 300,424 368,436 420,392" fill="none" stroke="#1E9E6A" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="420" cy="392" r="10" fill="#1E9E6A"/>
+    </g>
+  </g>
+
+  <text x="430" y="190" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="112" font-weight="700" fill="#2B2D42">Soft<tspan fill="#137A55">Edge</tspan></text>
+  <text font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" fill="#3C4B57">
+    <tspan x="434" y="242">Soft Actor-Critic agents in search of a trading edge,</tspan>
+    <tspan x="434" y="280">measured honestly</tspan>
+  </text>
+
+  <line x1="60" y1="430" x2="1220" y2="430" stroke="#C9D6D2" stroke-width="2"/>
+  <line x1="880" y1="330" x2="880" y2="428" stroke="#9FB3AE" stroke-width="2" stroke-dasharray="4 5"/>
+  <text x="892" y="346" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#3C4B57">out-of-sample</text>
+  <text class="nolabel" x="470" y="346" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#5F6B76">no edge: stay flat</text>
+
+  <rect class="band" x="60" y="414" width="320" height="12" fill="#2F6FD6"/>
+  <rect class="band" x="560" y="414" width="660" height="12" fill="#2F6FD6"/>
+  <path class="price" pathLength="1" d="M60 382.7 L70 385.4 L80 384.1 L90 382.6 L100 378.0 L110 377.3 L120 383.3 L130 385.4 L140 390.5 L150 391.4 L160 392.9 L170 393.3 L180 384.4 L190 388.7 L200 390.9 L210 393.0 L220 384.0 L230 375.3 L240 371.4 L250 369.8 L260 372.1 L270 372.6 L280 375.9 L290 373.2 L300 375.4 L310 377.9 L320 374.9 L330 384.1 L340 386.8 L350 392.7 L360 389.0 L370 385.0 L380 384 L390 384 L400 384 L410 384 L420 384 L430 384 L440 384 L450 384 L460 384 L470 384 L480 384 L490 384 L500 384 L510 384 L520 384 L530 384 L540 384 L550 384 L560 384 L570 383.3 L580 382.8 L590 386.0 L600 387.1 L610 384.7 L620 379.9 L630 377.5 L640 384.0 L650 380.0 L660 381.4 L670 383.7 L680 376.3 L690 377.0 L700 383.9 L710 373.9 L720 372.9 L730 373.0 L740 369.6 L750 372.9 L760 373.3 L770 366.6 L780 371.8 L790 375.9 L800 381.1 L810 388.5 L820 390.0 L830 390.2 L840 383.4 L850 386.5 L860 383.3 L870 381.1 L880 374.9 L890 370.6 L900 368.8 L910 376.1 L920 366.4 L930 360.2 L940 362.8 L950 371.3 L960 375.0 L970 366.0 L980 356 L990 359.5 L1000 357.3 L1010 356 L1020 362.6 L1030 369.4 L1040 371.0 L1050 373.0 L1060 375.9 L1070 384.3 L1080 387.4 L1090 389.8 L1100 392.2 L1110 383.8 L1120 390.3 L1130 394.7 L1140 396.7 L1150 386.0 L1160 382.8 L1170 387.0 L1180 377.8 L1190 377.3 L1200 382.8 L1210 376.3 L1220 384.8" fill="none" stroke="url(#line)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
