@@ -77,11 +77,12 @@ residual on top of the funding rule. The "rule" column is the funding rule alone
 | Market | SAC Sharpe | Rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
 | --- | --- | --- | --- | --- |
 | Crypto [cash-and-carry](glossary.md#basis-cash-and-carry), long Binance spot, short perpetual; 10 coins, daily, 3.7 years | 10.61 | funding rule 10.12; passive carry 8.49 | +0.49 [0.15, 0.95], p=0.002 | 1.52, 0.88 (15) |
-| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.82 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
-| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | - | rule 8.02 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
+| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
+| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.39 | funding rule 8.09 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
 
 "Active over rule" is the Sharpe ratio of the agent's returns minus the rule's returns, and the
-deflated Sharpe ratio of that difference. The Hyperliquid row lists no agent Sharpe ratio.
+deflated Sharpe ratio of that difference. Sharpe ratios in each row are measured on the same
+days as the paired test.
 
 ![Carry strategies, equity over time](../assets/figures/carry-equity.svg)
 
