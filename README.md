@@ -3,6 +3,7 @@
 </p>
 
 <p align="center">
+  <a href="https://landtml.github.io/SAC/">Live explainer</a> ·
   <a href="docs/results.md">Results</a> ·
   <a href="docs/getting-started.md">Getting started</a> ·
   <a href="docs/design.md">Design</a> ·
@@ -60,6 +61,11 @@ inflated because the simulation has no exchange or counterparty risk, so only th
 count. Full tables, caveats and method: [docs/results.md](docs/results.md).
 
 ## How it works
+
+<p align="center">
+  <img src="assets/animations/sac-loop.gif" alt="Animated loop of a Soft Actor-Critic agent: market state, the actor picks a squashed Gaussian position, the reward is log growth after costs, counterfactual replay stores the moment with other positions, two distributional critics drop their most optimistic guesses, and an entropy thermostat tunes exploration" width="100%">
+  <br><em>One learning step of the agent. Want to play with the ideas? Open the <a href="https://landtml.github.io/SAC/">live explainer</a>: soft policies, squashing, twin critics and a toy market, running in your browser.</em>
+</p>
 
 <p align="center">
   <img src="assets/png/diagrams/how-it-works.png" alt="Pipeline: public data, causal features, market tape, SAC agent, walk-forward test, honest scorecard" width="100%">

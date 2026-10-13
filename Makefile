@@ -23,3 +23,5 @@ figures:
 
 assets:
 	node scripts/render_assets.mjs
+	node scripts/render_hero.mjs
+	node scripts/render_sac_loop.mjs
