@@ -4,7 +4,7 @@ import pytest
 
 from sactrader.data.schema import make_frame
 from sactrader.features.regime import (
-    _GAUSS_LOG_ABS_STD,
+    _GAUSS_FLOORED_LOG_STD,
     RegimeConfig,
     regime_features,
     regime_warmup_bars,
@@ -94,8 +94,20 @@ def test_straight_line_drift_with_tiny_noise_is_efficient():
     assert _mean(out, "er_64") > 0.99
 
 
-def test_gaussian_log_abs_std_matches_closed_form():
-    assert _GAUSS_LOG_ABS_STD == pytest.approx(np.pi / (2.0 * np.sqrt(2.0)), abs=1e-8)
+def test_gaussian_floored_log_std_matches_monte_carlo():
+    z = np.abs(np.random.default_rng(12).normal(size=2_000_000))
+    floored = np.log(np.maximum(z, 0.1 * z.mean()))
+    assert floored.std() == pytest.approx(_GAUSS_FLOORED_LOG_STD, abs=3e-3)
+
+
+def test_volvol_barely_moves_when_every_tenth_return_is_zero():
+    n = 20000
+    r = np.random.default_rng(13).normal(0.0, 0.01, n)
+    stale = r.copy()
+    stale[::10] = 0.0
+    clean = regime_features(_frame(_prices(r)))["volvol_64"].iloc[WARM:]
+    zeroed = regime_features(_frame(_prices(stale)))["volvol_64"].iloc[WARM:]
+    assert abs(zeroed.abs().mean() - clean.abs().mean()) < 0.3
 
 
 def test_volvol_near_zero_on_gaussian_and_positive_with_jumps():
@@ -106,7 +118,7 @@ def test_volvol_near_zero_on_gaussian_and_positive_with_jumps():
     assert abs(_mean(gauss, "volvol_64")) < 0.1
     scale = np.where(rng.uniform(size=n) < 0.05, 0.2, 0.01)
     jumpy = regime_features(_frame(_prices(rng.normal(0.0, 1.0, n) * scale)))
-    assert _mean(jumpy, "volvol_64") > 0.1
+    assert _mean(jumpy, "volvol_64") > 0.05
 
 
 def test_flat_prices_give_zeros_not_nan_after_warmup():
