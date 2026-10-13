@@ -19,7 +19,7 @@ import yaml
 
 from sactrader.eval.stats import sharpe_diff_test
 
-BASELINES = ("buy_and_hold", "trend", "always_no", "flat")
+BASELINES = ("buy_and_hold", "trend", "always_no", "prior_only", "flat")
 COLUMNS = ["run", "universe", "years", "banded_sharpe", "gated_sharpe", "gated_max_dd", "gated_dsr",
            "n_trials", "best_baseline", "baseline_sharpe", "gated_minus_baseline", "diff_lo",
            "diff_hi", "p_value"]

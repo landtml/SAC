@@ -175,6 +175,9 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     deploy = bool(np.isfinite(val_psr) and val_psr >= gate_psr)
     runs["sac_gated"] = runs["sac_banded"] if deploy else [
         rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
+    if action_map is not None and action_map.prior_feature is not None:
+        # The prior alone (zero residual, same sizing): what the policy adds over its prior.
+        runs["prior_only"] = rollout(test_ts, lambda o: np.zeros(len(o)))
     runs["flat"] = [rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
     runs["buy_and_hold"] = [rollout_exposures(tp, baselines.buy_and_hold(tp), start_row)
                             for tp in test]

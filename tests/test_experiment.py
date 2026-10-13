@@ -111,3 +111,12 @@ def test_deflated_gate_is_stricter_than_plain_psr(tmp_path):
         assert info["gate"] == "dsr"
         assert info["val_psr"] <= info["val_psr_plain"] + 1e-12
         assert info["deployed"] == (info["val_psr"] >= 0.8)
+
+
+def test_prior_action_map_adds_prior_only_baseline(tmp_path):
+    cfg = {**CFG, "name": "prior_run", "seeds": [0],
+           "env": {**CFG["env"], "prior_feature": "ret_h4", "vol_target": 0.3}}
+    res = run_experiment(cfg, tmp_path)
+    assert "prior_only" in res["summary"]
+    assert "prior_only" not in run_experiment({**CFG, "name": "plain", "seeds": [0]},
+                                              tmp_path)["summary"]
