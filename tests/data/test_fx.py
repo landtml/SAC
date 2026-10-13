@@ -101,6 +101,19 @@ def test_unknown_pair_raises(monkeypatch):
         fx.load_fx_daily("XAUUSD")
 
 
+@pytest.mark.parametrize("pair", fx.EM_FX_PAIRS)
+def test_em_pairs_parse_like_g10_pairs(monkeypatch, pair):
+    series_id, invert = fx.FRED_FX_SERIES[pair]
+    assert invert is False
+    csv = f"observation_date,{series_id}\n2024-01-02,2.0\n2024-01-03,.\n2024-01-04,2.5\n"
+    serve(monkeypatch, {series_id: csv})
+    df = fx.load_fx_daily(pair)
+    validate_frame(df)
+    assert df.attrs == {"symbol": pair, "kind": "fx", "bar": "1D"}
+    np.testing.assert_allclose(df["close"], [2.0, 2.5])
+    np.testing.assert_allclose(df["open"], [2.0, 2.0])
+
+
 @pytest.mark.network
 def test_eurusd_since_2024_live():
     df = fx.load_fx_daily("EURUSD", start="2024-01-01")

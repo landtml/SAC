@@ -29,7 +29,22 @@ FRED_FX_SERIES: dict[str, tuple[str, bool]] = {
     "USDJPY": ("DEXJPUS", False),
     "USDCAD": ("DEXCAUS", False),
     "USDCHF": ("DEXSZUS", False),
+    # Emerging-market series are quoted as units of currency per US dollar, like DEXJPUS,
+    # so none is inverted.
+    "USDMXN": ("DEXMXUS", False),
+    "USDZAR": ("DEXSFUS", False),
+    "USDBRL": ("DEXBZUS", False),
+    "USDINR": ("DEXINUS", False),
+    "USDKRW": ("DEXKOUS", False),
+    "USDCNY": ("DEXCHUS", False),
+    "USDTHB": ("DEXTHUS", False),
+    "USDSGD": ("DEXSIUS", False),
 }
+
+# The emerging-market pairs of FRED_FX_SERIES.
+EM_FX_PAIRS: tuple[str, ...] = (
+    "USDMXN", "USDZAR", "USDBRL", "USDINR", "USDKRW", "USDCNY", "USDTHB", "USDSGD",
+)
 
 MAX_CACHE_AGE_S = 86400
 # Minimum gap between requests made by this module.
