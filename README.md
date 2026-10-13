@@ -11,9 +11,11 @@ crypto spot, perpetual futures, forex and binary prediction markets.
   objective, automatic entropy tuning, and log-growth reward net of all costs.
 - **Counterfactual replay.** Prices do not depend on a small trader's actions, so replayed
   transitions get fresh starting positions and actions with exactly recomputed rewards.
-- **Honest evaluation.** Checkpoints chosen on validation; the test period is used once; seeds,
-  their ensemble and baselines go into one report with PSR, deflated Sharpe over all trials run,
-  and bootstrap intervals on Sharpe differences.
+- **Honest evaluation.** Checkpoints, no-trade band and a deploy-or-stay-flat gate are chosen on
+  validation; each test window is used once. Walk-forward folds or combinatorial purged
+  cross-validation (purge and embargo) produce out-of-sample records; reports give the deflated
+  Sharpe ratio with every SAC variant ever tried counted as a trial, minimum track record length,
+  expected shortfall, and bootstrap intervals on Sharpe differences against baselines.
 
 See [docs/design.md](docs/design.md) for the reasoning behind each choice and its limitations.
 
@@ -34,7 +36,13 @@ sactrader download crypto_perp          # Binance USD-M hourly klines and fundin
 sactrader download fx                   # FRED daily rates for 7 major pairs
 sactrader download polymarket           # 300 largest resolved YES/NO markets, hourly
 sactrader run configs/crypto_perp.yaml  # train, select, test; writes runs/crypto_perp/report.md
+sactrader run configs/crypto_perp_wf.yaml   # walk-forward folds, one stitched out-of-sample record
+sactrader dsr --runs runs               # deflated Sharpe ratios over every saved run
 ```
+
+A config evaluates with one `split`, consecutive `walk_forward` folds, or a `cpcv` block for
+combinatorial purged cross-validation with purge and embargo, which reports the spread of
+out-of-sample Sharpe and deflated Sharpe across backtest paths.
 
 Data is cached under `$SACTRADER_DATA` (default `./data`). A config names a universe, cost
 overrides, a train / validation / test split by date, environment, agent and training settings,
@@ -52,4 +60,5 @@ and the seeds to train. `configs/` holds one per universe.
 | `src/sactrader/agent/` | SimBa networks, TQC-SAC learner, index replay with relabeling |
 | `src/sactrader/train.py` | Training loop with validation checkpointing |
 | `src/sactrader/eval/` | Backtest, metrics, PSR/DSR/bootstrap/PBO, baselines, walk-forward splits, reports |
-| `src/sactrader/experiment.py` | Config-driven experiments and the trial ledger |
+| `src/sactrader/experiment.py` | Config-driven experiments, walk-forward folds, the trial ledger |
+| `src/sactrader/cpcv_experiment.py` | Combinatorial purged cross-validation of the agent |
