@@ -89,3 +89,15 @@ def test_band_holds_exposure_inside_threshold():
     obs[:, -N_CONTEXT] = [0.5, 0.5, -0.2]
     act = banded(lambda o: np.array([0.55, 0.9, -0.2]), 0.1)
     np.testing.assert_allclose(act(obs), [0.5, 0.9, -0.2])
+
+
+def test_discrete_agent_trains_through_the_runner(tmp_path):
+    cfg = {**CFG, "name": "disc", "seeds": [0],
+           "sac": {**CFG["sac"], "discrete_levels": [-1.0, 0.0, 1.0], "smooth_coef": 0.1,
+                   "critic_dropout": 0.1, "obs_noise": 0.05}}
+    res = run_experiment(cfg, tmp_path)
+    assert "sac_seed0" in res["summary"]
+    import torch
+
+    state = torch.load(tmp_path / "disc" / "agent_fold0_seed0.pt", weights_only=False)
+    assert state["kind"] == "discrete" and state["levels"] == [-1.0, 0.0, 1.0]

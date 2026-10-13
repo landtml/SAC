@@ -59,7 +59,7 @@ class DiscreteSAC:
         self.actor = SimbaNet(1, self.obs_dim, k, hidden=c.actor_hidden, blocks=c.actor_blocks)
         # Q targets are unbounded, so the critic output keeps unit gain as in QuantileCritic.
         self.critic = SimbaNet(c.n_critics, self.obs_dim, k, hidden=c.hidden,
-                               blocks=c.critic_blocks, out_gain=1.0)
+                               blocks=c.critic_blocks, out_gain=1.0, dropout=c.critic_dropout)
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
 
     def _make_optimizers(self) -> None:
@@ -96,6 +96,9 @@ class DiscreteSAC:
         self.obs_norm.update(obs_t)
         o = self.obs_norm(obs_t)
         o2 = self.obs_norm(next_t)
+        if c.obs_noise > 0:
+            o = o + c.obs_noise * torch.randn_like(o)
+            o2 = o2 + c.obs_noise * torch.randn_like(o2)
         idx = self._level_index(torch.as_tensor(action, dtype=f32).reshape(-1))
         r = torch.as_tensor(reward, dtype=f32).reshape(-1)
         not_done = 1.0 - torch.as_tensor(terminal, dtype=f32).reshape(-1)
@@ -122,6 +125,11 @@ class DiscreteSAC:
         entropy = -(pi * logp).sum(dim=-1).detach()  # (B,), exact over levels
         q_pi = self.critic(o).min(dim=0).values  # (B, K)
         actor_loss = (pi * (alpha * logp - q_pi)).sum(dim=-1).mean()
+        if c.smooth_coef > 0:
+            # Discrete form of the temporal-consistency penalty: change in expected position.
+            pi_next = torch.softmax(self.actor(o2)[0], dim=-1)
+            gap = (pi - pi_next) @ self._levels_t
+            actor_loss = actor_loss + c.smooth_coef * gap.pow(2).mean()
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), c.grad_clip)
