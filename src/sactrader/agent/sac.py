@@ -69,6 +69,10 @@ class SACConfig:
     # Steps of differentiable rollout along the recorded market path in the actor objective
     # (agent/pathwise.py); 0 keeps the usual SAC actor loss.
     pathwise_horizon: int = 0
+    # Polyak decay of a deployment copy of the actor (0 deploys the live actor). The live actor
+    # moves with every noisy gradient step; its running average is the policy that is validated,
+    # checkpointed and traded, while exploration keeps using the live actor.
+    actor_ema: float = 0.0
 
 
 class _QuantileHuber(torch.autograd.Function):
@@ -114,12 +118,16 @@ class TQCSAC:
         self.obs_norm = RunningNorm(obs_dim)
         self.actor = TanhGaussianActor(obs_dim, act_dim, cfg.actor_hidden, cfg.actor_blocks,
                                        net=cfg.network)
+        self.actor_avg = self._average_of(self.actor)
         self.critic = self._build_critic()
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self.log_alpha = nn.Parameter(torch.tensor(float(np.log(cfg.init_alpha))))
         self.target_entropy = -float(act_dim) * cfg.target_entropy_scale
         self._make_optimizers()
         self.updates = 0
+
+    def _average_of(self, actor: nn.Module) -> nn.Module | None:
+        return copy.deepcopy(actor).requires_grad_(False) if self.cfg.actor_ema > 0 else None
 
     def _build_critic(self) -> nn.Module:
         c = self.cfg
@@ -147,7 +155,8 @@ class TQCSAC:
     @torch.no_grad()
     def act(self, obs: np.ndarray, deterministic: bool = False) -> np.ndarray:
         x = self.obs_norm(torch.as_tensor(obs, dtype=torch.float32))
-        a, _ = self.actor(x, deterministic=deterministic, with_logp=False)
+        actor = self.actor_avg if deterministic and self.actor_avg is not None else self.actor
+        a, _ = actor(x, deterministic=deterministic, with_logp=False)
         return a.numpy()
 
     def _risk(self, z: torch.Tensor) -> torch.Tensor:
@@ -226,6 +235,11 @@ class TQCSAC:
         nn.utils.clip_grad_norm_(self.actor.parameters(), c.grad_clip)
         self.actor_opt.step()
         renormalize(self.actor)
+        if self.actor_avg is not None:
+            with torch.no_grad():
+                for p, pa in zip(self.actor.parameters(), self.actor_avg.parameters(), strict=True):
+                    pa.lerp_(p, 1.0 - c.actor_ema)
+            renormalize(self.actor_avg)
 
         alpha_loss = -(self.log_alpha * (logp.detach() + self.target_entropy)).mean()
         self.alpha_opt.zero_grad(set_to_none=True)
@@ -250,6 +264,7 @@ class TQCSAC:
         c = self.cfg
         self.actor = TanhGaussianActor(self.obs_dim, self.act_dim, c.actor_hidden, c.actor_blocks,
                                        net=c.network)
+        self.actor_avg = self._average_of(self.actor)
         self.critic = self._build_critic()
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self._make_optimizers()
@@ -259,6 +274,8 @@ class TQCSAC:
             "cfg": asdict(self.cfg), "obs_dim": self.obs_dim, "act_dim": self.act_dim,
             "obs_norm": copy.deepcopy(self.obs_norm.state_dict()),
             "actor": copy.deepcopy(self.actor.state_dict()),
+            "actor_avg": (copy.deepcopy(self.actor_avg.state_dict())
+                          if self.actor_avg is not None else None),
             "critic": copy.deepcopy(self.critic.state_dict()),
             "critic_target": copy.deepcopy(self.critic_target.state_dict()),
             "log_alpha": float(self.log_alpha.detach()), "updates": self.updates,
@@ -267,6 +284,9 @@ class TQCSAC:
     def load_state_dict(self, state: dict) -> None:
         self.obs_norm.load_state_dict(state["obs_norm"])
         self.actor.load_state_dict(state["actor"])
+        if self.actor_avg is not None:
+            avg = state.get("actor_avg")
+            self.actor_avg.load_state_dict(avg if avg is not None else state["actor"])
         self.critic.load_state_dict(state["critic"])
         self.critic_target.load_state_dict(state["critic_target"])
         with torch.no_grad():

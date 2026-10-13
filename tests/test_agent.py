@@ -129,3 +129,22 @@ def test_hyperspherical_network_trains_and_stays_on_the_sphere(critic_type):
         np.testing.assert_allclose(rows.detach().numpy(), 1.0, atol=1e-5)
     clone = TQCSAC.from_state_dict(agent.state_dict())
     np.testing.assert_allclose(clone.act(obs, deterministic=True), agent.act(obs, deterministic=True))
+
+
+def test_actor_average_tracks_live_actor_and_is_deployed():
+    rng = np.random.default_rng(0)
+    cfg = SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, batch_size=32, actor_ema=0.9)
+    agent = TQCSAC(6, 1, cfg, seed=0)
+    before = [p.detach().clone() for p in agent.actor.parameters()]
+    obs = rng.normal(size=(32, 6)).astype(np.float32)
+    agent.update(obs, rng.uniform(-1, 1, 32), rng.normal(size=32), obs, np.zeros(32, bool))
+    for b, p, pa in zip(before, agent.actor.parameters(), agent.actor_avg.parameters(), strict=True):
+        torch.testing.assert_close(pa, 0.9 * b + 0.1 * p.detach())
+    x = agent.obs_norm(torch.as_tensor(obs))
+    want, _ = agent.actor_avg(x, deterministic=True)
+    np.testing.assert_allclose(agent.act(obs, deterministic=True), want.numpy())
+    assert agent.act(obs).shape == (32, 1)  # exploration samples from the live actor
+    clone = TQCSAC.from_state_dict(agent.state_dict())
+    np.testing.assert_allclose(clone.act(obs, deterministic=True), agent.act(obs, deterministic=True))
+    plain = TQCSAC(6, 1, SACConfig(hidden=32, critic_blocks=1, actor_hidden=16), seed=0)
+    assert plain.actor_avg is None and plain.state_dict()["actor_avg"] is None
