@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" width="1000" height="420" role="img" aria-label="How the target position is built: a grey simple rule (the prior) plus a small blue adjustment from the agent (the residual), multiplied by a volatility scale that falls during a volatile stretch.">
+  <title>Target position = scale x (prior + residual)</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <g font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+    <rect x="8" y="8" width="984" height="404" rx="16" fill="#f6f8fa" stroke="#d0d7de"/>
+
+    <text x="500" y="54" text-anchor="middle" font-size="19" fill="#1f2328">target position = <tspan font-weight="700">scale</tspan> &#215; (<tspan font-weight="700" fill="#6e7781">prior</tspan> + <tspan font-weight="700" fill="#0969da">residual</tspan>)</text>
+    <text x="500" y="76" text-anchor="middle" font-size="13" fill="#57606a">prior: a simple rule. residual: the agent's small adjustment. scale: the volatility target.</text>
+
+    <text x="150" y="104" font-size="13" font-weight="700" fill="#1f2328">A. Prior (grey) and the agent's adjustment (blue)</text>
+    <rect x="150" y="120" width="750" height="116" fill="#ffffff"/>
+    <rect x="525" y="120" width="150" height="224" fill="#6e7781" fill-opacity="0.12"/>
+    <line x1="150" y1="236" x2="900" y2="236" stroke="#afb8c1"/>
+    <text x="140" y="124" text-anchor="end" font-size="11" fill="#57606a">1</text>
+    <text x="140" y="240" text-anchor="end" font-size="11" fill="#57606a">0</text>
+
+    <polygon fill="#0969da" fill-opacity="0.22" points="150,191.1 175,180.8 200,173.6 225,169.6 250,167.5 275,161.0 300,156.1 325,153.3 350,152.5 375,153.9 400,155.6 425,155.3 450,158.8 475,166.5 500,178.1 525,192.2 550,203.3 575,210.5 600,216.2 625,220.1 650,222.0 675,221.6 700,214.4 725,205.1 750,196.8 775,190.5 800,186.4 825,183.7 850,175.2 875,167.5 900,161.0 900,172.6 875,177.7 850,181.2 825,183.7 800,192.4 775,200.8 750,208.4 725,214.6 700,219.1 675,223.1 650,229.2 625,231.0 600,227.6 575,219.1 550,206.6 525,195.2 500,186.5 475,177.9 450,169.8 425,162.9 400,157.5 375,158.3 350,161.8 325,164.8 300,166.6 275,167.4 250,167.9 225,175.2 200,183.7 175,192.4 150,200.8"/>
+    <polyline fill="none" stroke="#8c959f" stroke-width="2.5" points="150,200.8 175,192.4 200,183.7 225,175.2 250,167.5 275,161.0 300,156.1 325,153.3 350,152.5 375,153.9 400,157.5 425,162.9 450,169.8 475,177.9 500,186.5 525,195.2 550,203.3 575,210.5 600,216.2 625,220.1 650,222.0 675,221.6 700,219.1 725,214.6 750,208.4 775,200.8 800,192.4 825,183.7 850,175.2 875,167.5 900,161.0"/>
+    <polyline fill="none" stroke="#0969da" stroke-width="1.5" points="150,191.1 175,180.8 200,173.6 225,169.6 250,167.9 275,167.4 300,166.6 325,164.8 350,161.8 375,158.3 400,155.6 425,155.3 450,158.8 475,166.5 500,178.1 525,192.2 550,206.6 575,219.1 600,227.6 625,231.0 650,229.2 675,223.1 700,214.4 725,205.1 750,196.8 775,190.5 800,186.4 825,183.7 850,181.2 875,177.7 900,172.6"/>
+    <text x="908" y="164" font-size="12" font-weight="700" fill="#6e7781">prior</text>
+    <text x="908" y="186" font-size="12" font-weight="700" fill="#0969da">+ residual</text>
+
+    <text x="150" y="280" font-size="13" font-weight="700" fill="#1f2328">B. Volatility target (scale)</text>
+    <text x="600" y="280" text-anchor="middle" font-size="12" fill="#57606a">volatile stretch: the scale falls</text>
+    <rect x="150" y="288" width="750" height="56" fill="#ffffff"/>
+    <rect x="525" y="288" width="150" height="56" fill="#6e7781" fill-opacity="0.12"/>
+    <line x1="150" y1="344" x2="900" y2="344" stroke="#afb8c1"/>
+    <text x="140" y="292" text-anchor="end" font-size="11" fill="#57606a">1</text>
+    <text x="140" y="348" text-anchor="end" font-size="11" fill="#57606a">0</text>
+    <polyline fill="none" stroke="#1f2328" stroke-width="2.5" points="150,295.8 175,295.8 200,295.8 225,295.8 250,295.8 275,295.8 300,295.8 325,295.8 350,295.8 375,295.8 400,295.8 425,295.9 450,295.9 475,296.4 500,298.2 525,302.8 550,310.9 575,319.8 600,323.8 625,319.8 650,310.9 675,302.8 700,298.2 725,296.4 750,295.9 775,295.9 800,295.8 825,295.8 850,295.8 875,295.8 900,295.8"/>
+    <text x="908" y="300" font-size="12" font-weight="700" fill="#1f2328">scale</text>
+
+    <line x1="150" y1="356" x2="900" y2="356" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrow)"/>
+    <text x="900" y="372" text-anchor="end" font-size="12" fill="#57606a">time (bars)</text>
+
+    <text x="40" y="398" font-size="12" fill="#57606a">The agent learns only the blue band. The grey rule and the scale are fixed rules, not learned.</text>
+  </g>
+</svg>

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" width="1200" height="430" role="img" aria-label="SoftEdge pipeline, left to right: public market data becomes causal features, then a market tape; the SAC agent learns from it; a walk-forward test runs out of sample; and an honest scorecard judges the result with deflated Sharpe, bootstrap tests and CPCV.">
+  <title>How a SoftEdge run works, left to right</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <g font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+    <rect x="8" y="8" width="1184" height="414" rx="16" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="36" y="50" font-size="17" font-weight="700" fill="#1f2328">How a SoftEdge run works, left to right</text>
+
+    <g stroke="#57606a" stroke-width="1.2" fill="none">
+      <path d="M36 100 H574 M36 100 V106 M574 100 V106"/>
+      <path d="M624 100 H770 M624 100 V106 M770 100 V106"/>
+      <path d="M820 100 H1162 M820 100 V106 M1162 100 V106"/>
+    </g>
+    <g font-size="13" font-weight="700" fill="#57606a" text-anchor="middle">
+      <text x="305" y="92">Data</text>
+      <text x="697" y="92">Learning</text>
+      <text x="991" y="92">Evaluation</text>
+    </g>
+
+    <g fill="#ffffff" stroke="#afb8c1" stroke-width="1.5">
+      <rect x="36" y="116" width="146" height="190" rx="10"/>
+      <rect x="232" y="116" width="146" height="190" rx="10"/>
+      <rect x="428" y="116" width="146" height="190" rx="10"/>
+      <rect x="820" y="116" width="146" height="190" rx="10"/>
+      <rect x="1016" y="116" width="146" height="190" rx="10"/>
+    </g>
+    <rect x="624" y="116" width="146" height="190" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="2"/>
+
+    <g text-anchor="middle" font-size="14" font-weight="700" fill="#1f2328">
+      <text x="109" y="142">Market data</text>
+      <text x="305" y="142">Causal features</text>
+      <text x="501" y="142">Market tape</text>
+      <text x="697" y="142" fill="#0969da">SAC agent</text>
+      <text x="893" y="142">Walk-forward test</text>
+      <text x="1089" y="142">Honest scorecard</text>
+    </g>
+
+    <g text-anchor="middle" font-size="11" fill="#1f2328">
+      <text x="109" y="166">exchange prices</text>
+      <text x="109" y="181">FRED macro series</text>
+      <text x="109" y="196">prediction markets</text>
+
+      <text x="305" y="166">computed per bar from</text>
+      <text x="305" y="181">closed bars only</text>
+
+      <text x="501" y="166">returns for each side</text>
+      <text x="501" y="181">fees and half spread</text>
+      <text x="501" y="196">funding and borrow</text>
+
+      <text x="697" y="166">actor: picks a</text>
+      <text x="697" y="181">target position</text>
+      <text x="697" y="204">critics: estimate</text>
+      <text x="697" y="219">value of each state</text>
+      <text x="697" y="242">replay: re-scores</text>
+      <text x="697" y="257">past states</text>
+
+      <text x="893" y="166">train on the past,</text>
+      <text x="893" y="181">test on the next window</text>
+
+      <text x="1089" y="166">deflated Sharpe ratio</text>
+      <text x="1089" y="181">paired bootstrap tests</text>
+      <text x="1089" y="196">CPCV cross-validation</text>
+    </g>
+
+    <g stroke="#57606a" stroke-width="1.6" fill="none">
+      <path d="M184 211 H229" marker-end="url(#arrow)"/>
+      <path d="M380 211 H425" marker-end="url(#arrow)"/>
+      <path d="M576 211 H621" marker-end="url(#arrow)"/>
+      <path d="M772 211 H817" marker-end="url(#arrow)"/>
+      <path d="M968 211 H1013" marker-end="url(#arrow)"/>
+    </g>
+
+    <g text-anchor="middle" font-size="12" fill="#57606a">
+      <text x="109" y="328">All public, no keys.</text>
+      <text x="305" y="328">Each row sees only</text>
+      <text x="305" y="344">bars up to its close.</text>
+      <text x="501" y="328">What a position earns</text>
+      <text x="501" y="344">and pays each bar.</text>
+      <text x="697" y="328">Learns from the</text>
+      <text x="697" y="344">training window.</text>
+      <text x="893" y="328">Each test window is</text>
+      <text x="893" y="344">scored once.</text>
+      <text x="1089" y="328">Discounts each variant</text>
+      <text x="1089" y="344">that was tried.</text>
+    </g>
+
+    <text x="36" y="390" font-size="12" fill="#57606a">Sharpe ratio: return per unit of risk. Each test window is out of sample: training never sees it.</text>
+  </g>
+</svg>
