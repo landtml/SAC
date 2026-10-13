@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="404" viewBox="0 0 760 404" role="img" aria-labelledby="t d">
+<title id="t">Most add-ons do not beat the base agent</title>
+<desc id="d">Forest plot: change in ensemble Sharpe for each ablation against its base.</desc>
+<rect x="0.5" y="0.5" width="759" height="403" rx="8" fill="#fcfcfb" stroke="#e1e0d9"/>
+<text x="24.0" y="34.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="18" text-anchor="start" fill="#0b0b0b" font-weight="600">Most add-ons do not beat the base agent</text>
+<text x="24.0" y="56.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#52514e">Change in ensemble Sharpe from one change to the base agent, with 95% CI and the verdict for each change.</text>
+<line x1="300.0" y1="105.0" x2="300.0" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
+<line x1="333.3" y1="105.0" x2="333.3" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
+<line x1="366.7" y1="105.0" x2="366.7" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
+<line x1="400.0" y1="105.0" x2="400.0" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
+<line x1="466.7" y1="105.0" x2="466.7" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
+<line x1="500.0" y1="105.0" x2="500.0" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
+<line x1="433.3" y1="105.0" x2="433.3" y2="356.0" stroke="#52514e" stroke-width="1" stroke-linecap="round"/>
+<text x="433.3" y="99.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#52514e">same as base</text>
+<text x="520.0" y="99.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="start" fill="#52514e">Change, 95% CI</text>
+<text x="668.0" y="99.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="start" fill="#52514e">Verdict</text>
+<text x="24.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b" font-weight="600">Hidden-regime market (base Sharpe 3.76)</text>
+<g>
+<title>Observation noise 0.1: +1.21, 95% CI [-0.53, 2.97]</title>
+<rect x="20.0" y="131.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="147.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">Observation noise 0.1</text>
+<line x1="424.5" y1="143.0" x2="482.8" y2="143.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="453.5" cy="143.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="147.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">+1.21 [-0.53, 2.97]</text>
+<text x="668.0" y="147.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">inconclusive</text>
+</g>
+<g>
+<title>Critic dropout 0.1: +0.73, 95% CI [-0.60, 1.97]</title>
+<rect x="20.0" y="157.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="173.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">Critic dropout 0.1</text>
+<line x1="423.3" y1="169.0" x2="466.2" y2="169.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="445.5" cy="169.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="173.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">+0.73 [-0.60, 1.97]</text>
+<text x="668.0" y="173.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">inconclusive</text>
+</g>
+<g>
+<title>Volatility targeting: +0.62, 95% CI [-1.54, 2.76]</title>
+<rect x="20.0" y="183.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="199.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">Volatility targeting</text>
+<line x1="407.7" y1="195.0" x2="479.3" y2="195.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="443.7" cy="195.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="199.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">+0.62 [-1.54, 2.76]</text>
+<text x="668.0" y="199.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">inconclusive</text>
+</g>
+<g>
+<title>HL-Gauss categorical critics: -1.82, 95% CI [-4.46, 0.95]</title>
+<rect x="20.0" y="209.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="225.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">HL-Gauss categorical critics</text>
+<line x1="359.0" y1="221.0" x2="449.2" y2="221.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="403.0" cy="221.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="225.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">-1.82 [-4.46, 0.95]</text>
+<text x="668.0" y="225.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">rejected</text>
+</g>
+<g>
+<title>CVaR actor: -2.40, 95% CI [-4.82, 0.10]</title>
+<rect x="20.0" y="235.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="251.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">CVaR actor</text>
+<line x1="353.0" y1="247.0" x2="435.0" y2="247.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="393.3" cy="247.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="251.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">-2.40 [-4.82, 0.10]</text>
+<text x="668.0" y="251.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">rejected</text>
+</g>
+<g>
+<title>Pathwise actor objective (4-step): -5.34, 95% CI [-7.99, -2.72]</title>
+<rect x="20.0" y="261.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="277.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">Pathwise actor objective (4-step)</text>
+<line x1="300.2" y1="273.0" x2="388.0" y2="273.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="344.3" cy="273.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="277.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">-5.34 [-7.99, -2.72]</text>
+<text x="668.0" y="277.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">rejected</text>
+</g>
+<text x="24.0" y="312.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b" font-weight="600">Crypto carry (base Sharpe 10.61)</text>
+<g>
+<title>Premium-index feature: +0.03, 95% CI [-0.10, 0.19]</title>
+<rect x="20.0" y="321.0" width="720.0" height="24" fill="transparent"/>
+<text x="24.0" y="337.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#0b0b0b">Premium-index feature</text>
+<line x1="431.7" y1="333.0" x2="436.5" y2="333.0" stroke="#52514e" stroke-width="2" stroke-linecap="round"/>
+<circle cx="433.8" cy="333.0" r="5" fill="#52514e" stroke="#fcfcfb" stroke-width="2"/>
+<text x="520.0" y="337.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">+0.03 [-0.10, 0.19]</text>
+<text x="668.0" y="337.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="start" fill="#52514e">no gain</text>
+</g>
+<line x1="300.0" y1="356.0" x2="500.0" y2="356.0" stroke="#c3c2b7" stroke-width="1" stroke-linecap="round"/>
+<text x="300.0" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">-8</text>
+<text x="333.3" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">-6</text>
+<text x="366.7" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">-4</text>
+<text x="400.0" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">-2</text>
+<text x="433.3" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">0</text>
+<text x="466.7" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">2</text>
+<text x="500.0" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">4</text>
+<text x="400.0" y="390.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="middle" fill="#52514e">Change in ensemble Sharpe vs base, 95% CI. Left: worse. Right: better.</text>
+</svg>
