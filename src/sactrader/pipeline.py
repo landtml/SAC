@@ -38,15 +38,20 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``fx``, ``polymarket`` or ``synthetic``.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
-    (column ``signal``) from ``start``; it needs no network and serves as a learnability check.
+    (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
+    edge. They need no network and check that the agent finds an edge only where one exists.
     """
-    if universe == "synthetic":
-        from sactrader.data.synthetic import planted_signal
+    if universe in ("synthetic", "synthetic_null"):
+        from sactrader.data.synthetic import gbm, planted_signal
 
         n = int((pd.Timestamp(end) - pd.Timestamp(start)) / pd.Timedelta("1h"))
         names = list(symbols or [f"SIG{i}" for i in range(4)])
+        first = f"{start}-01" if len(start) == 7 else start
+        if universe == "synthetic_null":
+            return [gbm(n, sigma=0.01, seed=i, symbol=name, start=first)
+                    for i, name in enumerate(names)]
         return [planted_signal(n, strength=0.1, sigma=0.01, rho=0.9, seed=i, symbol=name,
-                               start=f"{start}-01" if len(start) == 7 else start)
+                               start=first)
                 for i, name in enumerate(names)]
     if universe in ("crypto_perp", "crypto_spot"):
         from sactrader.data import binance
