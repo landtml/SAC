@@ -47,6 +47,10 @@ class SACConfig:
     # Weight of a temporal-consistency penalty on the deterministic action between consecutive
     # states (CAPS-style). Oscillating targets pay spread and fees on every flip.
     smooth_coef: float = 0.0
+    # Weight of a penalty on the squared deterministic action. Under a residual action map the
+    # action is the deviation from the prior, so this keeps the policy on the prior unless the
+    # critic sees a gain larger than the penalty.
+    action_l2: float = 0.0
     # Dropout rate inside critic residual blocks (0 disables).
     critic_dropout: float = 0.0
     # Std of Gaussian noise added to normalized observations in updates (0 disables).
@@ -193,10 +197,13 @@ class TQCSAC:
         else:
             q_pi = self._risk(self.critic(o, a_pi))
         actor_loss = (alpha * logp - q_pi).mean()
-        if c.smooth_coef > 0:
+        if c.smooth_coef > 0 or c.action_l2 > 0:
             mu, _ = self.actor(o, deterministic=True)
+        if c.smooth_coef > 0:
             mu_next, _ = self.actor(o2, deterministic=True)
             actor_loss = actor_loss + c.smooth_coef * (mu - mu_next).pow(2).mean()
+        if c.action_l2 > 0:
+            actor_loss = actor_loss + c.action_l2 * mu.pow(2).mean()
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), c.grad_clip)

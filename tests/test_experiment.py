@@ -79,18 +79,6 @@ def test_cli_run(tmp_path, capsys):
     assert "sac_seed0" in json.loads(capsys.readouterr().out)
 
 
-def test_band_holds_exposure_inside_threshold():
-    import numpy as np
-
-    from sactrader.env.vec_env import N_CONTEXT
-    from sactrader.experiment import banded
-
-    obs = np.zeros((3, 5 + N_CONTEXT), dtype=np.float32)
-    obs[:, -N_CONTEXT] = [0.5, 0.5, -0.2]
-    act = banded(lambda o: np.array([0.55, 0.9, -0.2]), 0.1)
-    np.testing.assert_allclose(act(obs), [0.5, 0.9, -0.2])
-
-
 def test_discrete_agent_trains_through_the_runner(tmp_path):
     cfg = {**CFG, "name": "disc", "seeds": [0],
            "sac": {**CFG["sac"], "discrete_levels": [-1.0, 0.0, 1.0], "smooth_coef": 0.1,

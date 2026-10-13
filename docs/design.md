@@ -39,9 +39,31 @@ trading cost on each side, carry on each side, max leverage and a one-hot market
 different feature sets share the union of names, missing columns filled with zeros, so one agent
 can train on all four markets.
 
+The carry in the context is the carry of the interval that just ended. The tape's own carry at
+row `t` prices the next interval, and for perps that is the funding settled during the next bar,
+which the close at `t` does not know. Runs before this rule saw next-bar funding on perps, a small
+look-ahead (a few basis points a day at most); perp results from those runs are not comparable.
+
 ## Action and reward
 
-The action `a` in `[-1, 1]` sets the target exposure `a * max_leverage`. The reward is the log
+By default the action `a` in `[-1, 1]` sets the target exposure `a * max_leverage`. An optional
+action map (`env.prior_feature`, `env.prior_gain`, `env.residual`, `env.vol_target`) sets the
+target to `clip(m_t * (b_t + residual * a), -L, L)`:
+
+* a prior `b_t`, a causal feature clipped to `[-1, 1]` (a trend z-score such as `ret_h64`, the
+  forex rate differential, perp funding with a negative gain, binary log-odds for a
+  favourite-longshot tilt). The policy becomes a residual on a known premium, and the actor
+  penalty `sac.action_l2` keeps it on the prior unless the critic sees a gain worth more than the
+  penalty. In a low signal-to-noise market this turns "learn nothing" into "hold the premium"
+  instead of "trade noise";
+* a volatility target, `m_t = min(target / sigma_ann_t, L)` with `sigma_t` a causal EWMA of
+  per-bar volatility over the full history. A unit action then carries the same risk in calm and
+  turbulent regimes, which steadies the reward scale the critic has to learn.
+
+The prior and `m_t / L` are appended to the observation context. No-trade bands act on target
+exposure, so they work the same with and without a map.
+
+The reward is the log
 growth of equity after all costs, `log(1 + r)`, which maximizes long-run wealth (Kelly growth).
 There is no shaping term: shaped bonuses for trends, streaks or activity pay the agent for
 behaviour unrelated to profit.
@@ -49,7 +71,8 @@ behaviour unrelated to profit.
 Rewards are multiplied by a scale computed from the training tapes, `sqrt(1 - gamma^2) / sigma`
 with `sigma` the median robust per-bar volatility, so the discounted return of an unlevered
 position has a standard deviation near 1. The entropy temperature then means the same thing on
-BTC hourly bars and on EURUSD daily bars.
+BTC hourly bars and on EURUSD daily bars. Under a volatility target, `sigma` is the target's
+per-bar volatility on non-binary tapes.
 
 ## Agent
 

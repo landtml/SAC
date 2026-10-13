@@ -43,6 +43,8 @@ from sactrader.data.schema import validate_frame
 KIND_INDEX = {"spot": 0, "perp": 1, "fx": 2, "binary": 3}
 # Frame columns kept on the tape for scoring only, never observed by the agent.
 DIAGNOSTIC_COLUMNS = ("mu_next", "regime")
+# EWMA span of the per-bar volatility kept in ``extra["sigma"]`` for volatility targeting.
+SIGMA_SPAN = 32
 
 
 @dataclass(frozen=True)
@@ -243,6 +245,10 @@ def build_tape(
     # Diagnostic columns of synthetic markets (never features), aligned with the rows.
     extra = {c: frame[c].to_numpy(np.float64)[rows].copy() for c in DIAGNOSTIC_COLUMNS
              if c in frame.columns}
+    # Causal per-bar volatility over the whole history, so a slice starts with a warm estimate.
+    log_ret = np.diff(np.log(close), prepend=np.log(close[0]))
+    var = pd.Series(log_ret**2).ewm(span=SIGMA_SPAN, adjust=False).mean().to_numpy()
+    extra["sigma"] = np.sqrt(var)[rows].copy()
     return MarketTape(
         symbol=frame.attrs["symbol"],
         kind=kind,

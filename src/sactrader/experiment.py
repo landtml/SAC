@@ -23,7 +23,7 @@ import yaml
 
 from sactrader.agent.factory import agent_from_state
 from sactrader.agent.sac import TQCSAC, SACConfig
-from sactrader.env.vec_env import N_CONTEXT, EnvConfig, TapeSet, rollout
+from sactrader.env.vec_env import EnvConfig, TapeSet, rollout
 from sactrader.eval import baselines
 from sactrader.eval.metrics import sharpe as annual_sharpe
 from sactrader.eval.report import (
@@ -119,21 +119,11 @@ def ensemble_policy(agents: list[TQCSAC]):
     return act
 
 
-def banded(act_fn, band: float):
-    """Keep the current exposure unless the policy's target differs from it by more than
-    ``band`` (in units of max leverage). Small rebalances cost spread and fees for little gain."""
-    def act(obs: np.ndarray) -> np.ndarray:
-        a = np.asarray(act_fn(obs), dtype=np.float64).reshape(-1)
-        current = obs[:, -N_CONTEXT].astype(np.float64)
-        return np.where(np.abs(a - current) > band, a, current)
-    return act
-
-
 def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
     """Band with the best mean validation Sharpe; ties go to the smaller band."""
     scores = {}
     for band in NO_TRADE_BANDS:
-        out = rollout(val, banded(act_fn, band))
+        out = rollout(val, act_fn, band=band)
         scores[band] = float(np.mean([sharpe(o["ret"], tp.bars_per_year)
                                       for o, tp in zip(out, val.tapes, strict=True)]))
     best = max(NO_TRADE_BANDS, key=lambda b: (scores[b], -b))
@@ -144,20 +134,21 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
                feature_names: tuple[str, ...]) -> tuple[dict, dict]:
     start_row = window - 1
     test = parts["test"]
-    test_ts = TapeSet(test, window, feature_names)
+    action_map = build_train_config(cfg, seeds[0]).env.action_map
+    test_ts = TapeSet(test, window, feature_names, action_map)
     runs = {}
     for seed, agent in zip(seeds, agents, strict=True):
         runs[f"sac_seed{seed}"] = rollout(test_ts, lambda o, a=agent: a.act(o, deterministic=True))
     policy = ensemble_policy(agents)
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
-    val_ts = TapeSet(parts["val"], window, feature_names)
+    val_ts = TapeSet(parts["val"], window, feature_names, action_map)
     band, band_scores = choose_band(policy, val_ts)
-    runs["sac_banded"] = rollout(test_ts, banded(policy, band))
+    runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
     # validation record. Below the gate the strategy stays flat for this fold.
     gate_psr = float(cfg.get("deploy", {}).get("gate_psr", 0.8))
-    val_run = rollout(val_ts, banded(policy, band))
+    val_run = rollout(val_ts, policy, band=band)
     val_psr = probabilistic_sharpe_ratio(pooled_returns(val_run, parts["val"], start_row).to_numpy())
     deploy = bool(np.isfinite(val_psr) and val_psr >= gate_psr)
     runs["sac_gated"] = runs["sac_banded"] if deploy else [

@@ -56,14 +56,18 @@ class TrainResult:
     reward_scale: float
 
 
-def auto_reward_scale(tapes: list[MarketTape], gamma: float) -> float:
+def auto_reward_scale(tapes: list[MarketTape], gamma: float, vol_target: float | None = None) -> float:
     """Scale that gives an unlevered position's discounted return a standard deviation near 1.
 
     Uses the median over tapes of a robust per-bar log-return scale (1.4826 * MAD), so one tape with
-    jumps (a binary settlement) does not set the scale for all.
+    jumps (a binary settlement) does not set the scale for all. Under a volatility target a unit
+    action carries the target risk on every non-binary tape, so that sets its scale.
     """
     scales = []
     for tp in tapes:
+        if vol_target is not None and tp.kind != "binary":
+            scales.append(vol_target / np.sqrt(tp.bars_per_year))
+            continue
         r = np.log1p(np.maximum(tp.long_ret[:-1], -0.999))
         mad = np.median(np.abs(r - np.median(r))) * 1.4826
         if mad > 0:
@@ -121,8 +125,9 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
     observation layout so the warm-started networks see the same inputs."""
     torch.set_num_threads(cfg.threads)
     rng = np.random.default_rng(cfg.seed)
-    ts = TapeSet(train_tapes, cfg.env.window, feature_names)
-    val = TapeSet(val_tapes, cfg.env.window, ts.feature_names) if val_tapes else None
+    amap = cfg.env.action_map
+    ts = TapeSet(train_tapes, cfg.env.window, feature_names, amap)
+    val = TapeSet(val_tapes, cfg.env.window, ts.feature_names, amap) if val_tapes else None
     env = VecTradingEnv(ts, cfg.env, seed=cfg.seed)
     agent = make_agent(ts.obs_dim, cfg.sac, cfg.seed)
     if init_state is not None:
@@ -133,7 +138,7 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
             shrink_perturb(agent.critic, fresh.critic, cfg.warm_shrink)
             agent.critic_target.load_state_dict(agent.critic.state_dict())
     replay = IndexReplay(cfg.replay_capacity)
-    scale = cfg.reward_scale or auto_reward_scale(train_tapes, cfg.sac.gamma)
+    scale = cfg.reward_scale or auto_reward_scale(train_tapes, cfg.sac.gamma, cfg.env.vol_target)
     planned_updates = max(1.0, (cfg.total_steps - cfg.warmup_steps) * cfg.utd)
     ent_start = cfg.sac.target_entropy_scale
     ent_end = cfg.target_entropy_end_scale
