@@ -1,5 +1,5 @@
 """Command line: ``sactrader download <universe>``, ``sactrader run <config.yaml>``,
-``sactrader dsr``."""
+``sactrader dsr``, ``sactrader leaderboard`` and ``sactrader compare <base> <runs>...``."""
 
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     dl = sub.add_parser("download", help="fill the data cache for a universe")
-    dl.add_argument("universe", choices=["crypto_perp", "crypto_spot", "fx", "polymarket"])
+    dl.add_argument("universe", choices=["crypto_perp", "crypto_spot", "crypto_basis", "fx", "macro",
+                                         "polymarket", "kalshi"])
     dl.add_argument("--start", default="2020-01")
     dl.add_argument("--end", default="2026-09")
     dl.add_argument("--symbols", nargs="*")
@@ -30,7 +31,19 @@ def main(argv: list[str] | None = None) -> int:
     lb.add_argument("--runs", default="runs")
     lb.add_argument("--top", type=int, default=None)
 
+    cmp = sub.add_parser("compare", help="paired Sharpe tests of runs against a base run")
+    cmp.add_argument("base")
+    cmp.add_argument("names", nargs="+")
+    cmp.add_argument("--runs", default="runs")
+    cmp.add_argument("--strategy", default="sac_banded")
+
     args = parser.parse_args(argv)
+    if args.cmd == "compare":
+        from sactrader.eval.compare import compare_runs
+        from sactrader.eval.report import to_markdown
+
+        print(to_markdown(compare_runs(args.runs, args.base, args.names, args.strategy)))
+        return 0
     if args.cmd == "leaderboard":
         from sactrader.eval.leaderboard import collect, leaderboard_markdown
 
