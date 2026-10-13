@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly" width="100%">
+  <img src="assets/hero.gif" alt="SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly. Edgar the hedgehog walks along a price line, stays flat where there is no edge, and trades the out-of-sample window." width="100%">
 </p>
 
 <p align="center">
@@ -33,8 +33,8 @@ updated with ideas from 2024-2026 research. It trades crypto, crypto carry trade
 indices, oil, Treasuries and prediction markets, all from free public data.
 
 <p align="center">
-  <img src="assets/mascot.svg" alt="Edgar the hedgehog, the SoftEdge mascot" width="140">
-  <img src="assets/mascot-curled.svg" alt="Edgar curled up: no edge, no position" width="140">
+  <img src="assets/png/mascot.png" alt="Edgar the hedgehog, the SoftEdge mascot" width="140">
+  <img src="assets/png/mascot-curled.png" alt="Edgar curled up: no edge, no position" width="140">
   <br><em>Meet Edgar. Hedgehogs hedge. When the tests find no edge, Edgar curls up and holds no position.</em>
 </p>
 
@@ -54,7 +54,7 @@ premia.**
 | Cross-exchange funding spread, 10 coins, 2024-2026 | +0.47 Sharpe over its simple rule (95% CI 0.14 to 0.85) | small, significant gain |
 
 <p align="center">
-  <img src="assets/figures/sac-vs-rule.svg" alt="SAC minus its simple rule, with 95% intervals, per market" width="90%">
+  <img src="assets/png/figures/sac-vs-rule.png" alt="SAC minus its simple rule, with 95% intervals, per market" width="90%">
 </p>
 
 The carry results are the interesting part. In a carry trade you earn a steady payment for
@@ -68,7 +68,7 @@ count. Full tables, caveats and method: [docs/results.md](docs/results.md).
 ## How it works
 
 <p align="center">
-  <img src="assets/diagrams/how-it-works.svg" alt="Pipeline: public data, causal features, market tape, SAC agent, walk-forward test, honest scorecard" width="100%">
+  <img src="assets/png/diagrams/how-it-works.png" alt="Pipeline: public data, causal features, market tape, SAC agent, walk-forward test, honest scorecard" width="100%">
 </p>
 
 1. **Public data only.** Binance archives, Hyperliquid, Deribit, FRED, Polymarket and Kalshi. No
@@ -86,7 +86,7 @@ count. Full tables, caveats and method: [docs/results.md](docs/results.md).
    purged cross-validation gives a spread of outcomes instead of one lucky path.
 
 <p align="center">
-  <img src="assets/diagrams/walk-forward.svg" alt="Walk-forward folds: train, validation, embargo, test, stitched into one record" width="100%">
+  <img src="assets/png/diagrams/walk-forward.png" alt="Walk-forward folds: train, validation, embargo, test, stitched into one record" width="100%">
 </p>
 
 New to these terms? The [glossary](docs/glossary.md) explains each in a sentence or two.
@@ -111,7 +111,7 @@ kept:
   is weak.
 
 <p align="center">
-  <img src="assets/diagrams/residual-policy.svg" alt="Target position equals a volatility scale times prior plus the agent's residual" width="85%">
+  <img src="assets/png/diagrams/residual-policy.png" alt="Target position equals a volatility scale times prior plus the agent's residual" width="85%">
 </p>
 
 Not everything helped. On our noisy test market, three popular add-ons made things worse and
@@ -119,7 +119,7 @@ were rejected: categorical (HL-Gauss) critics, a tail-risk (CVaR) objective and 
 gradient objective. Dropout, input noise and volatility targeting are still inconclusive.
 
 <p align="center">
-  <img src="assets/figures/ablations.svg" alt="Each add-on compared with the base agent, with 95% intervals" width="90%">
+  <img src="assets/png/figures/ablations.png" alt="Each add-on compared with the base agent, with 95% intervals" width="90%">
 </p>
 
 ## Quick start

@@ -53,7 +53,7 @@ The planted signal is found with a deflated Sharpe ratio of 1.000. On the random
 loses to buy-and-hold. On the hidden-regime market, the agent beats buy-and-hold with an interval
 that stays above zero.
 
-![SAC against the simple rules](../assets/figures/sac-vs-rule.svg)
+![SAC against the simple rules](../assets/png/figures/sac-vs-rule.png)
 
 ## Real markets, directional
 
@@ -84,7 +84,7 @@ residual on top of the funding rule. The "rule" column is the funding rule alone
 deflated Sharpe ratio of that difference. Sharpe ratios in each row are measured on the same
 days as the paired test.
 
-![Carry strategies, equity over time](../assets/figures/carry-equity.svg)
+![Carry strategies, equity over time](../assets/png/figures/carry-equity.png)
 
 ## Ablations
 
@@ -107,7 +107,7 @@ The three rows labelled inconclusive score above the base, and their intervals i
 three labelled rejected score below the base. For the HL-Gauss and CVaR rows, the interval still
 includes zero.
 
-![Ablation results](../assets/figures/ablations.svg)
+![Ablation results](../assets/png/figures/ablations.png)
 
 ## Limits
 
