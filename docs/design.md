@@ -66,6 +66,11 @@ target to `clip(m_t * (b_t + residual * a), -L, L)`:
   per-bar volatility over the full history. A unit action then carries the same risk in calm and
   turbulent regimes, which steadies the reward scale the critic has to learn.
 
+`env.prior_features` sums several priors (feature to gain); a feature a market lacks is zero
+there, so one pooled agent can hold funding carry on crypto and rate carry on forex. Whenever a
+prior is set, the test reports a `prior_only` baseline (the same map with a zero residual), which
+isolates what the learned policy adds over its prior.
+
 The prior and `m_t / L` are appended to the observation context. No-trade bands act on target
 exposure, so they work the same with and without a map.
 
@@ -161,6 +166,15 @@ seed ensemble, the banded and the gated policy, in every experiment recorded in
 `runs/trials.jsonl`. `V` is the variance of their per-bar Sharpe ratios, floored at `1/(T - 1)`,
 the scatter of Sharpe estimates of zero-skill strategies over `T` bars. `sactrader dsr`
 recomputes the table over all saved runs, so earlier results deflate further as trials accumulate.
+
+## Comparing variants
+
+Deflated Sharpe ratios ask whether a strategy beats luck. Choosing between variants run on the
+same markets and periods is sharper: `sactrader compare` bootstraps the Sharpe difference of two
+runs on their shared bars (a stationary bootstrap keeps the pairing and the serial dependence),
+which cancels the market noise they share. `sactrader summary` tests the validation-gated policy
+of every run against the best baseline of its market in the same way, and `sactrader pbo` gives
+the probability of backtest overfitting (CSCV) over every SAC variant tried on a universe.
 
 ## Combinatorial purged cross-validation
 

@@ -45,6 +45,9 @@ sactrader download polymarket           # 300 largest resolved YES/NO markets, h
 sactrader run configs/crypto_perp.yaml  # train, select, test; writes runs/crypto_perp/report.md
 sactrader run configs/crypto_perp_wf.yaml   # walk-forward folds, one stitched out-of-sample record
 sactrader dsr --runs runs               # deflated Sharpe ratios over every saved run
+sactrader summary --runs runs           # SAC vs the best baseline of every run, paired bootstrap
+sactrader compare abl_base abl_dropout  # paired Sharpe tests of variants on shared bars
+sactrader pbo crypto_perp               # probability of backtest overfitting across a universe
 ```
 
 A config evaluates with one `split`, consecutive `walk_forward` folds, or a `cpcv` block for
