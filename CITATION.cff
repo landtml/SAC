@@ -7,8 +7,8 @@ date-released: 2026-10-13
 license: MIT
 authors:
   - name: landtml
-repository-code: "https://github.com/landtml/SAC"
-url: "https://github.com/landtml/SAC"
+repository-code: "https://github.com/landtml/SoftEdge"
+url: "https://github.com/landtml/SoftEdge"
 keywords:
   - reinforcement learning
   - soft actor-critic

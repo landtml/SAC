@@ -48,9 +48,9 @@ dev = ["pytest>=8", "pytest-xdist>=3", "ruff>=0.5"]
 softedge = "softedge.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/landtml/SAC"
-Repository = "https://github.com/landtml/SAC"
-Issues = "https://github.com/landtml/SAC/issues"
+Homepage = "https://github.com/landtml/SoftEdge"
+Repository = "https://github.com/landtml/SoftEdge"
+Issues = "https://github.com/landtml/SoftEdge/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

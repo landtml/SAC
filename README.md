@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://landtml.github.io/SAC/">Live explainer</a> ·
+  <a href="https://landtml.github.io/SoftEdge/">Live explainer</a> ·
   <a href="docs/results.md">Results</a> ·
   <a href="docs/getting-started.md">Getting started</a> ·
   <a href="docs/design.md">Design</a> ·
@@ -64,7 +64,7 @@ count. Full tables, caveats and method: [docs/results.md](docs/results.md).
 
 <p align="center">
   <img src="assets/animations/sac-loop.gif" alt="Animated loop of a Soft Actor-Critic agent: market state, the actor picks a squashed Gaussian position, the reward is log growth after costs, counterfactual replay stores the moment with other positions, two distributional critics drop their most optimistic guesses, and an entropy thermostat tunes exploration" width="100%">
-  <br><em>One learning step of the agent. Want to play with the ideas? Open the <a href="https://landtml.github.io/SAC/">live explainer</a>: soft policies, squashing, twin critics and a toy market, running in your browser.</em>
+  <br><em>One learning step of the agent. Want to play with the ideas? Open the <a href="https://landtml.github.io/SoftEdge/">live explainer</a>: soft policies, squashing, twin critics and a toy market, running in your browser.</em>
 </p>
 
 <p align="center">
@@ -125,7 +125,7 @@ gradient objective. Dropout, input noise and volatility targeting are still inco
 ## Quick start
 
 ```bash
-git clone https://github.com/landtml/SAC.git softedge && cd softedge
+git clone https://github.com/landtml/SoftEdge.git && cd SoftEdge
 uv venv .venv -p 3.12
 uv pip install --python .venv/bin/python torch --index-url https://download.pytorch.org/whl/cpu
 uv pip install --python .venv/bin/python -e ".[dev]"
