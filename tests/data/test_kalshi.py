@@ -56,9 +56,11 @@ def candle(open_time: pd.Timestamp, bid=None, ask=None, last=None) -> dict:
 class FakeKalshi:
     """Stands in for ``http_get``: pages are keyed by (series, cursor), candles are shared."""
 
-    def __init__(self, pages=None, candles=None):
+    def __init__(self, pages=None, candles=None, honor_window=True):
         self.pages = pages or {}
         self.candles = candles or []
+        # With honor_window False the fake returns every candle, so only the module can drop some.
+        self.honor_window = honor_window
         self.calls: list[tuple[str, dict]] = []
 
     def __call__(self, url, *, params=None, **kwargs):
@@ -71,7 +73,8 @@ class FakeKalshi:
             lo, hi = params["start_ts"], params["end_ts"]
             # Both window ends are inclusive, so a boundary candle can come back twice.
             inside = [c for c in self.candles
-                      if lo <= c["end_period_ts"] - HOUR.total_seconds() <= hi]
+                      if not self.honor_window
+                      or lo <= c["end_period_ts"] - HOUR.total_seconds() <= hi]
             return FakeResponse({"candlesticks": inside, "ticker": url.split("/")[-2]})
         raise AssertionError(f"unexpected request {url}")
 
@@ -181,8 +184,9 @@ def test_listing_maps_fields_and_takes_scheduled_end_from_latest_expiration(monk
     assert row["event_ticker"] == "KXTEST-26OCT01"
     assert row["start"] == T0
     assert row["scheduled_end"] == T0 + 10 * DAY
-    # The later of close and settlement bounds the candles, so settlement wins here.
-    assert row["end"] == SETTLED
+    # The actual close bounds the candle history; settlement comes later and is not used.
+    assert row["end"] == T0 + 3 * DAY
+    assert row["end"] != SETTLED
     assert row["resolution"] == 1.0
     assert row["volume"] == 250000.0
 
@@ -200,13 +204,26 @@ def test_scheduled_end_falls_back_to_expiration_time(monkeypatch):
 def test_end_time_attribute_is_latest_expiration_not_actual_close(monkeypatch):
     # An early close moves close_time to the actual close, so close_time is not the schedule.
     early_close = market(close_time=api_time(T0 + 2 * DAY))
-    serve_series(monkeypatch, {"KXTEST": [early_close]}, candles=hourly_candles(50))
+    serve_series(monkeypatch, {"KXTEST": [early_close]}, candles=hourly_candles(80))
     rows = kalshi.list_settled_markets(series=("KXTEST",), min_volume=0, max_markets=5)
 
     frame = kalshi.load_candles(rows.iloc[0])
 
     assert frame.attrs["end_time"] == (T0 + 10 * DAY).isoformat()
     assert frame.attrs["end_time"] != (T0 + 2 * DAY).isoformat()
+
+
+def test_candles_opening_at_or_after_close_time_are_dropped(monkeypatch):
+    # The fake returns candles past the requested window, so only the module can drop them.
+    close = T0 + 60 * HOUR
+    fake = serve(monkeypatch, FakeKalshi(candles=hourly_candles(90), honor_window=False))
+
+    frame = kalshi.load_candles(listing_row(end=close, scheduled_end=T0 + 10 * DAY))
+
+    assert frame.index[-1] == close - HOUR
+    assert len(frame) == 60
+    assert (frame.index < close).all()
+    assert len([u for u, _ in fake.calls if u.endswith("/candlesticks")]) == 1
 
 
 def test_listing_repeat_call_reads_the_cache(monkeypatch):

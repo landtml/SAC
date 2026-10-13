@@ -26,6 +26,8 @@ DEFAULT_SERIES = ("KXFED", "KXFEDDECISION", "KXCPI", "KXCPIYOY", "KXPAYROLLS", "
 PERIOD_MINUTES = 60
 # The candlestick endpoint answers 400 above 5000 candles, so each request covers 30 days.
 MAX_WINDOW_S = 30 * 24 * 3600
+# Bump when the stored listing rows change meaning, so cached listings are rebuilt.
+LISTING_VERSION = 2
 MIN_BARS = 48
 PRICE_FLOOR = 0.001
 PRICE_CEIL = 0.999
@@ -68,11 +70,6 @@ def _optional_utc(value) -> pd.Timestamp | None:
     return _utc(value)
 
 
-def _latest(*values) -> pd.Timestamp | None:
-    stamps = [s for s in (_optional_utc(v) for v in values) if s is not None]
-    return max(stamps) if stamps else None
-
-
 def _iso(ts: pd.Timestamp | None) -> str | None:
     return None if ts is None else ts.isoformat()
 
@@ -108,8 +105,7 @@ def _settled_row(market: dict, series: str) -> dict | None:
         "event_ticker": str(market.get("event_ticker") or ""),
         "title": str(market.get("title") or ""),
         "start": _iso(_optional_utc(market.get("open_time"))),
-        # Settlement stands in for the last candle, which would cost one request per market.
-        "end": _iso(_latest(market.get("close_time"), market.get("settlement_ts"))),
+        "end": _iso(_optional_utc(market.get("close_time"))),
         "scheduled_end": _iso(_scheduled_end(market)),
         "resolution": 1.0 if market["result"] == "yes" else 0.0,
         "volume": float(market.get("volume_fp") or 0.0),
@@ -150,13 +146,13 @@ def list_settled_markets(series: tuple[str, ...] = DEFAULT_SERIES, min_volume: f
                          max_markets: int = 300) -> pd.DataFrame:
     """Settled YES/NO markets of ``series``, largest volume first, at most ``max_markets`` rows.
 
-    ``start`` is the open time and ``end`` the later of the scheduled close and settlement, which
-    bounds the candle history. ``scheduled_end`` is the latest scheduled expiration, never the
-    actual close. The result is cached per argument set and never expires; delete the cache file
-    to refresh it.
+    ``start`` is the open time and ``end`` the actual close, which bounds the candle history.
+    ``scheduled_end`` is the latest scheduled expiration, the only market time the features may
+    see. The result is cached per argument set and never expires; delete the cache file to
+    refresh it.
     """
     series = tuple(series)
-    key = hashlib.sha256(json.dumps(series).encode()).hexdigest()[:16]
+    key = hashlib.sha256(json.dumps([LISTING_VERSION, list(series)]).encode()).hexdigest()[:16]
     path = cache_dir("kalshi") / f"settled-{key}-{max_markets}-{min_volume:g}.json"
     if path.exists():
         rows = json.loads(path.read_text())
@@ -191,8 +187,8 @@ def _fetch_candles(ticker: str, series: str, start_ts: int, end_ts: int,
     return rows
 
 
-def _candle_prices(rows: list[dict], period_minutes: int) -> pd.Series:
-    """One price per candle, indexed by the candle open time."""
+def _candle_prices(rows: list[dict], period_minutes: int, end: pd.Timestamp) -> pd.Series:
+    """One price per candle before ``end``, indexed by the candle open time."""
     df = pd.DataFrame(rows, columns=["t", "bid", "ask", "last"]).astype(float)
     mid = (df["bid"] + df["ask"]) / 2
     # A one-sided quote is not a price, so the last trade stands in for it.
@@ -200,7 +196,9 @@ def _candle_prices(rows: list[dict], period_minutes: int) -> pd.Series:
     index = pd.to_datetime(df["t"] - period_minutes * 60, unit="s", utc=True)
     series = pd.Series(price.to_numpy(), index=index, name="price", dtype=float)
     series = series.sort_index(kind="stable")
-    return series[~series.index.duplicated(keep="first")]
+    series = series[~series.index.duplicated(keep="first")]
+    # Trading stops at the actual close, and prices after it can already show the outcome.
+    return series[series.index < end]
 
 
 def _binary_frame(row: dict, index, open_, high, low, close, bar: str) -> pd.DataFrame:
@@ -209,7 +207,8 @@ def _binary_frame(row: dict, index, open_, high, low, close, bar: str) -> pd.Dat
         symbol=str(row["ticker"])[:60], kind="binary", bar=bar,
         resolution=float(row["resolution"]),
     )
-    # Only the scheduled end may feed features; the settlement time would leak the outcome.
+    # Features see only the scheduled expiration: the actual close and the settlement time
+    # can reveal the outcome.
     scheduled = row.get("scheduled_end")
     if scheduled is not None and not pd.isna(scheduled):
         frame.attrs["end_time"] = _utc(scheduled).isoformat()
@@ -220,9 +219,10 @@ def load_candles(market: pd.Series | dict, period_minutes: int = PERIOD_MINUTES)
     """Binary bar frame of a listed market's YES price, one bar per candle.
 
     ``market`` is a row of ``list_settled_markets``. A candle contributes the mid of its yes bid
-    and ask closes, or its last trade price when a quote is missing. Candles without any price
-    repeat the previous close, and bars before the first price are dropped. Raises
-    ``ValueError`` when the market lacks start or end, or when fewer than 48 bars remain.
+    and ask closes, or its last trade price when a quote is missing. Bars opening at or after
+    the actual close are dropped. Candles without any price repeat the previous close, and bars
+    before the first price are dropped. Raises ``ValueError`` when the market lacks start or
+    end, or when fewer than 48 bars remain.
     """
     row = dict(market)
     ticker = str(row["ticker"])
@@ -231,7 +231,7 @@ def load_candles(market: pd.Series | dict, period_minutes: int = PERIOD_MINUTES)
         raise ValueError(f"market {ticker!r} needs start and end times")
     rows = _fetch_candles(ticker, str(row["series_ticker"]), int(start.timestamp()),
                           int(end.timestamp()), period_minutes)
-    prices = _candle_prices(rows, period_minutes) if rows else pd.Series(dtype=float)
+    prices = _candle_prices(rows, period_minutes, end)
     if prices.empty:
         raise ValueError(f"market {ticker!r} has no candles")
     grid = pd.date_range(prices.index[0], prices.index[-1], freq=f"{period_minutes}min")
