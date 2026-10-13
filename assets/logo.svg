@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t">
+  <title id="t">SoftEdge logo: Edgar's head</title>
+  <circle cx="128" cy="128" r="124" fill="#F5EBDD" stroke="#0E3B43" stroke-width="8"/>
+  <path d="M60.7 128.4 L43.7 104 L76.3 107.9 Z M81.8 103.6 L81 73.3 L108.8 91.8 Z M116.4 90.2 L132 62 L147.6 90.2 Z M155.2 91.8 L183 73.3 L182.2 103.6 Z M187.7 107.9 L220.3 104 L203.3 128.4 Z" fill="#5C3A24"/>
+  <ellipse cx="132" cy="146" rx="80" ry="62" fill="#7A4B2E"/>
+  <ellipse cx="92" cy="158" rx="46" ry="42" fill="#F2D2A9"/>
+  <circle cx="50" cy="152" r="9" fill="#2B2D42"/>
+  <circle cx="84" cy="140" r="6.5" fill="#2B2D42"/>
+  <circle cx="86" cy="138" r="2.2" fill="#FFFFFF"/>
+</svg>
