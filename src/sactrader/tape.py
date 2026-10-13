@@ -228,6 +228,9 @@ def build_tape(
             funding = frame["funding_rate"].to_numpy(np.float64)
             carry_long[cur] = funding[nxt]
             carry_short[cur] = -funding[nxt]
+            if frame.attrs.get("short_borrow"):
+                # A spread whose long leg is spot (cash and carry) borrows spot to go short.
+                carry_short[cur] += costs.borrow_apr * per_bar
         elif kind == "spot":
             carry_short[cur] = costs.borrow_apr * per_bar
         elif kind == "fx":

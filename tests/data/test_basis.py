@@ -25,7 +25,7 @@ def test_closes_compound_the_leg_spread_and_schema_holds():
                funding=[0.0001, -0.0002, 0.0, 0.0003])
     out = basis_frame(spot, perp)
     validate_frame(out)
-    assert out.attrs == {"symbol": "BTCUSDT-BASIS", "kind": "perp", "bar": "1h"}
+    assert out.attrs == {"symbol": "BTCUSDT-BASIS", "kind": "perp", "bar": "1h", "short_borrow": True}
     # Spot returns are 0.1, 0, 0.1 and perp returns are 0, 0.1, -0.1. The spreads 0.1, -0.1
     # and 0.2 move the close by factors 1.1, 0.9 and 1.2.
     np.testing.assert_allclose(out["close"], [100, 110, 99, 118.8])
@@ -103,3 +103,24 @@ def test_spread_of_two_perps_nets_their_funding():
     np.testing.assert_allclose(out["close"].to_numpy(), want)
     np.testing.assert_allclose(out["funding_rate"].to_numpy(), [-0.002, -0.001, 0.002, 0.0])
     assert out.attrs["symbol"] == "BTC-XV" and out.attrs["kind"] == "perp"
+
+
+def test_short_basis_pays_spot_borrow_on_the_tape():
+    from sactrader.features.causal import FeatureConfig, compute_features
+    from sactrader.tape import CostSpec, build_tape
+
+    idx = pd.date_range("2024-01-01", periods=80, freq="1D", tz="UTC")
+    c = np.linspace(100, 120, 80)
+
+    def leg(kind):
+        extra = {"funding_rate": np.full(80, 1e-4)} if kind == "perp" else {}
+        return make_frame(idx, c, c, c, c, np.ones(80), symbol="BTCUSDT", kind=kind, bar="1D", **extra)
+
+    frame = basis_frame(leg("spot"), leg("perp"))
+    assert frame.attrs["short_borrow"] is True
+    cfg = FeatureConfig(horizons=(1, 4), ema_spans=(4,), vol_long_span=8)
+    with_borrow = build_tape(frame, compute_features(frame, cfg), CostSpec(borrow_apr=0.1))
+    without = build_tape(frame, compute_features(frame, cfg), CostSpec(borrow_apr=0.0))
+    extra = with_borrow.carry_short[:-1] - without.carry_short[:-1]
+    np.testing.assert_allclose(extra, 0.1 / with_borrow.bars_per_year)
+    np.testing.assert_array_equal(with_borrow.carry_long, without.carry_long)

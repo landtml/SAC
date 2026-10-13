@@ -71,7 +71,10 @@ def spread_frame(long_leg: pd.DataFrame, short_leg: pd.DataFrame, symbol: str) -
     zero = np.zeros(len(common))
     funding = (a["funding_rate"].to_numpy(dtype=np.float64) if "funding_rate" in a else zero) - (
         b["funding_rate"].to_numpy(dtype=np.float64) if "funding_rate" in b else zero)
-    return make_frame(
+    frame = make_frame(
         common, open_, np.maximum(open_, close), np.minimum(open_, close), close, volume,
         symbol=symbol, kind="perp", bar=bar, funding_rate=funding,
     )
+    # Shorting the spread shorts the long leg; a spot leg must then be borrowed.
+    frame.attrs["short_borrow"] = long_leg.attrs.get("kind") == "spot"
+    return frame
