@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoftEdge: how Soft Actor-Critic thinks</title>
+<meta name="description" content="Four live pictures of Soft Actor-Critic: the soft policy, squashed actions, noisy critics and a toy market. Runs in the browser.">
+<style>
+:root {
+  color-scheme: light dark;
+  --surface: #fcfcfb;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --rule: #dcdbd6;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --band: rgba(42, 120, 214, 0.08);
+  --link: #1f63b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1a1a19;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --rule: #3a3a37;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --band: rgba(57, 135, 229, 0.14);
+    --link: #7fb2f0;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-wrap: break-word;
+}
+main { max-width: 920px; margin: 0 auto; padding: 20px 16px 56px; }
+a { color: var(--link); }
+h1 { font-size: clamp(1.7rem, 4.5vw, 2.5rem); line-height: 1.15; margin: 8px 0 14px; letter-spacing: -0.01em; }
+h2 { font-size: 1.3rem; line-height: 1.25; margin: 0 0 8px; }
+p { margin: 0 0 12px; max-width: 68ch; }
+.lede { font-size: 1.1rem; }
+.kicker { margin: 0; font-size: 0.85rem; color: var(--text-2); letter-spacing: 0.04em; text-transform: uppercase; }
+.brand { display: inline-flex; align-items: center; gap: 8px; }
+.brand svg { flex: none; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+section { border-top: 1px solid var(--rule); margin-top: 40px; padding-top: 22px; }
+.fig { margin: 14px 0 0; padding: 8px; border: 1px solid var(--rule); border-radius: 10px; }
+canvas { display: block; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.9rem; color: var(--text-2); margin: 14px 0 0; }
+.key { display: inline-flex; align-items: center; gap: 7px; }
+.sw { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+.sw.c1 { background: var(--s1); }
+.sw.c2 { background: var(--s2); }
+.sw.c3 { background: var(--s3); }
+.sw.fill { height: 10px; background: var(--s1); opacity: 0.35; }
+.sw.dash { height: 0; border-top: 2px dashed var(--text-2); }
+.sw.dot { height: 0; border-top: 2px dotted var(--text-2); }
+.sw.band { height: 10px; background: var(--band); border: 1px solid var(--rule); }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; margin: 16px 0 4px; }
+.ctl { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.ctl label { font-size: 0.95rem; color: var(--text-2); display: flex; justify-content: space-between; gap: 8px; }
+output { color: var(--text); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; margin: 6px 0; accent-color: var(--s1); }
+button {
+  font: inherit; font-size: 0.95rem; min-height: 44px; min-width: 44px; padding: 8px 16px;
+  border-radius: 8px; border: 1px solid var(--text-2); background: transparent; color: var(--text); cursor: pointer;
+}
+button:hover { border-color: var(--text); }
+button[aria-pressed="true"] { background: var(--text); color: var(--surface); border-color: var(--text); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--s1); outline-offset: 2px; }
+.readout { font-size: 0.95rem; color: var(--text-2); margin: 10px 0 0; font-variant-numeric: tabular-nums; }
+.readout strong { color: var(--text); font-weight: 600; }
+.note { font-size: 0.92rem; color: var(--text-2); border-left: 3px solid var(--rule); padding-left: 12px; margin: 16px 0 0; max-width: 68ch; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 0.92rem; color: var(--text-2); }
+footer p { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="topbar">
+    <p class="kicker brand"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true" focusable="false"><rect width="26" height="26" rx="6" fill="#12202B"/><path d="M3 20 C7 20 8 6 13 6 C18 6 19 20 23 20 Z" fill="#1E9E6A" opacity="0.85"/><line x1="3" y1="20" x2="23" y2="20" stroke="#C9D6D2" stroke-width="1.2"/></svg>SoftEdge explainer</p>
+    <button type="button" id="motion-btn">Pause animations</button>
+  </div>
+  <h1>How Soft Actor-Critic thinks</h1>
+  <p class="lede">Soft Actor-Critic (SAC) trains an agent to pick actions by trial and error. The four pictures below show four of its ideas, live. Everything runs in your browser.</p>
+  <p>SoftEdge is an open research project. It asks whether an agent trained this way can find a trading edge that holds up in out-of-sample tests. This page is an explainer. It does not show the project's results, and the market in section 4 is made up.</p>
+  <noscript><p class="note">The pictures need JavaScript. The text still explains the ideas.</p></noscript>
+</header>
+
+<section aria-labelledby="s1-title">
+  <h2 id="s1-title">1. The soft policy</h2>
+  <p>An action is a number a between −1 and 1, for example a target position. The critic Q(a) scores each action. The policy is the rule that picks actions. In SAC the policy is proportional to exp(Q(a) / α). Higher scores get more weight, and the temperature α sets how strongly the scores decide.</p>
+  <p>A low α puts the policy on the best action. A high α spreads it out. Entropy measures that spread. Its unit is the nat, which goes with natural logarithms.</p>
+  <div class="legend" aria-hidden="true">
+    <span class="key"><i class="sw fill"></i>Policy density π(a)</span>
+    <span class="key"><i class="sw c2"></i>Critic Q(a)</span>
+    <span class="key"><i class="sw dash"></i>Uniform density</span>
+  </div>
+  <figure class="fig">
+    <canvas id="c-policy" role="img" aria-label="Two stacked plots over the action a from −1 to 1. The top plot shows a critic curve Q(a) that drifts slowly over time. The bottom plot shows the soft policy density for the chosen temperature, with sampled actions falling onto it."></canvas>
+  </figure>
+  <div class="controls">
+    <div class="ctl">
+      <label for="alpha">Temperature α <output id="alpha-out">0.20</output></label>
+      <input id="alpha" type="range" min="-2" max="0.3" step="0.01" value="-0.7">
+    </div>
+  </div>
+  <p class="readout">Entropy <strong id="entropy">0.00</strong> nats. A uniform policy on −1 to 1 has the most entropy, 0.69. A narrow policy has less, and its entropy can drop below zero.</p>
+</section>
+
+<section aria-labelledby="s2-title">
+  <h2 id="s2-title">2. Squashing</h2>
+  <p>A Gaussian can output any real number, but an action must stay between −1 and 1. SAC draws a sample z from a Gaussian and sets a = tanh(z). The tanh curve flattens at both ends, so a wide range of z maps to actions near −1 or 1. The squashed actions pile up at the edges.</p>
+  <p>Move μ to shift the samples. Move σ to widen them.</p>
+  <div class="legend" aria-hidden="true">
+    <span class="key"><i class="sw c2"></i>a = tanh(z)</span>
+    <span class="key"><i class="sw fill"></i>Share of samples per bin of a</span>
+    <span class="key"><span class="sw" style="width:7px;height:7px;border-radius:50%;background:var(--s1)"></span>Sample z flowing through</span>
+  </div>
+  <figure class="fig">
+    <canvas id="c-tanh" role="img" aria-label="Diagram. Samples from a Gaussian over z sit on the horizontal axis, rise to the tanh curve, then move across to the bounded action axis on the right. A bar chart on the right shows the share of samples in each bin of a."></canvas>
+  </figure>
+  <div class="controls">
+    <div class="ctl">
+      <label for="mu">Mean μ <output id="mu-out">0.00</output></label>
+      <input id="mu" type="range" min="-2" max="2" step="0.05" value="0">
+    </div>
+    <div class="ctl">
+      <label for="sigma">Spread σ <output id="sigma-out">1.00</output></label>
+      <input id="sigma" type="range" min="0.3" max="2.5" step="0.05" value="1">
+    </div>
+  </div>
+  <p class="readout" id="tanh-out">Drawing samples.</p>
+</section>
+
+<section aria-labelledby="s3-title">
+  <h2 id="s3-title">3. Noisy critics</h2>
+  <p>A critic learned from data has errors. If the policy picks the highest score from one noisy critic, it mostly picks the errors. SAC keeps two critics and scores each action by the smaller of the two. That estimate is pessimistic, and it moves less when the critics disagree.</p>
+  <p>Add the noise to see the two critics disagree. The strips show the recent choices of each rule.</p>
+  <div class="legend" aria-hidden="true">
+    <span class="key"><i class="sw c1"></i>Critic 1, Q1</span>
+    <span class="key"><i class="sw c2"></i>Critic 2, Q2</span>
+    <span class="key"><i class="sw c3"></i>Pessimistic min(Q1, Q2)</span>
+    <span class="key"><i class="sw dot"></i>True Q</span>
+  </div>
+  <figure class="fig">
+    <canvas id="c-noise" role="img" aria-label="Plot of the action a from −1 to 1 against a value. The true critic curve is dotted. Two noisy critic curves and their pessimistic minimum are drawn over it. Below, two strips show the recent actions chosen by a greedy rule on critic 1 and by the pessimistic rule. The greedy strip jumps around more."></canvas>
+  </figure>
+  <div class="controls">
+    <button type="button" id="noise-btn" aria-pressed="false">Add estimation noise</button>
+  </div>
+  <p class="readout" id="noise-out">Estimation noise is off. Both critics match the true curve.</p>
+  <p class="note">This is a two-critic toy. Real implementations use more critics and other tricks, such as dropping the highest quantile estimates.</p>
+</section>
+
+<section aria-labelledby="s4-title">
+  <h2 id="s4-title">4. A tiny agent trading a toy market</h2>
+  <p>The market below is made up. Its price either drifts back toward a slow average or trends, and the regime changes at random. The agent does not see the regime. It fits a linear forecast of the next return from two features: the gap to the average, and the last return. Its position comes from the same soft policy as in section 1, and each change in position pays a fee.</p>
+  <div class="legend" aria-hidden="true">
+    <span class="key"><i class="sw c2" style="background:var(--text-2)"></i>Price, made up</span>
+    <span class="key"><i class="sw c1"></i>SAC-style agent (toy)</span>
+    <span class="key"><i class="sw dash"></i>Buy and hold</span>
+    <span class="key"><i class="sw band"></i>Trending regime</span>
+  </div>
+  <figure class="fig">
+    <canvas id="c-market" role="img" aria-label="Two stacked plots over time. The top plot shows a made-up price, with shading where the market trends. The bottom plot shows the growth of 100 for a toy agent that learns a linear forecast, against buy and hold."></canvas>
+  </figure>
+  <div class="controls">
+    <button type="button" id="market-btn">Play</button>
+    <button type="button" id="market-new">New market</button>
+  </div>
+  <p class="readout">Position <strong id="pos-out">flat</strong>. Regime <strong id="regime-out">reverting to the average</strong>.</p>
+  <p class="readout">Learned weights: gap to average <strong id="w0-out">0.00</strong>, last return <strong id="w1-out">0.00</strong>.</p>
+  <p class="readout">From 100: agent <strong id="eqa-out">100.0</strong>, buy and hold <strong id="eqb-out">100.0</strong>.</p>
+  <p class="note">Toy illustration of online learning. It is not a backtest and it is not the project's results. For those, see <a href="https://github.com/landtml/SAC/blob/HEAD/docs/results.md">docs/results.md</a>.</p>
+</section>
+
+<footer>
+  <p>SoftEdge is an open research project. Source code: <a href="https://github.com/landtml/SAC">github.com/landtml/SAC</a>.</p>
+  <p>Results and the tests behind them: <a href="https://github.com/landtml/SAC/blob/HEAD/docs/results.md">docs/results.md</a>. Terms: <a href="https://github.com/landtml/SAC/blob/HEAD/docs/glossary.md">docs/glossary.md</a>.</p>
+</footer>
+</main>
+
+<script>
+'use strict';
+
+/* ---------- shared helpers ---------- */
+
+const TAU = Math.PI * 2;
+const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const app = {
+  motion: !motionQuery.matches,
+  marketPlaying: !motionQuery.matches,
+  pal: null,
+  last: performance.now(),
+  plots: [],
+};
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function gauss(rng) {
+  let u = 0;
+  while (u === 0) u = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * rng());
+}
+
+function clamp(x, lo, hi) {
+  return Math.min(hi, Math.max(lo, x));
+}
+
+// Abramowitz and Stegun 7.1.26; error below 1.5e-7. Handles +-Infinity.
+function erf(x) {
+  const s = x < 0 ? -1 : 1;
+  const ax = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * ax);
+  const poly = ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
+  return s * (1 - poly * Math.exp(-ax * ax));
+}
+
+function Phi(x) {
+  return 0.5 * (1 + erf(x / Math.SQRT2));
+}
+
+function signed(v, digits) {
+  return (v < 0 ? '−' : '+') + Math.abs(v).toFixed(digits);
+}
+
+function setText(el, s) {
+  if (el.textContent !== s) el.textContent = s;
+}
+
+function font(px, weight) {
+  return (weight || 400) + ' ' + px + 'px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+}
+
+function label(ctx, s, x, y, color, align, base, px) {
+  ctx.fillStyle = color;
+  ctx.font = font(px || 12);
+  ctx.textAlign = align || 'left';
+  ctx.textBaseline = base || 'middle';
+  ctx.fillText(s, x, y);
+}
+
+function strokeLine(ctx, x0, y0, x1, y1, color, width, dash) {
+  ctx.beginPath();
+  ctx.setLineDash(dash || []);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function strokeCurve(ctx, n, fx, fy, color, width, dash) {
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    if (i === 0) ctx.moveTo(fx(i), fy(i));
+    else ctx.lineTo(fx(i), fy(i));
+  }
+  ctx.setLineDash(dash || []);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function dot(ctx, x, y, r, color) {
+  ctx.beginPath();
+  ctx.fillStyle = color;
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fill();
+}
+
+function readPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name) => cs.getPropertyValue(name).trim();
+  return {
+    text: v('--text'), text2: v('--text-2'), rule: v('--rule'),
+    s1: v('--s1'), s2: v('--s2'), s3: v('--s3'), band: v('--band'),
+  };
+}
+
+/* A canvas with a height rule. Each plot advances its state and draws itself. */
+function makePlot(id, heightFor) {
+  const canvas = document.getElementById(id);
+  const p = {
+    canvas, ctx: canvas.getContext('2d'), heightFor,
+    w: 0, h: 0, dpr: 0, visible: false, dirty: true,
+    advance: null, draw: null,
+  };
+  new IntersectionObserver((entries) => {
+    p.visible = entries[0].isIntersecting;
+    if (p.visible) p.dirty = true;
+  }, { rootMargin: '200px 0px' }).observe(canvas);
+  app.plots.push(p);
+  return p;
+}
+
+function sizeCanvas(p) {
+  const w = Math.round(p.canvas.clientWidth);
+  const h = Math.round(p.heightFor(w));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (w === p.w && h === p.h && dpr === p.dpr) return false;
+  p.w = w; p.h = h; p.dpr = dpr;
+  p.canvas.width = Math.round(w * dpr);
+  p.canvas.height = Math.round(h * dpr);
+  p.canvas.style.height = h + 'px';
+  p.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return true;
+}
+
+/* ---------- 1. soft policy ---------- */
+
+const G = 361;
+const GX = Float64Array.from({ length: G }, (_, i) => -1 + (2 * i) / (G - 1));
+const GH = 2 / (G - 1);
+const Q_LO = -1.2;
+const Q_HI = 1.2;
+
+// Trapezoid rule on the shared action grid.
+function trapz(y) {
+  let s = 0;
+  for (let i = 1; i < G; i++) s += y[i - 1] + y[i];
+  return (s * GH) / 2;
+}
+
+// A bumpy critic. The phases and the moving peak drift slowly with t (seconds).
+function criticQ(a, t) {
+  const sway = 0.25 * Math.sin(0.11 * t);
+  const peak = 0.55 * Math.sin(0.07 * t + 0.6);
+  return 0.45 * Math.sin(2.2 * a + 0.4 + sway)
+    + 0.3 * Math.sin(4.7 * a - 1.1 - 0.5 * sway)
+    + 0.35 * Math.exp(-((a - peak) ** 2) / 0.03);
+}
+
+// SAC policy: density proportional to exp(Q / alpha), normalized on [-1, 1].
+function softPolicy(q, alpha) {
+  let m = -Infinity;
+  for (let i = 0; i < G; i++) if (q[i] > m) m = q[i];
+  const p = new Float64Array(G);
+  for (let i = 0; i < G; i++) p[i] = Math.exp((q[i] - m) / alpha);
+  const z = trapz(p);
+  for (let i = 0; i < G; i++) p[i] /= z;
+  return p;
+}
+
+// Differential entropy in nats: -integral of p ln p over [-1, 1].
+function entropyNats(p) {
+  const f = new Float64Array(G);
+  for (let i = 0; i < G; i++) f[i] = p[i] > 0 ? -p[i] * Math.log(p[i]) : 0;
+  return trapz(f);
+}
+
+function cdfOf(p) {
+  const c = new Float64Array(G);
+  for (let i = 1; i < G; i++) c[i] = c[i - 1] + ((p[i - 1] + p[i]) * GH) / 2;
+  const total = c[G - 1];
+  for (let i = 0; i < G; i++) c[i] /= total;
+  return c;
+}
+
+// Draw one action from a density given by its cdf, jittered within its grid cell.
+function drawAction(cdf, rng) {
+  const u = rng();
+  let lo = 0;
+  let hi = G - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cdf[mid] < u) lo = mid + 1;
+    else hi = mid;
+  }
+  return clamp(GX[lo] + (rng() - 0.5) * GH, -1, 1);
+}
+
+const S1 = {
+  plot: null,
+  t: 0,
+  dt: 0,
+  live: false,
+  logAlpha: -0.7,
+  targetLog: -0.7,
+  q: null,
+  p: null,
+  pmax: 1,
+  ymax: 1,
+  H: 0,
+  rain: [],
+  acc: 0,
+  rng: mulberry32(11),
+};
+
+function advance1(dt) {
+  const gap = S1.targetLog - S1.logAlpha;
+  S1.logAlpha += gap * Math.min(1, dt * 8);
+  if (Math.abs(gap) > 1e-4) S1.plot.dirty = true;
+  S1.live = app.motion;
+  S1.dt = dt;
+  if (S1.live) S1.t += dt;
+
+  const alpha = 10 ** S1.logAlpha;
+  const q = new Float64Array(G);
+  for (let i = 0; i < G; i++) q[i] = criticQ(GX[i], S1.t);
+  S1.q = q;
+  S1.p = softPolicy(q, alpha);
+  S1.H = entropyNats(S1.p);
+  let pm = 0;
+  for (let i = 0; i < G; i++) if (S1.p[i] > pm) pm = S1.p[i];
+  S1.pmax = pm;
+  S1.ymax += (S1.pmax * 1.12 - S1.ymax) * Math.min(1, dt * 6);
+  if (Math.abs(S1.pmax * 1.12 - S1.ymax) > 1e-3) S1.plot.dirty = true;
+
+  if (S1.live) {
+    S1.acc += 14 * dt;
+    if (S1.acc >= 1) {
+      const cdf = cdfOf(S1.p);
+      while (S1.acc >= 1) {
+        S1.acc -= 1;
+        if (S1.rain.length < 160) S1.rain.push({ a: drawAction(cdf, S1.rng), y: null, v: 200 + 80 * S1.rng(), landed: false, age: 0 });
+      }
+    }
+  }
+
+  setText(document.getElementById('entropy'), S1.H.toFixed(2));
+  setText(document.getElementById('alpha-out'), (10 ** S1.targetLog).toFixed(2));
+}
+
+function draw1(p) {
+  const { ctx, w, h } = p;
+  const c = app.pal;
+  ctx.clearRect(0, 0, w, h);
+  const padL = 46;
+  const padR = 14;
+  const top = 10;
+  const bot = 26;
+  const area = h - top - bot;
+  const qH = Math.round(area * 0.4);
+  const qBot = top + qH;
+  const dTop = qBot + 26;
+  const dBot = h - bot;
+  const dH = dBot - dTop;
+  const X = (a) => padL + ((a + 1) / 2) * (w - padL - padR);
+  const YQ = (v) => qBot - ((v - Q_LO) / (Q_HI - Q_LO)) * qH;
+  const YD = (d) => dBot - (d / S1.ymax) * dH;
+
+  // critic panel
+  strokeLine(ctx, padL, YQ(0), w - padR, YQ(0), c.rule, 1, [3, 4]);
+  for (const v of [-1, 0, 1]) label(ctx, String(v), padL - 8, YQ(v), c.text2, 'right', 'middle');
+  strokeLine(ctx, padL, qBot, w - padR, qBot, c.rule, 1);
+  strokeCurve(ctx, G, (i) => X(GX[i]), (i) => YQ(S1.q[i]), c.s2, 2);
+  let best = 0;
+  for (let i = 1; i < G; i++) if (S1.q[i] > S1.q[best]) best = i;
+  label(ctx, 'Q(a)', X(GX[best]) + 6, YQ(S1.q[best]) - 2, c.text2, 'left', 'bottom');
+  label(ctx, 'critic', padL + 6, top + 2, c.text2, 'left', 'top');
+
+  // policy panel
+  strokeLine(ctx, padL, dBot, w - padR, dBot, c.rule, 1);
+  if (0.5 < S1.ymax) {
+    strokeLine(ctx, padL, YD(0.5), w - padR, YD(0.5), c.text2, 1, [4, 4]);
+    label(ctx, 'uniform 0.5', padL + 6, YD(0.5) - 6, c.text2, 'left', 'bottom');
+  }
+  ctx.beginPath();
+  ctx.moveTo(X(-1), dBot);
+  for (let i = 0; i < G; i++) ctx.lineTo(X(GX[i]), YD(S1.p[i]));
+  ctx.lineTo(X(1), dBot);
+  ctx.closePath();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = c.s1;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  strokeCurve(ctx, G, (i) => X(GX[i]), (i) => YD(S1.p[i]), c.s1, 2);
+  for (const v of [-1, -0.5, 0, 0.5, 1]) label(ctx, String(v), X(v), dBot + 13, c.text2, 'center', 'middle');
+  label(ctx, 'policy density', padL + 6, dTop + 2, c.text2, 'left', 'top');
+
+  // sampled actions falling onto the density
+  for (let k = S1.rain.length - 1; k >= 0; k--) {
+    const d = S1.rain[k];
+    if (d.y === null) d.y = dTop - 10;
+    const xp = X(d.a);
+    if (!d.landed && S1.live) d.y += d.v * S1.dt;
+    const idx = Math.round(((d.a + 1) / 2) * (G - 1));
+    const yT = YD(S1.p[idx]) - 3;
+    if (!d.landed && d.y >= yT) {
+      d.landed = true;
+      d.y = yT;
+    }
+    if (d.landed && S1.live) d.age += S1.dt;
+    if (d.landed && d.age > 0.6) {
+      S1.rain.splice(k, 1);
+      continue;
+    }
+    ctx.globalAlpha = d.landed ? 1 - d.age / 0.6 : 0.9;
+    dot(ctx, xp, d.y, 2.6, c.s1);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- 2. squashing ---------- */
+
+const S2 = {
+  mu: 0,
+  sigma: 1,
+  t: 0,
+  dots: [],
+  acc: 0,
+  rng: mulberry32(23),
+  last: null,
+};
+const NB = 36;
+
+function advance2(dt) {
+  if (app.motion) {
+    S2.acc += 1.4 * dt;
+    while (S2.acc >= 1) {
+      S2.acc -= 1;
+      const z = S2.mu + S2.sigma * gauss(S2.rng);
+      const zc = clamp(z, -3, 3);
+      S2.dots.push({ z: zc, a: Math.tanh(zc), age: 0 });
+      S2.last = { z, a: Math.tanh(z) };
+      setText(
+        document.getElementById('tanh-out'),
+        'Last sample: z = ' + S2.last.z.toFixed(2) + ', a = tanh(z) = ' + S2.last.a.toFixed(2) + '.'
+      );
+    }
+    for (const d of S2.dots) d.age += dt;
+    S2.dots = S2.dots.filter((d) => d.age < 1.6);
+  }
+  if (!S2.last) {
+    setText(
+      document.getElementById('tanh-out'),
+      app.motion ? 'Drawing the first sample.' : 'Animations are paused. Resume them to watch samples flow through.'
+    );
+  }
+}
+
+function draw2(p) {
+  const { ctx, w, h } = p;
+  const c = app.pal;
+  ctx.clearRect(0, 0, w, h);
+  const mL = 46;
+  const sW = clamp(w * 0.2, 60, 120);
+  const mR = w - sW - 14;
+  const mT = 16;
+  const mB = h - 84;
+  const y0 = h - 30;
+  const Zx = (z) => mL + ((z + 3) / 6) * (mR - mL);
+  const Ay = (a) => mB - ((a + 1) / 2) * (mB - mT);
+  const mu = S2.mu;
+  const sg = S2.sigma;
+
+  // reference lines
+  strokeLine(ctx, mL, Ay(1), mR, Ay(1), c.rule, 1, [4, 4]);
+  strokeLine(ctx, mL, Ay(-1), mR, Ay(-1), c.rule, 1, [4, 4]);
+  strokeLine(ctx, mL, Ay(0), mR, Ay(0), c.rule, 1, [2, 4]);
+  strokeLine(ctx, Zx(0), mT, Zx(0), y0, c.rule, 1, [2, 4]);
+  for (const v of [-1, 0, 1]) label(ctx, String(v), mL - 8, Ay(v), c.text2, 'right', 'middle');
+  label(ctx, 'a', mL - 8, mT - 6, c.text2, 'right', 'bottom');
+
+  // z axis and Gaussian bell
+  strokeLine(ctx, mL, y0, mR, y0, c.rule, 1);
+  ctx.beginPath();
+  ctx.moveTo(Zx(-3), y0);
+  for (let i = 0; i <= 160; i++) {
+    const z = -3 + (6 * i) / 160;
+    ctx.lineTo(Zx(z), y0 - 40 * Math.exp(-((z - mu) ** 2) / (2 * sg * sg)));
+  }
+  ctx.lineTo(Zx(3), y0);
+  ctx.closePath();
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = c.s1;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  for (const z of [-3, -2, -1, 0, 1, 2, 3]) label(ctx, String(z), Zx(z), y0 + 13, c.text2, 'center', 'middle');
+  label(ctx, 'z', mR - 2, y0 + 13, c.text2, 'right', 'middle');
+
+  // tanh map
+  strokeCurve(ctx, 161, (i) => Zx(-3 + (6 * i) / 160), (i) => Ay(Math.tanh(-3 + (6 * i) / 160)), c.s2, 2.5);
+
+  // squashed distribution as exact bin masses
+  const xR = mR + 14;
+  const masses = [];
+  let maxM = 0;
+  for (let k = 0; k < NB; k++) {
+    const aLo = -1 + (2 * k) / NB;
+    const aHi = -1 + (2 * (k + 1)) / NB;
+    const m = Phi((Math.atanh(aHi) - mu) / sg) - Phi((Math.atanh(aLo) - mu) / sg);
+    masses.push(m);
+    if (m > maxM) maxM = m;
+  }
+  const barMax = w - 6 - xR;
+  for (let k = 0; k < NB; k++) {
+    const aLo = -1 + (2 * k) / NB;
+    const aHi = -1 + (2 * (k + 1)) / NB;
+    const yTop = Ay(aHi);
+    const yBot = Ay(aLo);
+    const len = maxM > 0 ? (masses[k] / maxM) * barMax : 0;
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = c.s1;
+    ctx.fillRect(xR, yTop + 1, len, Math.max(1, yBot - yTop - 2));
+    ctx.globalAlpha = 1;
+  }
+  label(ctx, 'actions', xR, mT - 6, c.text2, 'left', 'bottom');
+
+  // samples flowing: rise from the z axis to the curve, then across to the action side
+  for (const d of S2.dots) {
+    const zx = Zx(d.z);
+    const yA = Ay(d.a);
+    let x;
+    let y;
+    if (d.age < 0.8) {
+      const s = d.age / 0.8;
+      const e = s * s * (3 - 2 * s);
+      x = zx;
+      y = y0 + (yA - y0) * e;
+    } else {
+      const s = Math.min(1, (d.age - 0.8) / 0.8);
+      const e = s * s * (3 - 2 * s);
+      x = zx + (xR - zx) * e;
+      y = yA;
+    }
+    const fade = d.age > 1.3 ? Math.max(0, 1 - (d.age - 1.3) / 0.3) : 1;
+    ctx.globalAlpha = fade;
+    dot(ctx, x, y, 4, c.s1);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- 3. noisy critics ---------- */
+
+const G3 = 201;
+const A3 = Float64Array.from({ length: G3 }, (_, i) => -1 + (2 * i) / (G3 - 1));
+const NF = [3.1, 5.7, 8.9, 12.3];
+const NW = [0.5, 0.35, 0.25, 0.18];
+const S3 = {
+  t: 0,
+  noise: false,
+  rng: mulberry32(37),
+  ph: [],
+  vel: [],
+  acc: 0,
+  hist: [],
+  q1: null,
+  q2: null,
+  mn: null,
+  tru: null,
+  idxG: 0,
+  idxP: 0,
+};
+for (let k = 0; k < 2; k++) {
+  S3.ph.push(Array.from({ length: 4 }, () => TAU * S3.rng()));
+  S3.vel.push(Array.from({ length: 4 }, () => 0.15 + 0.25 * S3.rng()));
+}
+
+function noise3(k, a, t) {
+  let s = 0;
+  for (let j = 0; j < 4; j++) s += NW[j] * Math.sin(NF[j] * a + S3.ph[k][j] + S3.vel[k][j] * t);
+  return 0.25 * s;
+}
+
+function calm(arr) {
+  if (arr.length < 2) return 0;
+  let s = 0;
+  for (let i = 1; i < arr.length; i++) s += Math.abs(arr[i] - arr[i - 1]);
+  return s / (arr.length - 1);
+}
+
+function advance3(dt) {
+  if (app.motion) S3.t += dt;
+  const tru = new Float64Array(G3);
+  const q1 = new Float64Array(G3);
+  const q2 = new Float64Array(G3);
+  const mn = new Float64Array(G3);
+  for (let i = 0; i < G3; i++) {
+    const a = A3[i];
+    tru[i] = criticQ(a, S3.t);
+    q1[i] = tru[i] + (S3.noise ? noise3(0, a, S3.t) : 0);
+    q2[i] = tru[i] + (S3.noise ? noise3(1, a, S3.t) : 0);
+    mn[i] = Math.min(q1[i], q2[i]);
+  }
+  let g = 0;
+  let pz = 0;
+  for (let i = 1; i < G3; i++) {
+    if (q1[i] > q1[g]) g = i;
+    if (mn[i] > mn[pz]) pz = i;
+  }
+  S3.tru = tru; S3.q1 = q1; S3.q2 = q2; S3.mn = mn; S3.idxG = g; S3.idxP = pz;
+
+  if (app.motion) {
+    S3.acc += dt;
+    while (S3.acc >= 0.12) {
+      S3.acc -= 0.12;
+      S3.hist.push({ g: A3[g], p: A3[pz] });
+      if (S3.hist.length > 90) S3.hist.shift();
+    }
+  }
+  const gs = S3.hist.map((d) => d.g);
+  const ps = S3.hist.map((d) => d.p);
+  setText(
+    document.getElementById('noise-out'),
+    (S3.noise ? 'Estimation noise is on.' : 'Estimation noise is off. Both critics match the true curve.') +
+      ' Average move between steps: greedy ' + calm(gs).toFixed(2) + ', pessimistic ' + calm(ps).toFixed(2) + '.'
+  );
+}
+
+function draw3(p) {
+  const { ctx, w, h } = p;
+  const c = app.pal;
+  ctx.clearRect(0, 0, w, h);
+  const mL = 40;
+  const mR = w - 10;
+  const top = 10;
+  const plotBot = h - 84;
+  const X = (a) => mL + ((a + 1) / 2) * (mR - mL);
+  const Y = (v) => plotBot - ((v + 1.7) / 3.4) * (plotBot - top);
+
+  strokeLine(ctx, mL, Y(0), mR, Y(0), c.rule, 1, [3, 4]);
+  strokeLine(ctx, mL, plotBot, mR, plotBot, c.rule, 1);
+  for (const v of [-1, 0, 1]) label(ctx, String(v), mL - 6, Y(v), c.text2, 'right', 'middle');
+  for (const a of [-1, -0.5, 0, 0.5, 1]) label(ctx, String(a), X(a), plotBot + 13, c.text2, 'center', 'middle');
+
+  strokeCurve(ctx, G3, (i) => X(A3[i]), (i) => Y(S3.tru[i]), c.text2, 1.5, [2, 3]);
+  strokeCurve(ctx, G3, (i) => X(A3[i]), (i) => Y(S3.q1[i]), c.s1, 2);
+  strokeCurve(ctx, G3, (i) => X(A3[i]), (i) => Y(S3.q2[i]), c.s2, 2);
+  strokeCurve(ctx, G3, (i) => X(A3[i]), (i) => Y(S3.mn[i]), c.s3, 2.5);
+
+  dot(ctx, X(A3[S3.idxG]), Y(S3.q1[S3.idxG]), 4.5, c.s1);
+  dot(ctx, X(A3[S3.idxP]), Y(S3.mn[S3.idxP]), 4.5, c.s3);
+
+  const row1 = plotBot + 40;
+  const row2 = plotBot + 70;
+  label(ctx, 'greedy: best on Q1', mL, row1 - 13, c.text2, 'left', 'middle');
+  label(ctx, 'pessimistic: best on min(Q1, Q2)', mL, row2 - 13, c.text2, 'left', 'middle');
+  strokeLine(ctx, mL, row1, mR, row1, c.rule, 1);
+  strokeLine(ctx, mL, row2, mR, row2, c.rule, 1);
+  const n = S3.hist.length;
+  for (let i = 0; i < n; i++) {
+    const alpha = 0.12 + (0.85 * (i + 1)) / n;
+    ctx.globalAlpha = alpha;
+    dot(ctx, X(S3.hist[i].g), row1, 3.2, c.s1);
+    dot(ctx, X(S3.hist[i].p), row2, 3.2, c.s3);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- 4. toy market ---------- */
+
+const MK = {
+  sigma: 0.012,
+  k: 0.35,
+  mom: 0.3,
+  ema: 0.02,
+  flip: 1 / 300,
+  lr: 0.05,
+  polCost: 0.07,
+  polAlpha: 0.5,
+  fee: 0.0008,
+  window: 500,
+  stepsPerSec: 10,
+};
+
+function newMarket(seed) {
+  return {
+    rng: mulberry32(seed),
+    x: 0,
+    ema: 0,
+    regime: 0,
+    prevRet: 0,
+    theta: [0, 0],
+    pos: 0,
+    eqA: 1,
+    eqB: 1,
+    hist: [],
+  };
+}
+
+function marketStep(m) {
+  const dev = m.x - m.ema;
+  const f0 = dev;
+  const f1 = m.prevRet;
+  const yhat = m.theta[0] * f0 + m.theta[1] * f1;
+  const z = yhat / MK.sigma;
+
+  // Soft policy over positions: Q(a) = a * forecast - cost of moving away from the current position.
+  const q = new Float64Array(G);
+  for (let i = 0; i < G; i++) q[i] = GX[i] * z - MK.polCost * Math.abs(GX[i] - m.pos);
+  const p = softPolicy(q, MK.polAlpha);
+  const pos = trapz(Float64Array.from(p, (v, i) => v * GX[i]));
+
+  // World: one regime or the other, switching at random.
+  if (m.rng() < MK.flip) m.regime = 1 - m.regime;
+  const eps = gauss(m.rng);
+  const ret = (m.regime === 0 ? -MK.k * dev : MK.mom * f1) + MK.sigma * eps;
+
+  // Accounting.
+  const turnover = Math.abs(pos - m.pos);
+  m.eqA *= Math.exp(pos * ret - MK.fee * turnover);
+  m.eqB *= Math.exp(ret);
+
+  // Learner: normalized LMS step on the realized return.
+  const err = ret - yhat;
+  const norm = f0 * f0 + f1 * f1 + 1e-12;
+  m.theta[0] += (MK.lr * err * f0) / norm;
+  m.theta[1] += (MK.lr * err * f1) / norm;
+
+  m.pos = pos;
+  m.x += ret;
+  m.ema += MK.ema * (m.x - m.ema);
+  m.prevRet = ret;
+  m.hist.push({ price: 100 * Math.exp(m.x), eqA: 100 * m.eqA, eqB: 100 * m.eqB, regime: m.regime });
+  if (m.hist.length > MK.window) m.hist.shift();
+}
+
+const S4 = {
+  m: null,
+  acc: 0,
+  count: 0,
+  yP: { lo: 95, hi: 105 },
+  yE: { lo: 95, hi: 105 },
+};
+function seedMarket(seed) {
+  S4.m = newMarket(seed);
+  for (let i = 0; i < MK.window; i++) marketStep(S4.m);
+  S4.acc = 0;
+}
+
+function advance4(dt) {
+  if (app.motion && app.marketPlaying) {
+    S4.acc += MK.stepsPerSec * dt;
+    while (S4.acc >= 1) {
+      S4.acc -= 1;
+      marketStep(S4.m);
+    }
+  }
+  const hist = S4.m.hist;
+  let pLo = Infinity;
+  let pHi = -Infinity;
+  let eLo = 100;
+  let eHi = 100;
+  for (const d of hist) {
+    pLo = Math.min(pLo, d.price);
+    pHi = Math.max(pHi, d.price);
+    eLo = Math.min(eLo, d.eqA, d.eqB);
+    eHi = Math.max(eHi, d.eqA, d.eqB);
+  }
+  const pPad = Math.max(0.5, (pHi - pLo) * 0.1);
+  const ePad = Math.max(0.5, (eHi - eLo) * 0.1);
+  const k = Math.min(1, dt * 4);
+  S4.yP.lo += (pLo - pPad - S4.yP.lo) * k;
+  S4.yP.hi += (pHi + pPad - S4.yP.hi) * k;
+  S4.yE.lo += (eLo - ePad - S4.yE.lo) * k;
+  S4.yE.hi += (eHi + ePad - S4.yE.hi) * k;
+  const m = S4.m;
+  const last = hist[hist.length - 1];
+  const posTxt = Math.abs(m.pos) < 0.05 ? 'flat' : (m.pos > 0 ? 'long ' : 'short ') + Math.abs(m.pos).toFixed(2);
+  setText(document.getElementById('pos-out'), posTxt);
+  setText(document.getElementById('regime-out'), m.regime === 0 ? 'reverting to the average' : 'trending');
+  setText(document.getElementById('w0-out'), signed(m.theta[0], 2));
+  setText(document.getElementById('w1-out'), signed(m.theta[1], 2));
+  setText(document.getElementById('eqa-out'), last ? last.eqA.toFixed(1) : '100.0');
+  setText(document.getElementById('eqb-out'), last ? last.eqB.toFixed(1) : '100.0');
+  setText(document.getElementById('market-btn'), app.marketPlaying ? 'Pause' : 'Play');
+}
+
+function draw4(p) {
+  const { ctx, w, h } = p;
+  const c = app.pal;
+  ctx.clearRect(0, 0, w, h);
+  const padL = 48;
+  const padR = 12;
+  const top = 10;
+  const bot = 24;
+  const area = h - top - bot;
+  const gap = 26;
+  const h1 = Math.round((area - gap) * 0.42);
+  const p1T = top;
+  const p1B = top + h1;
+  const p2T = p1B + gap;
+  const p2B = h - bot;
+  const n = MK.window;
+  const X = (i) => padL + (i / (n - 1)) * (w - padL - padR);
+  const hist = S4.m.hist;
+  const off = n - hist.length;
+  const XI = (k) => X(off + k);
+  const Y1 = (v) => p1B - ((v - S4.yP.lo) / (S4.yP.hi - S4.yP.lo)) * (p1B - p1T);
+  const Y2 = (v) => p2B - ((v - S4.yE.lo) / (S4.yE.hi - S4.yE.lo)) * (p2B - p2T);
+
+  // trending shading across both panels
+  for (let k = 0; k < hist.length; k++) {
+    if (hist[k].regime !== 1) continue;
+    const x0 = XI(k);
+    const x1 = k + 1 < hist.length ? XI(k + 1) : X(n - 1);
+    ctx.fillStyle = c.band;
+    ctx.fillRect(x0, p1T, x1 - x0 + 0.5, p2B - p1T);
+  }
+
+  strokeLine(ctx, padL, p1B, w - padR, p1B, c.rule, 1);
+  strokeLine(ctx, padL, p2B, w - padR, p2B, c.rule, 1);
+  label(ctx, S4.yP.hi.toFixed(0), padL - 8, p1T + 2, c.text2, 'right', 'top');
+  label(ctx, S4.yP.lo.toFixed(0), padL - 8, p1B, c.text2, 'right', 'bottom');
+  label(ctx, 'price, made up', padL + 6, p1T + 2, c.text2, 'left', 'top');
+
+  strokeLine(ctx, padL, Y2(100), w - padR, Y2(100), c.rule, 1, [4, 4]);
+  label(ctx, S4.yE.hi.toFixed(0), padL - 8, p2T + 2, c.text2, 'right', 'top');
+  label(ctx, S4.yE.lo.toFixed(0), padL - 8, p2B, c.text2, 'right', 'bottom');
+  label(ctx, 'growth of 100', padL + 6, p2T + 2, c.text2, 'left', 'top');
+  label(ctx, 'last ' + MK.window + ' steps', w - padR, h - 6, c.text2, 'right', 'bottom');
+
+  if (hist.length > 1) {
+    strokeCurve(ctx, hist.length, (k) => XI(k), (k) => Y1(hist[k].price), c.text2, 1.5);
+    strokeCurve(ctx, hist.length, (k) => XI(k), (k) => Y2(hist[k].eqB), c.text2, 1.5, [5, 4]);
+    strokeCurve(ctx, hist.length, (k) => XI(k), (k) => Y2(hist[k].eqA), c.s1, 2);
+  }
+}
+
+/* ---------- wiring ---------- */
+
+const P1 = makePlot('c-policy', (w) => clamp(w * 0.78, 280, 400));
+const P2 = makePlot('c-tanh', (w) => clamp(w * 0.85, 300, 380));
+const P3 = makePlot('c-noise', (w) => clamp(w * 0.85, 320, 380));
+const P4 = makePlot('c-market', (w) => clamp(w * 0.95, 340, 440));
+P1.advance = advance1; P1.draw = draw1;
+P2.advance = advance2; P2.draw = draw2;
+P3.advance = advance3; P3.draw = draw3;
+P4.advance = advance4; P4.draw = draw4;
+S1.plot = P1;
+
+const $ = (id) => document.getElementById(id);
+
+function markAllDirty() {
+  for (const p of app.plots) p.dirty = true;
+}
+
+function setMotion(on) {
+  app.motion = on;
+  $('motion-btn').textContent = on ? 'Pause animations' : 'Resume animations';
+  markAllDirty();
+}
+
+// initial values
+S1.targetLog = Number($('alpha').value);
+S1.logAlpha = S1.targetLog;
+S2.mu = Number($('mu').value);
+S2.sigma = Number($('sigma').value);
+setText($('mu-out'), S2.mu.toFixed(2));
+setText($('sigma-out'), S2.sigma.toFixed(2));
+app.pal = readPalette();
+seedMarket(101);
+// Initial marketPlaying follows the motion preference; the market only moves when motion is on.
+app.marketPlaying = app.motion;
+setText($('market-btn'), app.marketPlaying ? 'Pause' : 'Play');
+$('motion-btn').textContent = app.motion ? 'Pause animations' : 'Resume animations';
+
+$('alpha').addEventListener('input', (e) => {
+  S1.targetLog = Number(e.target.value);
+  P1.dirty = true;
+});
+
+$('mu').addEventListener('input', (e) => {
+  S2.mu = Number(e.target.value);
+  setText($('mu-out'), S2.mu.toFixed(2));
+  P2.dirty = true;
+});
+
+$('sigma').addEventListener('input', (e) => {
+  S2.sigma = Number(e.target.value);
+  setText($('sigma-out'), S2.sigma.toFixed(2));
+  P2.dirty = true;
+});
+
+$('noise-btn').addEventListener('click', () => {
+  S3.noise = !S3.noise;
+  S3.hist = [];
+  $('noise-btn').setAttribute('aria-pressed', String(S3.noise));
+  P3.dirty = true;
+});
+
+$('motion-btn').addEventListener('click', () => setMotion(!app.motion));
+
+$('market-btn').addEventListener('click', () => {
+  if (!app.motion) setMotion(true);
+  app.marketPlaying = !app.marketPlaying;
+  setText($('market-btn'), app.marketPlaying ? 'Pause' : 'Play');
+  P4.dirty = true;
+});
+
+$('market-new').addEventListener('click', () => {
+  S4.count += 1;
+  seedMarket(100 + S4.count * 7);
+  P4.dirty = true;
+});
+
+motionQuery.addEventListener('change', (e) => setMotion(!e.matches));
+darkQuery.addEventListener('change', () => {
+  app.pal = readPalette();
+  markAllDirty();
+});
+
+/* ---------- loop ---------- */
+
+function frame(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - app.last) / 1000));
+  app.last = now;
+  for (const p of app.plots) {
+    if (!p.visible) continue;
+    const resized = sizeCanvas(p);
+    p.advance(dt);
+    if (resized || p.dirty || app.motion) {
+      p.draw(p);
+      p.dirty = false;
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
