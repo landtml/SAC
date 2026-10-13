@@ -20,7 +20,7 @@ const PNG_DIR = path.join(ASSETS, 'png');
 const SOCIAL_PREVIEW = path.join(ASSETS, 'social-preview.png');
 
 const ICON_SCALE = 2;
-const SKIP_FILE = 'hero.svg';
+const SKIP_FILE = 'header.svg';
 const SKIP_DIR = 'animations';
 
 const FONT = "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
