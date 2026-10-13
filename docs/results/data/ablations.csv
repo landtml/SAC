@@ -1,0 +1,8 @@
+change,base,base_sharpe,diff,lo,hi,verdict
+Critic dropout 0.1,hidden-regime,3.76,0.73,-0.60,1.97,inconclusive
+Observation noise 0.1,hidden-regime,3.76,1.21,-0.53,2.97,inconclusive
+Volatility targeting,hidden-regime,3.76,0.62,-1.54,2.76,inconclusive
+HL-Gauss categorical critics,hidden-regime,3.76,-1.82,-4.46,0.95,rejected
+CVaR actor,hidden-regime,3.76,-2.40,-4.82,0.10,rejected
+Pathwise actor objective (4-step),hidden-regime,3.76,-5.34,-7.99,-2.72,rejected
+Premium-index feature,crypto-carry,10.61,0.03,-0.10,0.19,no gain
