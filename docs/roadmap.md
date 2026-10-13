@@ -1,14 +1,14 @@
 # Roadmap
 
-These are open questions, not promises. Each one names the part of the project that would answer
-it. Live paper trading is not planned. The [limits](results.md#limits) section lists what the
-model leaves out.
+This page lists the research questions the project has not yet answered. Each one names the part of
+the project that would answer it. None of them is a promise. Live paper trading is not planned. The
+[limits](results.md#limits) section lists what the model leaves out.
 
 ## Do the carry gains persist with more seeds?
 
-The confirmation configs in [`configs/confirm/`](../configs/README.md#confirm) already train three seeds on twelve
-symbols, for the base agent and two ablations. The same check for the carry configs would show
-whether their gains persist.
+The confirmation configs in [`configs/confirm/`](../configs/README.md#confirm) already train three
+seeds on twelve synthetic symbols, for the base agent and two ablations. The same check for the
+carry configs would show whether their gains persist.
 
 ## Does the carry result hold on wider universes?
 
