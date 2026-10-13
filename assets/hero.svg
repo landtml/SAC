@@ -11,24 +11,14 @@
     </linearGradient>
   </defs>
   <style>
-    .edgar { transform-box: fill-box; transform-origin: 50% 100%; animation: curl 8s ease-in-out infinite; }
-    .spine { transform-box: fill-box; transform-origin: 50% 100%; animation: ripple 2s ease-in-out infinite; }
-    .eye { transform-box: fill-box; transform-origin: 50% 50%; animation: blink 8s ease-in-out infinite; }
+    .pol { transform-box: view-box; transform-origin: 142px 188px; animation: policy 8s ease-in-out infinite; }
     .price { stroke-dasharray: 1; animation: trace 8s linear infinite; }
     .band { opacity: 0; animation: band 8s ease-in-out infinite; }
     .nolabel { opacity: 0; animation: nolabel 8s ease-in-out infinite; }
 
-    @keyframes curl {
-      0%, 15%, 29%, 100% { transform: scale(1, 1); }
-      18%, 26% { transform: scale(0.86, 0.74); }
-    }
-    @keyframes ripple {
-      0%, 100% { transform: rotate(0deg); }
-      50% { transform: rotate(-4deg); }
-    }
-    @keyframes blink {
-      0%, 40%, 44%, 76%, 80%, 100% { transform: scaleY(1); }
-      42%, 78% { transform: scaleY(0.1); }
+    @keyframes policy {
+      0%, 15%, 29%, 100% { transform: translateX(0) scale(1, 1); }
+      18%, 26% { transform: translateX(-38px) scale(1.15, 0.8); }
     }
     @keyframes trace {
       0% { stroke-dashoffset: 1; opacity: 0; }
@@ -48,7 +38,7 @@
       18%, 26% { opacity: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .edgar, .spine, .eye, .price, .band, .nolabel { animation: none; }
+      .pol, .price, .band, .nolabel { animation: none; }
       .band { opacity: 0.2; }
       .price { stroke-dasharray: none; }
     }
@@ -56,29 +46,18 @@
 
   <rect x="0" y="0" width="1280" height="440" rx="40" fill="#EEF4F2"/>
 
-  <g transform="translate(70 36) scale(0.6)">
-    <g class="edgar">
-      <path class="spine" style="animation-delay: 0s" d="M153.8 251.1 L122.2 214.6 L175 222.4 Z" fill="#5C3A24"/>
-      <path class="spine" style="animation-delay: -0.25s" d="M181.3 216.8 L167.9 170.1 L215.8 195.9 Z" fill="#5C3A24"/>
-      <path class="spine" style="animation-delay: -0.5s" d="M224.6 192.3 L231.3 142.3 L267.5 182.3 Z" fill="#5C3A24"/>
-      <path class="spine" style="animation-delay: -0.75s" d="M277.4 181.4 L303.3 135.4 L322.4 183.7 Z" fill="#5C3A24"/>
-      <path class="spine" style="animation-delay: -1s" d="M332.1 185.5 L373.3 150.2 L372.6 199.8 Z" fill="#5C3A24"/>
-      <path class="spine" style="animation-delay: -1.25s" d="M380.6 204.2 L431.2 184.6 L410.8 228.4 Z" fill="#5C3A24"/>
-      <path class="spine" style="animation-delay: -1.5s" d="M415.9 234.6 L468.5 233.7 L431.4 265.2 Z" fill="#5C3A24"/>
-      <ellipse cx="290" cy="285" rx="150" ry="110" fill="#7A4B2E"/>
-      <rect x="190" y="372" width="44" height="40" rx="20" fill="#5C3A24"/>
-      <rect x="290" y="372" width="44" height="40" rx="20" fill="#5C3A24"/>
-      <ellipse cx="165" cy="300" rx="85" ry="80" fill="#F2D2A9"/>
-      <ellipse cx="91" cy="292" rx="13" ry="11" fill="#2B2D42"/>
-      <g class="eye">
-        <circle cx="150" cy="268" r="11" fill="#2B2D42"/>
-        <circle cx="154" cy="264" r="3.5" fill="#FFFFFF"/>
-      </g>
-      <path d="M112 326 Q124 336 137 326" fill="none" stroke="#2B2D42" stroke-width="6" stroke-linecap="round"/>
-      <polyline points="110,470 175,448 235,458 300,424 368,436 420,392" fill="none" stroke="#1E9E6A" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
-      <circle cx="420" cy="392" r="10" fill="#1E9E6A"/>
-    </g>
-  </g>
+  <svg class="mark" x="112" y="62" width="256" height="256" viewBox="0 0 256 256">
+<rect width="256" height="256" rx="56" fill="#12202B"/>
+<clipPath id="mk-tile"><rect x="28" y="0" width="200" height="256"/></clipPath>
+<clipPath id="mk-left"><rect x="0" y="0" width="104" height="188"/></clipPath>
+<clipPath id="mk-right"><rect x="104" y="0" width="152" height="188"/></clipPath>
+<g clip-path="url(#mk-tile)"><g clip-path="url(#mk-left)"><path class="pol" d="M36.0 187.9 L39.1 187.9 L42.1 187.8 L45.2 187.7 L48.3 187.5 L51.3 187.3 L54.4 187.1 L57.5 186.7 L60.5 186.2 L63.6 185.5 L66.7 184.7 L69.7 183.6 L72.8 182.2 L75.9 180.4 L78.9 178.2 L82.0 175.5 L85.1 172.3 L88.1 168.5 L91.2 164.1 L94.3 159.0 L97.3 153.3 L100.4 146.9 L103.5 139.9 L106.5 132.4 L109.6 124.5 L112.7 116.4 L115.7 108.1 L118.8 100.0 L121.9 92.2 L124.9 85.0 L128.0 78.6 L131.1 73.1 L134.1 68.8 L137.2 65.8 L140.3 64.2 L143.3 64.1 L146.4 65.5 L149.5 68.3 L152.5 72.5 L155.6 77.8 L158.7 84.1 L161.7 91.3 L164.8 99.0 L167.9 107.1 L170.9 115.3 L174.0 123.5 L177.1 131.4 L180.1 138.9 L183.2 146.0 L186.3 152.5 L189.3 158.3 L192.4 163.5 L195.5 168.0 L198.5 171.8 L201.6 175.1 L204.7 177.9 L207.7 180.1 L210.8 181.9 L213.9 183.4 L216.9 184.5 L220.0 185.4 L220 188 L36 188 Z" fill="#2E4150"/></g>
+<g clip-path="url(#mk-right)"><path class="pol" d="M36.0 187.9 L39.1 187.9 L42.1 187.8 L45.2 187.7 L48.3 187.5 L51.3 187.3 L54.4 187.1 L57.5 186.7 L60.5 186.2 L63.6 185.5 L66.7 184.7 L69.7 183.6 L72.8 182.2 L75.9 180.4 L78.9 178.2 L82.0 175.5 L85.1 172.3 L88.1 168.5 L91.2 164.1 L94.3 159.0 L97.3 153.3 L100.4 146.9 L103.5 139.9 L106.5 132.4 L109.6 124.5 L112.7 116.4 L115.7 108.1 L118.8 100.0 L121.9 92.2 L124.9 85.0 L128.0 78.6 L131.1 73.1 L134.1 68.8 L137.2 65.8 L140.3 64.2 L143.3 64.1 L146.4 65.5 L149.5 68.3 L152.5 72.5 L155.6 77.8 L158.7 84.1 L161.7 91.3 L164.8 99.0 L167.9 107.1 L170.9 115.3 L174.0 123.5 L177.1 131.4 L180.1 138.9 L183.2 146.0 L186.3 152.5 L189.3 158.3 L192.4 163.5 L195.5 168.0 L198.5 171.8 L201.6 175.1 L204.7 177.9 L207.7 180.1 L210.8 181.9 L213.9 183.4 L216.9 184.5 L220.0 185.4 L220 188 L36 188 Z" fill="#1E9E6A"/></g>
+<path class="pol" d="M36.0 187.9 L39.1 187.9 L42.1 187.8 L45.2 187.7 L48.3 187.5 L51.3 187.3 L54.4 187.1 L57.5 186.7 L60.5 186.2 L63.6 185.5 L66.7 184.7 L69.7 183.6 L72.8 182.2 L75.9 180.4 L78.9 178.2 L82.0 175.5 L85.1 172.3 L88.1 168.5 L91.2 164.1 L94.3 159.0 L97.3 153.3 L100.4 146.9 L103.5 139.9 L106.5 132.4 L109.6 124.5 L112.7 116.4 L115.7 108.1 L118.8 100.0 L121.9 92.2 L124.9 85.0 L128.0 78.6 L131.1 73.1 L134.1 68.8 L137.2 65.8 L140.3 64.2 L143.3 64.1 L146.4 65.5 L149.5 68.3 L152.5 72.5 L155.6 77.8 L158.7 84.1 L161.7 91.3 L164.8 99.0 L167.9 107.1 L170.9 115.3 L174.0 123.5 L177.1 131.4 L180.1 138.9 L183.2 146.0 L186.3 152.5 L189.3 158.3 L192.4 163.5 L195.5 168.0 L198.5 171.8 L201.6 175.1 L204.7 177.9 L207.7 180.1 L210.8 181.9 L213.9 183.4 L216.9 184.5 L220.0 185.4" fill="none" stroke="#E8F1EE" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+</g>
+<line x1="32" y1="188" x2="224" y2="188" stroke="#5F7380" stroke-width="6" stroke-linecap="round"/>
+<line x1="104" y1="52" x2="104" y2="200" stroke="#C9D6D2" stroke-width="6" stroke-linecap="round"/>
+  </svg>
 
   <text x="430" y="190" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="112" font-weight="700" fill="#2B2D42">Soft<tspan fill="#137A55">Edge</tspan></text>
   <text font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" fill="#3C4B57">

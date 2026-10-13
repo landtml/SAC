@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.gif" alt="SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly. Edgar the hedgehog walks along a price line, stays flat where there is no edge, and trades the out-of-sample window." width="100%">
+  <img src="assets/hero.gif" alt="SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly. The logo is the agent's Gaussian policy over positions; it slides back to zero when there is no edge, while a price line shows the agent staying flat and then trading the out-of-sample window." width="100%">
 </p>
 
 <p align="center">
@@ -31,12 +31,6 @@ trading costs, and is discounted for every variant we tried.
 The agent is a **Soft Actor-Critic (SAC)**, a widely used deep reinforcement-learning method,
 updated with ideas from 2024-2026 research. It trades crypto, crypto carry trades, forex, stock
 indices, oil, Treasuries and prediction markets, all from free public data.
-
-<p align="center">
-  <img src="assets/png/mascot.png" alt="Edgar the hedgehog, the SoftEdge mascot" width="140">
-  <img src="assets/png/mascot-curled.png" alt="Edgar curled up: no edge, no position" width="140">
-  <br><em>Meet Edgar. Hedgehogs hedge. When the tests find no edge, Edgar curls up and holds no position.</em>
-</p>
 
 ## What we found so far
 

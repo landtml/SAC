@@ -65,17 +65,17 @@ function iconPage(svg, { width, height }) {
 </body></html>`;
 }
 
-function socialPreviewPage(mascotSvg) {
-  const mascot = mascotSvg
+function socialPreviewPage(logoSvg) {
+  const logo = logoSvg
     .replace(/^<\?xml[^>]*>\s*/, '')
-    .replace(/<svg\b/, '<svg x="80" y="100" width="440" height="440"');
+    .replace(/<svg\b/, '<svg x="120" y="160" width="320" height="320"');
   return `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="margin:0">
 <div id="card" style="width:1280px;height:640px">
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="${FONT}">
 <rect width="1280" height="640" fill="${PAPER}"/>
-${mascot}
-<rect x="600" y="200" width="96" height="6" fill="${ACCENT}"/>
+${logo}
+<rect x="600" y="176" width="96" height="6" fill="${ACCENT}"/>
 <text x="600" y="300" font-size="112" font-weight="700" fill="${INK}">Soft<tspan fill="${ACCENT}">Edge</tspan></text>
 <text font-size="34" fill="${MUTED}">
 <tspan x="600" y="362">Soft Actor-Critic agents</tspan>
@@ -112,8 +112,8 @@ async function main() {
       viewport: { width: 1280, height: 640 },
     });
     const social = await socialContext.newPage();
-    const mascot = await readFile(path.join(ASSETS, 'mascot.svg'), 'utf8');
-    await social.setContent(socialPreviewPage(mascot));
+    const logo = await readFile(path.join(ASSETS, 'logo.svg'), 'utf8');
+    await social.setContent(socialPreviewPage(logo));
     await social.locator('#card').screenshot({ path: SOCIAL_PREVIEW });
     await socialContext.close();
     written.push(SOCIAL_PREVIEW);

@@ -1,8 +1,8 @@
 # SoftEdge documentation
 
 SoftEdge asks whether a Soft Actor-Critic agent can find a trading edge that holds up on data it
-never trained on. The [project README](../README.md) gives the overview. Edgar, the project hedgehog,
-stays curled up flat when the validation gate finds no edge, and walks out when there is one.
+never trained on. The [project README](../README.md) gives the overview.
+When the validation gate finds no edge, the agent stays flat.
 
 ## Pages
 
