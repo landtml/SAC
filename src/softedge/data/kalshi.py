@@ -21,7 +21,7 @@ from softedge.data.schema import make_frame
 
 API_URL = "https://api.elections.kalshi.com/trade-api/v2"
 PAGE_SIZE = 1000
-# Multi-day macro series whose settled markets returned candles when probed.
+# Multi-day macro series whose settled markets returned candles when checked.
 DEFAULT_SERIES = ("KXFED", "KXFEDDECISION", "KXCPI", "KXCPIYOY", "KXPAYROLLS", "KXU3")
 PERIOD_MINUTES = 60
 # The candlestick endpoint answers 400 above 5000 candles, so each request covers 30 days.
