@@ -55,7 +55,7 @@ All notable changes to this project are recorded here. The format follows
 - Prediction-market configs exist, but no results are reported for them.
 - The numbers come from backtests only. There is no live trading.
 
-## [0.1.0] - 2026-10-12
+## [0.1.0] - 2026-10-13
 
 ### Added
 
