@@ -11,12 +11,11 @@ cross-validation (CSCV).
 from __future__ import annotations
 
 import itertools
-import math
 
 import numpy as np
 from scipy import stats
 
-from sactrader.eval.metrics import dispersion_ok, sharpe
+from sactrader.eval.metrics import DEGENERATE_REL, dispersion_ok, sharpe
 
 EULER_GAMMA = 0.5772156649015329
 # Bootstrap rows are generated in chunks of about this many index entries.
@@ -148,23 +147,60 @@ def pbo_cscv(perf: np.ndarray, n_splits: int = 16) -> float:
     if n_splits < 2 or n_splits % 2:
         raise ValueError("n_splits must be even and at least 2")
     t_rows, n_cfg = x.shape
-    if t_rows < n_splits:
-        raise ValueError("need at least one row per split")
+    if t_rows < 2 * n_splits:
+        raise ValueError("need at least two rows per split")
 
     blocks = np.array_split(np.arange(t_rows), n_splits)
+    counts = np.array([b.size for b in blocks], dtype=np.float64)
+    means = np.stack([x[b].mean(axis=0) for b in blocks])
+    m2 = np.stack([((x[b] - x[b].mean(axis=0)) ** 2).sum(axis=0) for b in blocks])
+    scale = np.abs(x).max()
+
     half = n_splits // 2
-    all_blocks = set(range(n_splits))
-    logits = np.empty(math.comb(n_splits, half))
-    for k, combo in enumerate(itertools.combinations(range(n_splits), half)):
-        is_rows = np.concatenate([blocks[i] for i in combo])
-        oos_rows = np.concatenate([blocks[i] for i in sorted(all_blocks - set(combo))])
-        is_sr = sharpe(x[is_rows].T, 1.0, axis=-1)
-        oos_sr = sharpe(x[oos_rows].T, 1.0, axis=-1)
-        best = int(np.argmax(is_sr))
-        # Average rank of the in-sample pick among the N out-of-sample values, 1 to N.
-        below = np.sum(oos_sr < oos_sr[best])
-        equal = np.sum(oos_sr == oos_sr[best])
-        rank = below + (equal + 1) / 2.0
-        w = rank / (n_cfg + 1.0)
-        logits[k] = np.log(w / (1.0 - w))
+    combo_sets = [set(c) for c in itertools.combinations(range(n_splits), half)]
+    combos = np.array([sorted(s) for s in combo_sets])
+    comps = np.array([[i for i in range(n_splits) if i not in s] for s in combo_sets])
+    is_sr = _subset_sharpe(combos, counts, means, m2, scale)
+    oos_sr = _subset_sharpe(comps, counts, means, m2, scale)
+
+    rows = np.arange(combos.shape[0])
+    best = np.argmax(is_sr, axis=1)
+    oos_best = oos_sr[rows, best][:, None]
+    # Average rank of the in-sample pick among the N out-of-sample values, 1 to N.
+    below = np.sum(oos_sr < oos_best, axis=1)
+    equal = np.sum(oos_sr == oos_best, axis=1)
+    rank = below + (equal + 1) / 2.0
+    w = rank / (n_cfg + 1.0)
+    logits = np.log(w / (1.0 - w))
     return float(np.mean(logits <= 0.0))
+
+
+def _subset_sharpe(
+    index: np.ndarray,
+    counts: np.ndarray,
+    means: np.ndarray,
+    m2: np.ndarray,
+    scale: float,
+) -> np.ndarray:
+    """Per-bar Sharpe of each subset of blocks, shape (K, N).
+
+    ``index`` lists the block numbers of each subset. Subset moments come from the
+    block means and sums of squared deviations. Two subsets are merged with the
+    pairwise update of Chan et al., which stays accurate where a raw sum of squares
+    would cancel.
+    """
+    n = counts[index[:, 0]]
+    mean = means[index[:, 0]]
+    acc = m2[index[:, 0]]
+    for j in range(1, index.shape[1]):
+        nb = counts[index[:, j]]
+        delta = means[index[:, j]] - mean
+        n_new = n + nb
+        mean = mean + delta * (nb / n_new)[:, None]
+        acc = acc + m2[index[:, j]] + delta**2 * (n * nb / n_new)[:, None]
+        n = n_new
+    sd = np.sqrt(acc / (n - 1.0)[:, None])
+    ok = sd > DEGENERATE_REL * scale
+    out = np.zeros_like(mean)
+    np.divide(mean, sd, out=out, where=ok)
+    return out
