@@ -31,6 +31,9 @@ class TrainConfig:
     # Restore the best checkpoint when the mean |Q| exceeds this (scaled rewards keep |Q| near
     # 1 / (1 - gamma) at most) or a loss is not finite.
     q_abs_limit: float = 100.0
+    # "cosine" decays actor and critic learning rates to lr_min_frac of their start value.
+    lr_schedule: str | None = None
+    lr_min_frac: float = 0.1
     seed: int = 0
     threads: int = 4
     env: EnvConfig = field(default_factory=EnvConfig)
@@ -127,9 +130,15 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
             sample = replay.sample(cfg.sac.batch_size, rng)
             relabel(sample, ts, cfg.relabel_frac, rng)
             obs, next_obs = materialize(sample, ts)
+            frac = min(1.0, n_updates / planned_updates)
             if ent_end is not None:
-                frac = min(1.0, n_updates / planned_updates)
                 agent.target_entropy = -(ent_start + (ent_end - ent_start) * frac)
+            if cfg.lr_schedule == "cosine":
+                mult = cfg.lr_min_frac + (1 - cfg.lr_min_frac) * 0.5 * (1 + np.cos(np.pi * frac))
+                for opt, base in ((agent.actor_opt, cfg.sac.lr_actor),
+                                  (agent.critic_opt, cfg.sac.lr_critic)):
+                    for group in opt.param_groups:
+                        group["lr"] = base * mult
             stats = agent.update(obs, sample["action"], sample["reward"] * scale, next_obs,
                                  sample["terminal"])
             n_updates += 1

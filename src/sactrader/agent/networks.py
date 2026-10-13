@@ -73,25 +73,29 @@ class EnsembleLayerNorm(nn.Module):
 
 
 class SimbaBlock(nn.Module):
-    def __init__(self, members: int, hidden: int, expansion: int = 4):
+    def __init__(self, members: int, hidden: int, expansion: int = 4, dropout: float = 0.0):
         super().__init__()
         self.norm = EnsembleLayerNorm(members, hidden)
         self.fc1 = EnsembleLinear(members, hidden, hidden * expansion, gain=math.sqrt(2))
         self.fc2 = EnsembleLinear(members, hidden * expansion, hidden)
+        # Dropout in the critics (DroQ, Hiraoka et al., 2022) makes each member a random
+        # sub-network, which damps fitting to noise in the bootstrapped targets.
+        self.drop = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x + self.fc2(torch.relu(self.fc1(self.norm(x))))
+        return x + self.fc2(self.drop(torch.relu(self.fc1(self.norm(x)))))
 
 
 class SimbaNet(nn.Module):
     """E independent SimBa MLPs evaluated together. Input (E, B, d_in) or (B, d_in)."""
 
     def __init__(self, members: int, d_in: int, d_out: int, hidden: int = 256, blocks: int = 2,
-                 out_gain: float = 1e-2):
+                 out_gain: float = 1e-2, dropout: float = 0.0):
         super().__init__()
         self.members = members
         self.inp = EnsembleLinear(members, d_in, hidden)
-        self.blocks = nn.ModuleList([SimbaBlock(members, hidden) for _ in range(blocks)])
+        self.blocks = nn.ModuleList([SimbaBlock(members, hidden, dropout=dropout)
+                                     for _ in range(blocks)])
         self.norm = EnsembleLayerNorm(members, hidden)
         self.out = EnsembleLinear(members, hidden, d_out, gain=out_gain)
 
@@ -135,11 +139,12 @@ class QuantileCritic(nn.Module):
     """Ensemble of E critics, each predicting M quantiles of the soft return."""
 
     def __init__(self, obs_dim: int, act_dim: int, members: int = 2, quantiles: int = 25,
-                 hidden: int = 256, blocks: int = 2):
+                 hidden: int = 256, blocks: int = 2, dropout: float = 0.0):
         super().__init__()
         self.members = members
         self.quantiles = quantiles
-        self.net = SimbaNet(members, obs_dim + act_dim, quantiles, hidden, blocks, out_gain=1.0)
+        self.net = SimbaNet(members, obs_dim + act_dim, quantiles, hidden, blocks, out_gain=1.0,
+                            dropout=dropout)
 
     def forward(self, obs: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         return self.net(torch.cat([obs, action], dim=-1))  # (E, B, M)

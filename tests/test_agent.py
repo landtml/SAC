@@ -88,3 +88,14 @@ def test_critic_learns_constant_reward_value():
     for _ in range(600):
         stats = agent.update(obs, np.zeros(64), np.ones(64), obs, np.zeros(64, bool))
     assert stats["q_mean"] == pytest.approx(2.0, abs=0.15)
+
+
+def test_dropout_and_obs_noise_options_train():
+    rng = np.random.default_rng(2)
+    cfg = SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, critic_dropout=0.1, obs_noise=0.1)
+    agent = TQCSAC(4, 1, cfg, seed=0)
+    assert any(isinstance(m, torch.nn.Dropout) for m in agent.critic.modules())
+    obs = rng.normal(size=(32, 4)).astype(np.float32)
+    for _ in range(5):
+        stats = agent.update(obs, rng.uniform(-1, 1, 32), rng.normal(size=32), obs, np.zeros(32, bool))
+    assert all(np.isfinite(v) for v in stats.values())

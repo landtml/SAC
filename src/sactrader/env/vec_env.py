@@ -36,6 +36,9 @@ class EnvConfig:
     cost_mult_low: float = 1.0
     cost_mult_high: float = 1.0
     tape_weighting: str = "length"  # "length" or "uniform"
+    # Half-life in bars for sampling episode starts toward the end of each tape. Markets drift,
+    # so recent history is weighted up; None samples starts uniformly.
+    recency_halflife: float | None = None
 
 
 class TapeSet:
@@ -177,7 +180,15 @@ class VecTradingEnv:
         k = self.rng.choice(len(self.tape_p), size=len(idx), p=self.tape_p)
         lo = ts.first_row
         hi = ts.last_step_row[k]
-        t0 = lo + (self.rng.random(len(idx)) * (hi - lo + 1)).astype(np.int64)
+        u = self.rng.random(len(idx))
+        if self.cfg.recency_halflife:
+            # Inverse CDF of a truncated exponential over the distance back from ``hi``.
+            lam = np.log(2.0) / self.cfg.recency_halflife
+            span = (hi - lo + 1).astype(np.float64)
+            back = -np.log1p(-u * (1.0 - np.exp(-lam * span))) / lam
+            t0 = np.clip(hi - np.floor(back).astype(np.int64), lo, hi)
+        else:
+            t0 = lo + (u * (hi - lo + 1)).astype(np.int64)
         self.k[idx] = k
         self.t[idx] = t0
         # Stepping from row `end` is the episode's last step.

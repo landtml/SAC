@@ -46,6 +46,10 @@ class SACConfig:
     # Weight of a temporal-consistency penalty on the deterministic action between consecutive
     # states (CAPS-style). Oscillating targets pay spread and fees on every flip.
     smooth_coef: float = 0.0
+    # Dropout rate inside critic residual blocks (0 disables).
+    critic_dropout: float = 0.0
+    # Std of Gaussian noise added to normalized observations in updates (0 disables).
+    obs_noise: float = 0.0
     # Position levels for categorical SAC; None keeps the continuous tanh-Gaussian policy.
     discrete_levels: tuple[float, ...] | None = None
 
@@ -93,7 +97,7 @@ class TQCSAC:
         self.obs_norm = RunningNorm(obs_dim)
         self.actor = TanhGaussianActor(obs_dim, act_dim, cfg.actor_hidden, cfg.actor_blocks)
         self.critic = QuantileCritic(obs_dim, act_dim, cfg.n_critics, cfg.n_quantiles,
-                                     cfg.hidden, cfg.critic_blocks)
+                                     cfg.hidden, cfg.critic_blocks, cfg.critic_dropout)
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self.log_alpha = nn.Parameter(torch.tensor(float(np.log(cfg.init_alpha))))
         self.target_entropy = -float(act_dim) * cfg.target_entropy_scale
@@ -110,7 +114,7 @@ class TQCSAC:
 
     @property
     def alpha(self) -> float:
-        return float(self.log_alpha.exp())
+        return float(self.log_alpha.detach().exp())
 
     @torch.no_grad()
     def act(self, obs: np.ndarray, deterministic: bool = False) -> np.ndarray:
@@ -137,6 +141,10 @@ class TQCSAC:
         self.obs_norm.update(obs_t)
         o = self.obs_norm(obs_t)
         o2 = self.obs_norm(next_t)
+        if c.obs_noise > 0:
+            # Input jitter: a smoothness prior for features that are mostly noise.
+            o = o + c.obs_noise * torch.randn_like(o)
+            o2 = o2 + c.obs_noise * torch.randn_like(o2)
         a = torch.as_tensor(action, dtype=f32).reshape(-1, self.act_dim)
         r = torch.as_tensor(reward, dtype=f32).reshape(-1, 1)
         not_done = 1.0 - torch.as_tensor(terminal, dtype=f32).reshape(-1, 1)
@@ -192,7 +200,7 @@ class TQCSAC:
         c = self.cfg
         self.actor = TanhGaussianActor(self.obs_dim, self.act_dim, c.actor_hidden, c.actor_blocks)
         self.critic = QuantileCritic(self.obs_dim, self.act_dim, c.n_critics, c.n_quantiles,
-                                     c.hidden, c.critic_blocks)
+                                     c.hidden, c.critic_blocks, c.critic_dropout)
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self._make_optimizers()
 

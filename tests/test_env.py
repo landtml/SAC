@@ -91,3 +91,13 @@ def test_relabel_recomputes_exact_rewards(tapeset):
     obs, nxt = materialize(s, tapeset)
     assert obs.shape == nxt.shape == (64, tapeset.obs_dim)
     assert np.isfinite(obs).all() and np.isfinite(nxt).all()
+
+
+def test_recency_weighting_skews_episode_starts_late():
+    ts = TapeSet(_tapes()[:1], window=4)
+    flat_env = VecTradingEnv(ts, EnvConfig(window=4, episode_len=8, n_envs=512), seed=0)
+    late_env = VecTradingEnv(ts, EnvConfig(window=4, episode_len=8, n_envs=512, recency_halflife=30),
+                             seed=0)
+    hi = ts.last_step_row[0]
+    assert (late_env.t >= ts.first_row).all() and (late_env.t <= hi).all()
+    assert np.median(hi - late_env.t) < 40 < np.median(hi - flat_env.t)
