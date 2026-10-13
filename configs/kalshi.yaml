@@ -1,0 +1,15 @@
+name: kalshi
+universe: kalshi
+data: {max_markets: 300, min_volume: 20000}
+costs: {fee_bps: 0.0, half_spread_abs: 0.005}
+split:
+  train: [null, '2026-09-01']
+  val: ['2026-09-01', '2026-09-14']
+  test: ['2026-09-14', null]
+env: {cost_mult_high: 2.0, cost_mult_low: 0.5, episode_len: 1024, n_envs: 16, tape_weighting: uniform,
+  window: 8}
+sac: {actor_hidden: 64, critic_blocks: 1, gamma: 0.995, hidden: 128, risk: mean}
+train: {eval_every: 1000, relabel_frac: 0.5, threads: 1, total_steps: 40000, utd: 0.25, warmup_steps: 5000}
+deploy: {gate_psr: 0.8}
+seeds: [0, 1]
+reference: flat
