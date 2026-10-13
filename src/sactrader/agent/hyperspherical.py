@@ -1,8 +1,8 @@
 """Hyperspherical ensemble MLP (SimbaV2-style) with the SimbaNet call signature.
 
-Hidden states and hidden weight rows lie on the unit sphere, which bounds feature norms and the
-effective learning rate. Input (E, B, d_in) or (B, d_in) gives output (E, B, d_out). Members
-share no parameters and no computation.
+Hidden states and hidden weight rows lie on the unit sphere, following SimbaV2 (arXiv 2502.15280).
+Input (E, B, d_in) or (B, d_in) gives output (E, B, d_out). Members share no parameters and no
+computation.
 
 Embedding and block scales start at 1.0, so the first forward pass is a plain normalized MLP.
 The block residual weight alpha starts at 1 / (blocks + 1). The output layer keeps its bias and
@@ -45,7 +45,7 @@ class HyperBlock(nn.Module):
 
     def forward(self, h: torch.Tensor) -> torch.Tensor:
         u = _l2norm(self.fc2(self.drop(torch.relu(self.scale * self.fc1(h)))))
-        # Interpolating toward u, rather than adding it, bounds each step on the sphere.
+        # LERP residual: alpha sets the weight of the block output, then h returns to the sphere.
         return _l2norm(h + self.alpha * (u - h))
 
 
