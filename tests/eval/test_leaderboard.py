@@ -82,12 +82,11 @@ def test_sorted_by_dsr_with_missing_values_last(runs_root):
 
 def test_walk_forward_rows_count_current_trials_per_universe(runs_root):
     table = collect(runs_root)
-    wf = table[table["mode"] == "walk_forward"]
-    # Both walk-forward runs share one universe: five SAC variants in one, three in the other.
-    assert set(wf["n_trials"]) == {8}
-    assert set(wf["n_trials"]) == set(recompute_dsr(runs_root)["n_trials"])
-    cpcv = table[table["mode"] == "cpcv"]
-    assert set(cpcv["n_trials"]) == {_result(runs_root, "cpcv")["n_trials"]}
+    # One universe: every SAC variant of every run, CPCV included, is one trial
+    # (five in the two-seed walk-forward run, three in the single split, three in CPCV).
+    n_sac = int(table["strategy"].str.startswith("sac_").sum())
+    assert set(table["n_trials"]) == {n_sac} == {11}
+    assert set(recompute_dsr(runs_root)["n_trials"]) == {11}
 
 
 def test_deployed_share_is_the_deployed_fold_fraction(runs_root):
@@ -98,7 +97,7 @@ def test_deployed_share_is_the_deployed_fold_fraction(runs_root):
     wf_gated = gated[gated["run"] == "walk_forward"]["deployed_share"]
     assert wf_gated.item() == deployed / result["n_folds"]
     assert gated.loc[gated["mode"] == "walk_forward", "deployed_share"].between(0, 1).all()
-    assert gated.loc[gated["mode"] == "cpcv", "deployed_share"].isna().all()
+    assert gated.loc[gated["mode"] == "cpcv", "deployed_share"].between(0, 1).all()
     assert table.loc[table["strategy"] != "sac_gated", "deployed_share"].isna().all()
 
 
@@ -121,8 +120,10 @@ def test_cpcv_rows_take_path_aggregates(runs_root):
     rows = table[table["run"] == "cpcv"].set_index("strategy")
     for strategy, a in agg.items():
         row = rows.loc[strategy]
-        _same(row["sharpe"], a["sharpe_mean"])
-        _same(row["dsr"], a["dsr_mean"])
+        # Sharpe is recomputed from the saved paths, annualized from their timestamps.
+        assert row["sharpe"] == pytest.approx(a["sharpe_mean"], rel=0.05, abs=1e-9)
+        if np.isfinite(row["dsr"]):
+            assert row["dsr"] <= row["psr"] + 1e-12
         _same(row["max_drawdown"], a["max_drawdown_mean"])
         _same(row["cvar_95"], a["cvar_95_mean"])
         _same(row["share_positive"], a["share_positive"])

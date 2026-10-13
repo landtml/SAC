@@ -26,7 +26,18 @@ def main(argv: list[str] | None = None) -> int:
     dsr = sub.add_parser("dsr", help="recompute deflated Sharpe ratios over all saved runs")
     dsr.add_argument("--runs", default="runs")
 
+    lb = sub.add_parser("leaderboard", help="rank every saved run by deflated Sharpe ratio")
+    lb.add_argument("--runs", default="runs")
+    lb.add_argument("--top", type=int, default=None)
+
     args = parser.parse_args(argv)
+    if args.cmd == "leaderboard":
+        from sactrader.eval.leaderboard import collect, leaderboard_markdown
+
+        text = leaderboard_markdown(collect(args.runs), args.top)
+        (__import__("pathlib").Path(args.runs) / "leaderboard.md").write_text(text + "\n")
+        print(text)
+        return 0
     if args.cmd == "dsr":
         from sactrader.eval.report import to_markdown
         from sactrader.experiment import recompute_dsr

@@ -293,26 +293,45 @@ def trial_stats(root: Path, universe: str, current: list[float]) -> tuple[int, f
 
 
 def recompute_dsr(root: str | Path) -> pd.DataFrame:
-    """DSR table for every run under ``root`` that saved pooled returns, with trials and
-    cross-trial variance counted per universe over all those runs."""
+    """DSR table for every saved run under ``root``, deflated by the current trial count.
+
+    Walk-forward and single-split runs (``pooled_returns.csv``) give one row per strategy. CPCV
+    runs (``path{j}_returns.csv``) give one row per strategy with the mean over paths of Sharpe,
+    PSR and DSR, plus ``dsr_min`` and ``n_paths``. Every SAC strategy of every run is one trial of
+    its universe (a CPCV strategy counts once, at its mean per-bar Sharpe across paths); the
+    cross-trial variance is that of those per-bar Sharpe ratios. Directories without
+    ``config.yaml`` are skipped.
+    """
     root = Path(root)
     runs = []
-    for d in sorted(p for p in root.iterdir() if (p / "pooled_returns.csv").exists()):
+    for d in sorted(p for p in root.iterdir() if p.is_dir() and (p / "config.yaml").exists()):
         cfg = load_config(d / "config.yaml")
-        pooled = pd.read_csv(d / "pooled_returns.csv", index_col=0, parse_dates=True)
-        runs.append((d.name, cfg, pooled))
+        if (d / "pooled_returns.csv").exists():
+            pooled = pd.read_csv(d / "pooled_returns.csv", index_col=0, parse_dates=True)
+            runs.append((d.name, cfg, "walk_forward", [pooled]))
+        else:
+            paths = sorted(d.glob("path*_returns.csv"), key=lambda p: int(p.stem[4:-8]))
+            if paths:
+                frames = [pd.read_csv(p, index_col=0, parse_dates=True) for p in paths]
+                runs.append((d.name, cfg, "cpcv", frames))
     by_universe: dict[str, list[float]] = {}
-    for _, cfg, pooled in runs:
-        srs = [_per_bar_sharpe(pooled[c].dropna()) for c in pooled.columns if c.startswith("sac_")]
-        by_universe.setdefault(cfg["universe"], []).extend(srs)
+    for _, cfg, _, frames in runs:
+        for col in frames[0].columns:
+            if col.startswith("sac_"):
+                sr = np.mean([_per_bar_sharpe(f[col].dropna()) for f in frames])
+                by_universe.setdefault(cfg["universe"], []).append(float(sr))
     rows = []
-    for name, cfg, pooled in runs:
-        srs = by_universe[cfg["universe"]]
+    for name, cfg, mode, frames in runs:
+        srs = by_universe.get(cfg["universe"], [])
         var = float(np.var(srs, ddof=1)) if len(srs) > 1 else None
-        bpy = _bars_per_year(pooled.index)
-        for col in pooled.columns:
-            d = dsr_summary(pooled[col].dropna().to_numpy(), bpy, len(srs), var)
-            rows.append({"run": name, "universe": cfg["universe"], "strategy": col, **d})
+        n = max(len(srs), 1)
+        for col in frames[0].columns:
+            ds = [dsr_summary(f[col].dropna().to_numpy(), _bars_per_year(f.index), n, var)
+                  for f in frames]
+            row = {k: float(np.mean([d[k] for d in ds])) for k in ds[0]}
+            row.update(run=name, universe=cfg["universe"], mode=mode, strategy=col,
+                       dsr_min=float(np.min([d["dsr"] for d in ds])), n_paths=len(frames))
+            rows.append(row)
     return pd.DataFrame(rows)
 
 
