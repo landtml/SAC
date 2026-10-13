@@ -73,10 +73,14 @@ def test_pbo_is_low_when_one_column_dominates():
     assert pbo_cscv(perf, n_splits=16) < 0.2
 
 
-def test_pbo_is_near_half_for_iid_noise_columns():
-    rng = np.random.default_rng(4)
-    perf = rng.normal(0.0, 0.01, size=(320, 10))
-    assert 0.3 <= pbo_cscv(perf, n_splits=16) <= 0.7
+def test_pbo_mean_over_iid_draws_is_near_half():
+    # A single draw of 10 iid columns can give PBO anywhere from about 0 to 1, so the
+    # check averages 20 seeded draws. Under iid noise each split has P(logit <= 0) = 0.5.
+    values = []
+    for seed in range(1000, 1020):
+        perf = np.random.default_rng(seed).normal(0.0, 0.01, size=(320, 10))
+        values.append(pbo_cscv(perf, n_splits=16))
+    assert 0.3 <= float(np.mean(values)) <= 0.7
 
 
 def test_pbo_rejects_bad_shapes():
