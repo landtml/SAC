@@ -30,7 +30,7 @@ This check needs no network. It plants a return signal in six synthetic markets,
 should find it.
 
 ```bash
-softedge run configs/synthetic_wf.yaml
+softedge run configs/synthetic/synthetic_wf.yaml
 ```
 
 The command trains, selects on validation, tests each window once, and prints a JSON summary. The
@@ -40,7 +40,7 @@ Now run the control. It uses the same pipeline on random walks with no signal, a
 should find nothing.
 
 ```bash
-softedge run configs/synthetic_null_wf.yaml
+softedge run configs/synthetic/synthetic_null_wf.yaml
 ```
 
 If the control reports an edge, the check has failed, and results from this pipeline should not
@@ -63,7 +63,7 @@ first time a run needs them. You can skip `download` and go straight to a run.
 ## 4. Run a walk-forward config
 
 ```bash
-softedge run configs/crypto_perp_wf.yaml
+softedge run configs/crypto/crypto_perp_wf.yaml
 ```
 
 This config trains one agent per fold and seed. Each fold trains on the past, selects its

@@ -65,8 +65,8 @@ Spot and perpetual futures on Binance, the ten coins in the crypto universe.
 | `crypto/crypto_spot.yaml` | Spot, hourly, no leverage, 10% borrow rate. One split: train to 2024, validation 2024, test from 2025. | No |
 | `crypto/crypto_perp.yaml` | Perpetual futures, hourly, up to 2x leverage, cost multiplier randomized between 0.5 and 2. One split: test from 2025. | No |
 | `crypto/crypto_perp_wf.yaml` | Hourly perpetual futures, walk-forward from 2023 with 365-day test windows and 180-day validation windows. | No |
-| `crypto/crypto_perp_1d_wf.yaml` | Daily perpetual futures, walk-forward from 2023 with 365-day test windows. Smaller networks (hidden 64, actor 32). No prior. | Yes |
-| `crypto/crypto_perp_1d_v2.yaml` | Same settings as `crypto_perp_1d_wf.yaml`. | No |
+| `crypto/crypto_perp_1d_wf.yaml` | Daily perpetual futures, walk-forward from 2023 with 365-day test windows. Smaller networks (hidden 64, actor 32). No prior. Run before the funding look-ahead fix; superseded by `crypto_perp_1d_v2.yaml`. | No |
+| `crypto/crypto_perp_1d_v2.yaml` | Same settings as `crypto_perp_1d_wf.yaml`, rerun after the funding look-ahead fix. | Yes |
 | `crypto/crypto_perp_1d_vt.yaml` | As `crypto_perp_1d_wf.yaml` with a 40% volatility target. | No |
 | `crypto/crypto_perp_1d_prior.yaml` | As `crypto_perp_1d_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
 | `crypto/crypto_perp_1d_path.yaml` | As `crypto_perp_1d_wf.yaml` with the pathwise actor objective over 4 steps. | No |

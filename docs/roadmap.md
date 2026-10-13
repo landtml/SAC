@@ -6,7 +6,7 @@ the project that would answer it. None of them is a promise. Live paper trading 
 
 ## Do the carry gains persist with more seeds?
 
-The confirmation configs in [`configs/confirm/`](../configs/README.md#confirm) already train three
+The confirmation configs in [`configs/ablation/confirm/`](../configs/README.md#confirm) already train three
 seeds on twelve synthetic symbols, for the base agent and two ablations. The same check for the
 carry configs would show whether their gains persist.
 

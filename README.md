@@ -131,14 +131,14 @@ uv venv .venv -p 3.12
 uv pip install --python .venv/bin/python torch --index-url https://download.pytorch.org/whl/cpu
 uv pip install --python .venv/bin/python -e ".[dev]"
 
-.venv/bin/softedge run configs/synthetic_wf.yaml   # sanity check on synthetic data, no downloads
+.venv/bin/softedge run configs/synthetic/synthetic_wf.yaml   # sanity check on synthetic data, no downloads
 .venv/bin/softedge summary --runs runs             # the agent against the best simple rule
 ```
 
 Then a real market (public data is downloaded on first use):
 
 ```bash
-.venv/bin/softedge run configs/crypto_basis_1d_prior_v2.yaml
+.venv/bin/softedge run configs/carry/crypto_basis_1d_prior_v2.yaml
 .venv/bin/softedge compare crypto_basis_1d_prior_v2 crypto_basis_1d_prior_prem
 .venv/bin/softedge dsr --runs runs                 # deflated Sharpe ratios over every run
 ```
