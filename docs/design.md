@@ -232,7 +232,9 @@ early-closing market reveals when it resolved.
 - Price history at hourly fidelity hides spikes inside the hour, and the spread is a constant
   assumption.
 - The basis frame assumes equal leg notionals at every bar and has no intrabar spread range, so
-  it ignores second-order drift between the legs and liquidation of the perp leg. Exchange
+  it ignores second-order drift between the legs and liquidation of the perp leg. A short
+  cash-and-carry position borrows spot and pays `costs.borrow_apr` (one flat rate, while real
+  margin rates vary by coin and over time). Exchange
   counterparty risk, the main real risk of the carry trade, is outside the model.
 - FRED equity indices are price indices without dividends and are not financed, two biases of
   similar size and opposite sign for a long position.
