@@ -11,3 +11,6 @@ dist/
 /runs/
 *.parquet
 *.pt
+
+# local settings and credentials
+.env
