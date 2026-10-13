@@ -15,6 +15,7 @@ CRYPTO_SYMBOLS = (
     "DOGEUSDT", "ADAUSDT", "LINKUSDT", "AVAXUSDT", "LTCUSDT",
 )
 FX_PAIRS = ("EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF")
+FRED_MARKET_NAMES = ("SPX", "NDX", "NKY", "WTI", "BRENT", "UST10", "UST2")
 # Binary markets live for weeks, not years: shorter horizons keep more of each market after warm-up.
 BINARY_FEATURES = FeatureConfig(horizons=(1, 4, 16, 64), ema_spans=(16, 64), vol_long_span=128)
 
@@ -35,7 +36,12 @@ class SplitSpec:
 def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6) -> list[pd.DataFrame]:
-    """Bar frames for ``crypto_perp``, ``crypto_spot``, ``fx``, ``polymarket`` or ``synthetic``.
+    """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
+    ``polymarket``, ``kalshi`` or ``synthetic``.
+
+    ``crypto_basis`` is the cash-and-carry spread of each symbol (long spot, short perp), a
+    carry trade whose return is mostly funding. ``macro`` holds daily equity indices, oil and
+    Treasury excess-return indices from FRED.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
     (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
@@ -62,11 +68,32 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
 
         load = binance.load_perp if universe == "crypto_perp" else binance.load_spot
         return [load(s, "1h", start, end) for s in (symbols or CRYPTO_SYMBOLS)]
+    if universe == "crypto_basis":
+        from sactrader.data import binance
+        from sactrader.data.basis import basis_frame
+
+        return [basis_frame(binance.load_spot(s, "1h", start, end), binance.load_perp(s, "1h", start, end))
+                for s in (symbols or CRYPTO_SYMBOLS)]
+    if universe == "macro":
+        from sactrader.data.fred_markets import load_fred_market
+
+        return [load_fred_market(m, start, end) for m in (symbols or FRED_MARKET_NAMES)]
     if universe == "fx":
         from sactrader.data import fx, rates
 
         return [rates.attach_rate_diff(fx.load_fx_daily(p, start=f"{start}-01"))
                 for p in (symbols or FX_PAIRS)]
+    if universe == "kalshi":
+        from sactrader.data import kalshi
+
+        markets = kalshi.list_settled_markets(min_volume=min_volume, max_markets=max_markets)
+        frames = []
+        for _, row in markets.iterrows():
+            try:
+                frames.append(kalshi.load_market(row))
+            except (ValueError, FileNotFoundError, RuntimeError):
+                continue  # too short or no candles
+        return frames
     if universe == "polymarket":
         from sactrader.data import polymarket
 
@@ -82,15 +109,28 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
 
 
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
-             feature_cfg: FeatureConfig | None = None) -> list[MarketTape]:
-    tapes = []
+             feature_cfg: FeatureConfig | None = None, cross: bool = False) -> list[MarketTape]:
+    """Tapes from frames. ``cross`` adds cross-asset context (``features.cross``) to every
+    non-binary frame when there are at least three of them."""
+    kept, tables = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
         cfg = feature_cfg or (BINARY_FEATURES if kind == "binary" else FeatureConfig())
         if len(fr) <= warmup_bars(cfg) + 16:
             continue
-        spec = costs(fr) if callable(costs) else (costs or DEFAULT_COSTS[kind])
-        tapes.append(build_tape(fr, compute_features(fr, cfg), spec))
+        kept.append(fr)
+        tables.append(compute_features(fr, cfg))
+    linear = [i for i, fr in enumerate(kept) if fr.attrs["kind"] != "binary"]
+    if cross and len(linear) >= 3:
+        from sactrader.features.cross import cross_features
+
+        ctx = cross_features({str(i): tables[i] for i in linear})
+        for i in linear:
+            tables[i] = pd.concat([tables[i], ctx[str(i)]], axis=1).clip(-5.0, 5.0)
+    tapes = []
+    for fr, feats in zip(kept, tables, strict=True):
+        spec = costs(fr) if callable(costs) else (costs or DEFAULT_COSTS[fr.attrs["kind"]])
+        tapes.append(build_tape(fr, feats, spec))
     return tapes
 
 

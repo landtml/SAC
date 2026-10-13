@@ -22,7 +22,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from sactrader.agent.networks import RunningNorm, SimbaNet
+from sactrader.agent.networks import RunningNorm, ensemble_mlp, renormalize
 from sactrader.agent.sac import SACConfig
 
 
@@ -56,10 +56,11 @@ class DiscreteSAC:
         c, k = self.cfg, len(self.levels)
         # The default output gain starts the logits near zero, so the initial policy is close to
         # uniform.
-        self.actor = SimbaNet(1, self.obs_dim, k, hidden=c.actor_hidden, blocks=c.actor_blocks)
+        self.actor = ensemble_mlp(c.network, 1, self.obs_dim, k, hidden=c.actor_hidden,
+                                  blocks=c.actor_blocks)
         # Q targets are unbounded, so the critic output keeps unit gain as in QuantileCritic.
-        self.critic = SimbaNet(c.n_critics, self.obs_dim, k, hidden=c.hidden,
-                               blocks=c.critic_blocks, out_gain=1.0, dropout=c.critic_dropout)
+        self.critic = ensemble_mlp(c.network, c.n_critics, self.obs_dim, k, hidden=c.hidden,
+                                   blocks=c.critic_blocks, out_gain=1.0, dropout=c.critic_dropout)
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
 
     def _make_optimizers(self) -> None:
@@ -119,6 +120,7 @@ class DiscreteSAC:
         critic_loss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), c.grad_clip)
         self.critic_opt.step()
+        renormalize(self.critic)
 
         logp = torch.log_softmax(self.actor(o)[0], dim=-1)
         pi = logp.exp()
@@ -134,6 +136,7 @@ class DiscreteSAC:
         actor_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), c.grad_clip)
         self.actor_opt.step()
+        renormalize(self.actor)
 
         alpha_loss = -(self.log_alpha * (self.target_entropy - entropy)).mean()
         self.alpha_opt.zero_grad(set_to_none=True)

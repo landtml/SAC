@@ -131,9 +131,9 @@ def _scan_resolved(min_volume: float, max_markets: int) -> list[dict]:
 
 def _markets_frame(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=list(COLUMNS))
-    df["start"] = pd.to_datetime(df["start"], utc=True)
-    df["end"] = pd.to_datetime(df["end"], utc=True)
-    df["scheduled_end"] = pd.to_datetime(df["scheduled_end"], utc=True)
+    df["start"] = pd.to_datetime(df["start"], format="ISO8601", utc=True)
+    df["end"] = pd.to_datetime(df["end"], format="ISO8601", utc=True)
+    df["scheduled_end"] = pd.to_datetime(df["scheduled_end"], format="ISO8601", utc=True)
     df["resolution"] = df["resolution"].astype(float)
     df["volume"] = df["volume"].astype(float)
     return df

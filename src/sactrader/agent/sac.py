@@ -20,7 +20,7 @@ import torch
 from torch import nn
 
 from sactrader.agent.hlgauss import CategoricalCritic
-from sactrader.agent.networks import QuantileCritic, RunningNorm, TanhGaussianActor
+from sactrader.agent.networks import QuantileCritic, RunningNorm, TanhGaussianActor, renormalize
 
 
 @dataclass
@@ -63,6 +63,9 @@ class SACConfig:
     hl_vmax: float = 10.0
     # Position levels for categorical SAC; None keeps the continuous tanh-Gaussian policy.
     discrete_levels: tuple[float, ...] | None = None
+    # "simba": pre-LayerNorm residual MLPs (SimBa). "hyper": hidden states and weights on the
+    # unit sphere (SimbaV2), which bounds feature norms under noisy targets.
+    network: str = "simba"
 
 
 class _QuantileHuber(torch.autograd.Function):
@@ -106,7 +109,8 @@ class TQCSAC:
         torch.manual_seed(seed)
         self.obs_dim, self.act_dim = obs_dim, act_dim
         self.obs_norm = RunningNorm(obs_dim)
-        self.actor = TanhGaussianActor(obs_dim, act_dim, cfg.actor_hidden, cfg.actor_blocks)
+        self.actor = TanhGaussianActor(obs_dim, act_dim, cfg.actor_hidden, cfg.actor_blocks,
+                                       net=cfg.network)
         self.critic = self._build_critic()
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self.log_alpha = nn.Parameter(torch.tensor(float(np.log(cfg.init_alpha))))
@@ -119,11 +123,11 @@ class TQCSAC:
         if c.critic_type == "hlgauss":
             return CategoricalCritic(self.obs_dim, self.act_dim, c.n_critics, c.hl_bins,
                                      -c.hl_vmax, c.hl_vmax, c.hidden, c.critic_blocks,
-                                     c.critic_dropout)
+                                     c.critic_dropout, net=c.network)
         if c.critic_type != "quantile":
             raise ValueError(c.critic_type)
         return QuantileCritic(self.obs_dim, self.act_dim, c.n_critics, c.n_quantiles,
-                              c.hidden, c.critic_blocks, c.critic_dropout)
+                              c.hidden, c.critic_blocks, c.critic_dropout, net=c.network)
 
     def _make_optimizers(self) -> None:
         c = self.cfg
@@ -190,6 +194,7 @@ class TQCSAC:
         critic_loss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), c.grad_clip)
         self.critic_opt.step()
+        renormalize(self.critic)
 
         a_pi, logp = self.actor(o)
         if hl:
@@ -208,6 +213,7 @@ class TQCSAC:
         actor_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), c.grad_clip)
         self.actor_opt.step()
+        renormalize(self.actor)
 
         alpha_loss = -(self.log_alpha * (logp.detach() + self.target_entropy)).mean()
         self.alpha_opt.zero_grad(set_to_none=True)
@@ -230,7 +236,8 @@ class TQCSAC:
         """Re-initialize actor and critics (keeping observation statistics) to restore plasticity."""
         torch.manual_seed(seed)
         c = self.cfg
-        self.actor = TanhGaussianActor(self.obs_dim, self.act_dim, c.actor_hidden, c.actor_blocks)
+        self.actor = TanhGaussianActor(self.obs_dim, self.act_dim, c.actor_hidden, c.actor_blocks,
+                                       net=c.network)
         self.critic = self._build_critic()
         self.critic_target = copy.deepcopy(self.critic).requires_grad_(False)
         self._make_optimizers()

@@ -267,3 +267,16 @@ def test_top_resolved_market_loads_live():
     assert df.attrs["kind"] == "binary"
     assert df.attrs["resolution"] in (0.0, 1.0)
     assert len(df) >= 48
+
+
+def test_listing_parses_mixed_iso_timestamps():
+    from sactrader.data.polymarket import COLUMNS, _markets_frame
+
+    base = dict.fromkeys(COLUMNS, "x")
+    rows = [{**base, "start": "2024-01-01T00:00:00Z", "end": "2024-02-01T12:00:00Z",
+             "scheduled_end": "2024-02-01T00:00:00Z", "resolution": 1.0, "volume": 1e6},
+            {**base, "start": "2024-01-02T00:00:00.123456Z", "end": "2024-02-02T12:30:00.5Z",
+             "scheduled_end": "2024-02-02T00:00:00Z", "resolution": 0.0, "volume": 2e6}]
+    df = _markets_frame(rows)
+    assert df["start"].iloc[1] == pd.Timestamp("2024-01-02T00:00:00.123456Z")
+    assert str(df["end"].dt.tz) == "UTC"

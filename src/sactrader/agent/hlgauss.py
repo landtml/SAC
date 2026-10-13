@@ -13,7 +13,7 @@ import math
 
 import torch
 
-from sactrader.agent.networks import SimbaNet
+from sactrader.agent.networks import ensemble_mlp
 
 
 class HLGauss:
@@ -59,13 +59,13 @@ class CategoricalCritic(torch.nn.Module):
 
     def __init__(self, obs_dim: int, act_dim: int, members: int = 2, n_bins: int = 101,
                  v_min: float = -10.0, v_max: float = 10.0, hidden: int = 256, blocks: int = 2,
-                 dropout: float = 0.0):
+                 dropout: float = 0.0, net: str = "simba"):
         super().__init__()
         self.members = members
         self.hl = HLGauss(n_bins, v_min, v_max)
         # Output gain 1.0 keeps initial logits at unit scale; the default 1e-2 suits policy heads.
-        self.net = SimbaNet(members, obs_dim + act_dim, n_bins, hidden, blocks, out_gain=1.0,
-                            dropout=dropout)
+        self.net = ensemble_mlp(net, members, obs_dim + act_dim, n_bins, hidden, blocks,
+                                out_gain=1.0, dropout=dropout)
 
     def forward(self, obs: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         return self.net(torch.cat([obs, action], dim=-1))  # (E, B, n_bins)

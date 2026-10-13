@@ -40,3 +40,19 @@ def test_resample_hourly_perp_to_daily():
     assert day["high"].iloc[0] == first["high"].max() and day["low"].iloc[0] == first["low"].min()
     assert np.isclose(day["funding_rate"].iloc[0], first["funding_rate"].sum())
     assert day["taker_buy_base"].iloc[0] == 24.0
+
+
+def test_cross_features_join_linear_tapes_only():
+    import numpy as np
+
+    linear = [gbm(600, sigma=0.01, seed=i, symbol=f"S{i}") for i in range(3)]
+    binary = binary_market(200, seed=9, symbol="B")
+    plain = to_tapes(linear + [binary])
+    tapes = to_tapes(linear + [binary], cross=True)
+    for tp, ref in zip(tapes[:3], plain[:3], strict=True):
+        assert "mkt_ret_h16" in tp.feature_names and "rel_ret_h16" in tp.feature_names
+        assert tp.feature_names[:len(ref.feature_names)] == ref.feature_names
+        assert len(tp) == len(ref) and np.abs(tp.features).max() <= 5.0
+    assert "mkt_ret_h16" not in tapes[3].feature_names
+    # Two linear frames are too few for a cross-section, so nothing is added.
+    assert to_tapes(linear[:2], cross=True)[0].feature_names == plain[0].feature_names

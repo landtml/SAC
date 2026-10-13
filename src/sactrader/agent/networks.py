@@ -108,11 +108,33 @@ class SimbaNet(nn.Module):
         return self.out(self.norm(h))
 
 
+def ensemble_mlp(kind: str, members: int, d_in: int, d_out: int, hidden: int = 256, blocks: int = 2,
+                 out_gain: float = 1e-2, dropout: float = 0.0) -> nn.Module:
+    """``kind`` "simba" (SimbaNet) or "hyper" (HyperNet, SimbaV2-style hyperspherical)."""
+    if kind == "simba":
+        return SimbaNet(members, d_in, d_out, hidden, blocks, out_gain, dropout)
+    if kind == "hyper":
+        from sactrader.agent.hyperspherical import HyperNet
+
+        return HyperNet(members, d_in, d_out, hidden, blocks, out_gain, dropout)
+    raise ValueError(f"unknown network kind {kind!r}")
+
+
+@torch.no_grad()
+def renormalize(*models: nn.Module) -> None:
+    """Put hyperspherical weights back on the sphere; call after every optimizer step."""
+    for model in models:
+        for m in model.modules():
+            project = getattr(m, "project_", None)
+            if callable(project):
+                project()
+
+
 class TanhGaussianActor(nn.Module):
     def __init__(self, obs_dim: int, act_dim: int, hidden: int = 256, blocks: int = 1,
-                 log_std_min: float = -5.0, log_std_max: float = 2.0):
+                 log_std_min: float = -5.0, log_std_max: float = 2.0, net: str = "simba"):
         super().__init__()
-        self.net = SimbaNet(1, obs_dim, 2 * act_dim, hidden, blocks)
+        self.net = ensemble_mlp(net, 1, obs_dim, 2 * act_dim, hidden, blocks)
         self.act_dim = act_dim
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
@@ -139,12 +161,12 @@ class QuantileCritic(nn.Module):
     """Ensemble of E critics, each predicting M quantiles of the soft return."""
 
     def __init__(self, obs_dim: int, act_dim: int, members: int = 2, quantiles: int = 25,
-                 hidden: int = 256, blocks: int = 2, dropout: float = 0.0):
+                 hidden: int = 256, blocks: int = 2, dropout: float = 0.0, net: str = "simba"):
         super().__init__()
         self.members = members
         self.quantiles = quantiles
-        self.net = SimbaNet(members, obs_dim + act_dim, quantiles, hidden, blocks, out_gain=1.0,
-                            dropout=dropout)
+        self.net = ensemble_mlp(net, members, obs_dim + act_dim, quantiles, hidden, blocks,
+                                out_gain=1.0, dropout=dropout)
 
     def forward(self, obs: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         return self.net(torch.cat([obs, action], dim=-1))  # (E, B, M)

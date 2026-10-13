@@ -83,7 +83,7 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     def costs(frame):
         return replace(DEFAULT_COSTS[frame.attrs["kind"]], **overrides)
 
-    return to_tapes(frames, costs)
+    return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)))
 
 
 def make_splits(cfg: dict) -> list[SplitSpec]:
@@ -160,7 +160,11 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         # Synthetic markets know their expected return: the sign oracle bounds what is learnable.
         runs["oracle"] = [rollout_exposures(tp, np.sign(tp.extra["mu_next"]) * tp.max_leverage,
                                             start_row) for tp in test]
-    if test[0].kind != "binary":
+    if test[0].kind == "binary":
+        # Holding NO everywhere: the favourite-longshot bias says long shots are overpriced.
+        runs["always_no"] = [rollout_exposures(tp, -baselines.buy_and_hold(tp, tp.max_leverage),
+                                               start_row) for tp in test]
+    else:
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]

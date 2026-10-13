@@ -112,3 +112,20 @@ def test_hlgauss_critic_learns_constant_reward_value():
     assert stats["q_mean"] == pytest.approx(2.0, abs=0.2)
     clone = TQCSAC.from_state_dict(agent.state_dict())
     np.testing.assert_allclose(clone.act(obs, True), agent.act(obs, True))
+
+
+@pytest.mark.parametrize("critic_type", ["quantile", "hlgauss"])
+def test_hyperspherical_network_trains_and_stays_on_the_sphere(critic_type):
+    rng = np.random.default_rng(0)
+    cfg = SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, batch_size=32, network="hyper",
+                    critic_type=critic_type)
+    agent = TQCSAC(6, 1, cfg, seed=0)
+    obs = rng.normal(size=(32, 6)).astype(np.float32)
+    for _ in range(5):
+        stats = agent.update(obs, rng.uniform(-1, 1, 32), rng.normal(size=32), obs, np.zeros(32, bool))
+    assert all(np.isfinite(v) for v in stats.values())
+    for net in (agent.critic.net, agent.actor.net):
+        rows = net.inp.weight.norm(dim=1)
+        np.testing.assert_allclose(rows.detach().numpy(), 1.0, atol=1e-5)
+    clone = TQCSAC.from_state_dict(agent.state_dict())
+    np.testing.assert_allclose(clone.act(obs, deterministic=True), agent.act(obs, deterministic=True))
