@@ -16,6 +16,8 @@ CRYPTO_SYMBOLS = (
 )
 FX_PAIRS = ("EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF")
 FRED_MARKET_NAMES = ("SPX", "NDX", "NKY", "WTI", "BRENT", "UST10", "UST2")
+# Hyperliquid funding history starts in May 2023.
+HYPERLIQUID_START = "2023-06"
 # Binary markets live for weeks, not years: shorter horizons keep more of each market after warm-up.
 BINARY_FEATURES = FeatureConfig(horizons=(1, 4, 16, 64), ema_spans=(16, 64), vol_long_span=128)
 
@@ -35,13 +37,17 @@ class SplitSpec:
 
 def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
-                min_volume: float = 1e6) -> list[pd.DataFrame]:
+                min_volume: float = 1e6, implied_vol: bool = False) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi`` or ``synthetic``.
 
     ``crypto_basis`` is the cash-and-carry spread of each symbol (long spot, short perp), a
-    carry trade whose return is mostly funding. ``macro`` holds daily equity indices, oil and
-    Treasury excess-return indices from FRED.
+    carry trade whose return is mostly funding. ``hl_basis`` is the same trade against
+    Hyperliquid's perp (long Binance spot, short Hyperliquid perp) and ``perp_spread`` the
+    cross-venue funding spread (long Binance perp, short Hyperliquid perp), both daily from
+    mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
+    FRED. ``implied_vol`` joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
+    every other coin, the crypto market's implied volatility).
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
     (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
@@ -67,7 +73,30 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         from sactrader.data import binance
 
         load = binance.load_perp if universe == "crypto_perp" else binance.load_spot
-        return [load(s, "1h", start, end) for s in (symbols or CRYPTO_SYMBOLS)]
+        frames = [load(s, "1h", start, end) for s in (symbols or CRYPTO_SYMBOLS)]
+        if implied_vol:
+            from sactrader.data.deribit import attach_implied_vol
+
+            frames = [attach_implied_vol(f, "ETH" if f.attrs["symbol"].startswith("ETH") else "BTC")
+                      for f in frames]
+        return frames
+    if universe in ("hl_basis", "perp_spread"):
+        from sactrader.data import binance, hyperliquid
+        from sactrader.data.basis import spread_frame
+
+        hl_start = max(start, HYPERLIQUID_START)
+        listed = set(hyperliquid.list_perps()["coin"])
+        frames = []
+        for s in symbols or CRYPTO_SYMBOLS:
+            coin = s.removesuffix("USDT")
+            if coin not in listed:
+                continue
+            short = hyperliquid.load_perp(coin, "1d", hl_start, end)
+            long_load = binance.load_spot if universe == "hl_basis" else binance.load_perp
+            long = resample_frame(long_load(s, "1h", start, end), "1D")
+            tag = "HLBASIS" if universe == "hl_basis" else "XVENUE"
+            frames.append(spread_frame(long, short, f"{coin}-{tag}"))
+        return frames
     if universe == "crypto_basis":
         from sactrader.data import binance
         from sactrader.data.basis import basis_frame
@@ -109,9 +138,11 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
 
 
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
-             feature_cfg: FeatureConfig | None = None, cross: bool = False) -> list[MarketTape]:
+             feature_cfg: FeatureConfig | None = None, cross: bool = False,
+             regime: bool = False) -> list[MarketTape]:
     """Tapes from frames. ``cross`` adds cross-asset context (``features.cross``) to every
-    non-binary frame when there are at least three of them."""
+    non-binary frame when there are at least three of them; ``regime`` adds the regime
+    indicators of ``features.regime`` to every frame."""
     kept, tables = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
@@ -119,7 +150,12 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
         if len(fr) <= warmup_bars(cfg) + 16:
             continue
         kept.append(fr)
-        tables.append(compute_features(fr, cfg))
+        table = compute_features(fr, cfg)
+        if regime:
+            from sactrader.features.regime import regime_features
+
+            table = pd.concat([table, regime_features(fr)], axis=1)
+        tables.append(table)
     linear = [i for i, fr in enumerate(kept) if fr.attrs["kind"] != "binary"]
     if cross and len(linear) >= 3:
         from sactrader.features.cross import cross_features

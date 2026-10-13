@@ -260,3 +260,20 @@ def test_warmup_follows_config():
         assert "ret_h8" in out.columns and "ema_gap_4" in out.columns
         assert np.isfinite(out.iloc[warmup_bars(cfg):].to_numpy()).all()
         assert np.nanmax(np.abs(out.to_numpy())) <= 0.5
+
+
+def test_implied_vol_features_compare_implied_with_realized():
+    from sactrader.data.synthetic import gbm
+
+    frame = gbm(600, sigma=0.01, seed=3, symbol="BTCUSDT")
+    iv = np.full(len(frame), 0.5)
+    iv[:100] = np.nan  # the implied series starts later than the prices
+    iv[400:] = 0.8
+    frame["implied_vol"] = iv
+    out = compute_features(frame, FeatureConfig(horizons=(1, 4, 16), ema_spans=(16,),
+                                                vol_long_span=64))
+    assert (out["iv_rv"].iloc[:100] == 0).all() and np.isfinite(out["iv_rv"]).all()
+    sigma_ann = 0.01 * np.sqrt(365.25 * 24)
+    assert abs(float(out["iv_rv"].iloc[300]) - np.log(0.5 / sigma_ann)) < 0.3
+    assert float(out["iv_change"].iloc[401]) == pytest.approx(np.log(0.8 / 0.5), rel=1e-5)
+    assert float(out["iv_change"].iloc[410]) == 0.0

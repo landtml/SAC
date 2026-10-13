@@ -83,3 +83,23 @@ def test_mismatched_bars_or_symbols_and_swapped_legs_raise():
         basis_frame(spot, perp_eth)
     with pytest.raises(ValueError, match="spot frame, then a perp frame"):
         basis_frame(perp, spot)
+
+
+def test_spread_of_two_perps_nets_their_funding():
+    from sactrader.data.basis import spread_frame
+    from sactrader.data.schema import make_frame
+
+    idx = pd.date_range("2024-01-01", periods=4, freq="1D", tz="UTC")
+
+    def perp(closes, funding, symbol):
+        c = np.asarray(closes, dtype=float)
+        return make_frame(idx, c, c, c, c, np.ones(4), symbol=symbol, kind="perp", bar="1D",
+                          funding_rate=np.asarray(funding, dtype=float))
+
+    a = perp([100, 110, 99, 99], [0.001, 0.0, 0.002, 0.0], "BTCUSDT")
+    b = perp([50, 54, 54, 49.5], [0.003, 0.001, 0.0, 0.0], "BTC")
+    out = spread_frame(a, b, "BTC-XV")
+    want = 100 * np.cumprod([1.0, 1 + 0.10 - 0.08, 1 - 0.10 - 0.0, 1 + 0.0 + 1 / 12])
+    np.testing.assert_allclose(out["close"].to_numpy(), want)
+    np.testing.assert_allclose(out["funding_rate"].to_numpy(), [-0.002, -0.001, 0.002, 0.0])
+    assert out.attrs["symbol"] == "BTC-XV" and out.attrs["kind"] == "perp"

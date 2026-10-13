@@ -130,6 +130,14 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
             # A last bar that closes after the scheduled end has no time left to run.
             cols["log_hours_to_end"] = np.log1p(np.maximum(hours, 0.0)) / 5.0
 
+    if "implied_vol" in frame.columns:
+        # Implied minus realized volatility (the variance risk premium) and the implied trend.
+        # Values before the implied series starts are neutral zeros.
+        bars_per_year = pd.Timedelta("365.25D") / pd.Timedelta(to_offset(frame.attrs["bar"]))
+        iv = frame["implied_vol"].astype("float64").clip(lower=_FLOOR)
+        cols["iv_rv"] = np.log(iv / (sigma * np.sqrt(bars_per_year))).fillna(0.0)
+        cols["iv_change"] = np.log(iv / iv.shift(cfg.horizons[1])).fillna(0.0)
+
     if "rate_diff" in frame.columns:
         # 5% differential maps to 1.0, the carry signal behind forex carry trades.
         cols["rate_diff"] = frame["rate_diff"].astype("float64").fillna(0.0) * 20.0

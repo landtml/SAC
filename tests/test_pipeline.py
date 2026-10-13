@@ -56,3 +56,10 @@ def test_cross_features_join_linear_tapes_only():
     assert "mkt_ret_h16" not in tapes[3].feature_names
     # Two linear frames are too few for a cross-section, so nothing is added.
     assert to_tapes(linear[:2], cross=True)[0].feature_names == plain[0].feature_names
+
+
+def test_regime_features_are_added_on_request():
+    frames = [gbm(600, sigma=0.01, seed=i, symbol=f"S{i}") for i in range(2)]
+    plain, with_regime = to_tapes(frames), to_tapes(frames, regime=True)
+    assert "vr_16" in with_regime[0].feature_names and "vr_16" not in plain[0].feature_names
+    assert len(with_regime[0]) <= len(plain[0])

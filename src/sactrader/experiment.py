@@ -82,7 +82,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     data = cfg.get("data", {})
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
                          symbols=cfg.get("symbols"), max_markets=data.get("max_markets", 300),
-                         min_volume=data.get("min_volume", 1e6))
+                         min_volume=data.get("min_volume", 1e6),
+                         implied_vol=bool(data.get("implied_vol", False)))
     if data.get("resample"):
         frames = [resample_frame(f, data["resample"]) for f in frames]
     overrides = cfg.get("costs") or {}
@@ -90,7 +91,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     def costs(frame):
         return replace(DEFAULT_COSTS[frame.attrs["kind"]], **overrides)
 
-    return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)))
+    return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)),
+                    regime=bool(data.get("regime_features", False)))
 
 
 def make_splits(cfg: dict) -> list[SplitSpec]:

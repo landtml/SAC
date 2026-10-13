@@ -42,20 +42,36 @@ def basis_frame(spot: pd.DataFrame, perp: pd.DataFrame) -> pd.DataFrame:
             f"legs differ: spot {symbol!r} {bar!r}, perp "
             f"{perp.attrs.get('symbol')!r} {perp.attrs.get('bar')!r}"
         )
-    common = spot.index.intersection(perp.index)
+    return spread_frame(spot, perp, f"{symbol}-BASIS")
+
+
+def spread_frame(long_leg: pd.DataFrame, short_leg: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """One unit long ``long_leg`` and one unit short ``short_leg`` as a perp-kind frame.
+
+    The legs may be any linear frames with the same bar, for example two venues' perpetuals on
+    one coin. ``funding_rate`` is the long leg's funding minus the short leg's (a leg without a
+    ``funding_rate`` column pays none), so a positive value is paid by a long spread position.
+    The approximations of the module docstring apply.
+    """
+    bar = long_leg.attrs["bar"]
+    if short_leg.attrs.get("bar") != bar:
+        raise ValueError(f"legs have different bars: {bar!r} and {short_leg.attrs.get('bar')!r}")
+    common = long_leg.index.intersection(short_leg.index)
     if len(common) < 2:
         raise ValueError(f"legs share {len(common)} bars, need at least 2")
 
-    s, p = spot.loc[common], perp.loc[common]
-    s_close = s["close"].to_numpy(dtype=np.float64)
-    p_close = p["close"].to_numpy(dtype=np.float64)
-    spread = np.diff(s_close) / s_close[:-1] - np.diff(p_close) / p_close[:-1]
+    a, b = long_leg.loc[common], short_leg.loc[common]
+    a_close = a["close"].to_numpy(dtype=np.float64)
+    b_close = b["close"].to_numpy(dtype=np.float64)
+    spread = np.diff(a_close) / a_close[:-1] - np.diff(b_close) / b_close[:-1]
     close = 100.0 * np.concatenate(([1.0], np.cumprod(1.0 + spread)))
     open_ = np.concatenate(([close[0]], close[:-1]))
-    volume = np.minimum(s["volume"].to_numpy(dtype=np.float64),
-                        p["volume"].to_numpy(dtype=np.float64))
+    volume = np.minimum(a["volume"].to_numpy(dtype=np.float64),
+                        b["volume"].to_numpy(dtype=np.float64))
+    zero = np.zeros(len(common))
+    funding = (a["funding_rate"].to_numpy(dtype=np.float64) if "funding_rate" in a else zero) - (
+        b["funding_rate"].to_numpy(dtype=np.float64) if "funding_rate" in b else zero)
     return make_frame(
         common, open_, np.maximum(open_, close), np.minimum(open_, close), close, volume,
-        symbol=f"{symbol}-BASIS", kind="perp", bar=bar,
-        funding_rate=-p["funding_rate"].to_numpy(dtype=np.float64),
+        symbol=symbol, kind="perp", bar=bar, funding_rate=funding,
     )
