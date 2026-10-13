@@ -1,6 +1,7 @@
 # Glossary
 
-Terms in alphabetical order. Each entry gives the plain meaning in this project.
+This page defines the terms used across the SoftEdge docs. Entries are in alphabetical order, and
+each gives the plain meaning in this project.
 
 ### Actor
 
