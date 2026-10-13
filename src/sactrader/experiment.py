@@ -72,6 +72,13 @@ def build_train_config(cfg: dict, seed: int) -> TrainConfig:
 
 
 def build_all_tapes(cfg: dict) -> list[MarketTape]:
+    """Tapes of the config's universe, or of every block in ``sources`` when present.
+
+    A source block takes the keys of a single-universe config (``universe``, ``symbols``,
+    ``data``, ``costs``), so one agent can train on several universes with their own costs.
+    """
+    if "sources" in cfg:
+        return [tp for src in cfg["sources"] for tp in build_all_tapes(src)]
     data = cfg.get("data", {})
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
                          symbols=cfg.get("symbols"), max_markets=data.get("max_markets", 300),

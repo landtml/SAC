@@ -1,0 +1,23 @@
+name: multi_daily_vt
+deploy: {gate_psr: 0.8}
+env: {cost_mult_high: 2.0, cost_mult_low: 0.5, episode_len: 256, n_envs: 16, vol_target: 0.1, window: 4}
+reference: buy_and_hold
+sac: {actor_hidden: 32, critic_blocks: 1, gamma: 0.95, hidden: 64, risk: mean, smooth_coef: 0.5, target_entropy_scale: 0.5}
+seeds: [0, 1]
+sources:
+- costs: {fee_bps: 4.5, half_spread_bps: 1.0, maint_margin: 0.005, max_leverage: 2.0}
+  data: {end: 2026-09, resample: 1D, start: 2020-01}
+  universe: crypto_perp
+- costs: {fee_bps: 0.0, half_spread_bps: 1.0, maint_margin: 0.02, max_leverage: 3.0, swap_apr_long: 0.005,
+    swap_apr_short: 0.005}
+  data: {start: 2000-01}
+  universe: fx
+- costs: {borrow_apr: 0.0, fee_bps: 1.0, half_spread_bps: 0.5, maint_margin: 0.05, max_leverage: 4.0}
+  data: {end: 2026-09, start: 2000-01}
+  universe: macro
+train: {eval_every: 500, relabel_frac: 0.5, target_entropy_end_scale: 2.0, threads: 1, total_steps: 40000,
+  utd: 0.25, warmup_steps: 5000}
+trend: {lookback: 120, target_vol: 0.1, vol_span: 60}
+universe: multi_daily
+walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2016-01-01', fold_steps: 15000, test: 730D,
+  val: 365D, warm_start: true}

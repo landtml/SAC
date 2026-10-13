@@ -89,3 +89,15 @@ def test_discrete_agent_trains_through_the_runner(tmp_path):
 
     state = torch.load(tmp_path / "disc" / "agent_fold0_seed0.pt", weights_only=False)
     assert state["kind"] == "discrete" and state["levels"] == [-1.0, 0.0, 1.0]
+
+
+def test_sources_concatenate_universes_with_their_own_costs():
+    from sactrader.experiment import build_all_tapes
+
+    src = {"data": {"start": "2021-01", "end": "2021-02"}}
+    cfg = {"universe": "mixed", "sources": [
+        {**src, "universe": "synthetic", "symbols": ["A", "B"], "costs": {"fee_bps": 1.0}},
+        {**src, "universe": "synthetic_null", "symbols": ["C"], "costs": {"fee_bps": 9.0}}]}
+    tapes = build_all_tapes(cfg)
+    assert [tp.symbol for tp in tapes] == ["A", "B", "C"]
+    assert tapes[0].cost_long[0] < tapes[2].cost_long[0]
