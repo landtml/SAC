@@ -94,6 +94,41 @@ Reports include per-tape metrics, an equal-weight pooled series, the probabilist
 the deflated Sharpe ratio counting every configuration run so far (`runs/trials.jsonl`), and a
 paired stationary-bootstrap interval for the Sharpe difference against a reference strategy.
 
+## Deflated Sharpe ratio
+
+A Sharpe ratio reported after trying many configurations is biased upward by the choice of the
+best one. Every summary therefore reports the deflated Sharpe ratio framework of Bailey and
+Lopez de Prado (2012, 2014) on per-bar returns:
+
+- `psr`: probability that the true Sharpe ratio exceeds zero, correcting the standard error for
+  skew and kurtosis of the returns.
+- `sr0`: the Sharpe ratio the best of `N` zero-skill configurations would show by luck,
+  `sqrt(V) * ((1 - g) * Z^-1(1 - 1/N) + g * Z^-1(1 - 1/(N e)))` with `g` the Euler-Mascheroni
+  constant and `V` the variance of per-bar Sharpe ratios across the `N` trials.
+- `dsr`: `psr` measured against `sr0` instead of zero.
+- `min_trl_years`: track record length at which `psr` would reach 0.95.
+
+Trial counting is per universe and covers every SAC variant ever reported on it: each seed, the
+seed ensemble, the banded and the gated policy, in every experiment recorded in
+`runs/trials.jsonl`. `V` is the variance of their per-bar Sharpe ratios, floored at `1/(T - 1)`,
+the scatter of Sharpe estimates of zero-skill strategies over `T` bars. `sactrader dsr`
+recomputes the table over all saved runs, so earlier results deflate further as trials accumulate.
+
+## Combinatorial purged cross-validation
+
+Walk-forward evaluation yields one out-of-sample path. A `cpcv` config block runs combinatorial
+purged cross-validation (Lopez de Prado, 2018): the span is cut into `n_groups` time groups and
+every combination of `n_test` groups is held out once. Training data within `purge` before a test
+window (whose discounted reward horizon reaches into it) and within `embargo` after it (whose
+features still carry test information) is removed. Seeds start from a base agent trained on data
+before the span and fine-tune on each split; validation is carved from the latest training window
+behind a purge gap. Path assembly stitches `C(n_groups - 1, n_test - 1)` complete backtests, one
+out-of-sample result per group, and the report gives the spread of Sharpe, deflated Sharpe,
+drawdown and expected shortfall across paths, the share of paths that beat the reference, and the
+probability of backtest overfitting when picking the best strategy by in-sample Sharpe.
+
+Set `purge` to at least the discount horizon `1 / (1 - gamma)` bars.
+
 ## Data
 
 | Universe | Source | Bars |
