@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
+  <title id="t">Edgar, the SoftEdge hedgehog</title>
+  <path d="M153.8 251.1 L122.2 214.6 L175 222.4 Z M181.3 216.8 L167.9 170.1 L215.8 195.9 Z M224.6 192.3 L231.3 142.3 L267.5 182.3 Z M277.4 181.4 L303.3 135.4 L322.4 183.7 Z M332.1 185.5 L373.3 150.2 L372.6 199.8 Z M380.6 204.2 L431.2 184.6 L410.8 228.4 Z M415.9 234.6 L468.5 233.7 L431.4 265.2 Z" fill="#5C3A24"/>
+  <ellipse cx="290" cy="285" rx="150" ry="110" fill="#7A4B2E"/>
+  <rect x="190" y="372" width="44" height="40" rx="20" fill="#5C3A24"/>
+  <rect x="290" y="372" width="44" height="40" rx="20" fill="#5C3A24"/>
+  <ellipse cx="165" cy="300" rx="85" ry="80" fill="#F2D2A9"/>
+  <ellipse cx="91" cy="292" rx="13" ry="11" fill="#2B2D42"/>
+  <circle cx="150" cy="268" r="11" fill="#2B2D42"/>
+  <circle cx="154" cy="264" r="3.5" fill="#FFFFFF"/>
+  <path d="M112 326 Q124 336 137 326" fill="none" stroke="#2B2D42" stroke-width="6" stroke-linecap="round"/>
+  <polyline points="110,470 175,448 235,458 300,424 368,436 420,392" fill="none" stroke="#1E9E6A" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="420" cy="392" r="10" fill="#1E9E6A"/>
+</svg>
