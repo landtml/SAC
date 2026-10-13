@@ -82,6 +82,8 @@ def load_frame(path: Path) -> pd.DataFrame:
 
     table = pq.read_table(path)
     df = table.to_pandas()
-    raw = (table.schema.metadata or {}).get(b"softedge")
+    meta = table.schema.metadata or {}
+    # Frames cached before the project was renamed keep their attrs under the old key.
+    raw = meta.get(b"softedge") or meta.get(b"sactrader")
     df.attrs = json.loads(raw) if raw else {}
     return df
