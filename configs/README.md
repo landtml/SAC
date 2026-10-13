@@ -88,6 +88,9 @@ funding priors are a causal average of recent funding, with gain -1.
 | `carry/hl_basis_1d_prior_v2.yaml` | As `hl_basis_1d_prior.yaml` with a 5% borrow rate and the deflated Sharpe ratio gate. | Yes |
 | `carry/perp_spread_1d.yaml` | Cross-venue funding spread: long Binance perpetual, short Hyperliquid perpetual. Daily, walk-forward from 2024-07, no prior. | No |
 | `carry/perp_spread_1d_prior.yaml` | As `perp_spread_1d.yaml` with the funding prior. | Yes |
+| `carry/crypto_basis_wide_prior.yaml` | As `crypto_basis_1d_prior_v2.yaml` on 32 coins instead of ten. | No |
+| `carry/hl_basis_wide_prior.yaml` | As `hl_basis_1d_prior_v2.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
+| `carry/perp_spread_wide_prior.yaml` | As `perp_spread_1d_prior.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 
 ## Forex
 
