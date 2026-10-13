@@ -102,7 +102,9 @@ def _critic_input(agent, obs: np.ndarray, action: np.ndarray) -> tuple:
     a = torch.as_tensor(action, dtype=torch.float32).reshape(-1, 1)
     net = getattr(agent.critic, "net", agent.critic)
     # Continuous-action critics take (obs, action); categorical-action critics take obs only.
-    return net, (torch.cat([x, a], dim=-1) if net.inp.weight.shape[1] == x.shape[1] + 1 else x), x
+    # A hyperspherical network appends one constant channel of its own to its input.
+    width = net.inp.weight.shape[1] - (1 if hasattr(net, "shift") else 0)
+    return net, (torch.cat([x, a], dim=-1) if width == x.shape[1] + 1 else x), x
 
 
 def critic_dormant(agent, obs: np.ndarray, action: np.ndarray) -> float:

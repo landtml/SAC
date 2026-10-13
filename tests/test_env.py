@@ -224,3 +224,16 @@ def test_several_priors_sum_and_skip_missing_features():
     np.testing.assert_allclose(ts.prior, np.clip(raw, -1, 1), atol=1e-12)
     assert (ts.prior != 0).any()
     assert ActionMap(prior_features=(("ret_h4", 1.0),)).has_prior
+
+
+def test_training_with_hyperspherical_networks_runs_the_dormancy_probe():
+    from softedge.agent.sac import SACConfig
+    from softedge.train import TrainConfig, train
+
+    tapes = _tapes()[:2]
+    cfg = TrainConfig(total_steps=480, warmup_steps=160, utd=0.25, eval_every=40, threads=1,
+                      env=EnvConfig(window=4, episode_len=32, n_envs=8),
+                      sac=SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, batch_size=32,
+                                    network="hyper"))
+    res = train(tapes, tapes[:1], cfg)
+    assert all(0.0 <= h["critic_dormant"] <= 1.0 for h in res.history)
