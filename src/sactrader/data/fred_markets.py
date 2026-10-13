@@ -6,14 +6,19 @@ at the previous value and closes at its own, and high and low bound the two. Mis
 non-positive values are dropped before the bars are built, so a dropped day never feeds the
 next open. FRED's WTI series holds -36.98 on 2020-04-20.
 
-Bond markets turn a constant-maturity yield in percent into a total-return price index that
-starts at 100 on the first FRED observation. For consecutive observation dates d0 < d1 with
-yields y0 and y1 (decimals) and dt = calendar days / 365, the index moves by
+Bond markets turn a constant-maturity yield in percent into an excess-return price index that
+starts at 100 on the first FRED observation. The excess is over the 3-month bill rate, since a
+long bond position is financed at that rate. For consecutive observation dates d0 < d1 with
+yields y0 and y1 (decimals), bill rate rf0 (decimal) at d0 and dt = calendar days / 365, the
+index moves by
 
-    ret = y0 * dt - D * (y1 - y0) + 0.5 * C * (y1 - y0) ** 2
+    ret = y0 * dt - D * (y1 - y0) + 0.5 * C * (y1 - y0) ** 2 - rf0 * dt
 
-where D is the modified duration and C the convexity of the bond. This is a
-duration-convexity approximation of the return of a constant-maturity bond fund.
+where D is the modified duration and C the convexity of the bond. The first three terms are the
+bond's carry and its duration-convexity price change, and the last term is the financing cost.
+The bill rate is the last DTB3 value at or before d0. A bill day with no value
+carries the previous value forward. A bond spec with ``"excess": True`` applies the financing
+term.
 
 Volume is NaN for every FRED market.
 """
@@ -32,15 +37,18 @@ from sactrader.data.schema import make_frame
 FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
 # name -> FRED series id and quote. "price" series are index or spot levels. "yield" series are
-# percent yields, with the modified duration and convexity of the bond they stand for.
+# percent yields, with the modified duration and convexity of the bond they stand for. "excess"
+# subtracts the 3-month bill financing term from the bond return.
 FRED_MARKETS: dict[str, dict] = {
     "SPX": {"series": "SP500", "quote": "price"},
     "NDX": {"series": "NASDAQCOM", "quote": "price"},
     "NKY": {"series": "NIKKEI225", "quote": "price"},
     "WTI": {"series": "DCOILWTICO", "quote": "price"},
     "BRENT": {"series": "DCOILBRENTEU", "quote": "price"},
-    "UST10": {"series": "DGS10", "quote": "yield", "duration": 8.0, "convexity": 80.0},
-    "UST2": {"series": "DGS2", "quote": "yield", "duration": 1.9, "convexity": 4.5},
+    "UST10": {"series": "DGS10", "quote": "yield", "duration": 8.0, "convexity": 80.0,
+              "excess": True},
+    "UST2": {"series": "DGS2", "quote": "yield", "duration": 1.9, "convexity": 4.5,
+             "excess": True},
 }
 
 MAX_CACHE_AGE_S = 86400
@@ -64,7 +72,8 @@ def load_fred_market(name: str, start: str = "2000-01", end: str = "2026-09") ->
     if spec["quote"] == "price":
         close = _price_closes(spec["series"])
     else:
-        close = _bond_closes(spec["series"], spec["duration"], spec["convexity"])
+        close = _bond_closes(spec["series"], spec["duration"], spec["convexity"],
+                             spec["excess"])
     days = close.index
     values = close.to_numpy(dtype=np.float64)
     open_ = np.empty_like(values)
@@ -92,14 +101,27 @@ def _price_closes(series_id: str) -> pd.Series:
     return values[values > 0]
 
 
-def _bond_closes(series_id: str, duration: float, convexity: float) -> pd.Series:
+def _bond_closes(series_id: str, duration: float, convexity: float,
+                 excess: bool) -> pd.Series:
     yields = _observations(series_id) / 100.0
     dt = yields.index.to_series().diff().dt.total_seconds().to_numpy()[1:] / (365 * 86400)
     y = yields.to_numpy(dtype=np.float64)
     dy = np.diff(y)
     ret = y[:-1] * dt - duration * dy + 0.5 * convexity * dy**2
+    if excess:
+        ret = ret - _bill_rates(yields.index[:-1]) * dt
     close = 100.0 * np.concatenate(([1.0], np.cumprod(1.0 + ret)))
     return pd.Series(close, index=yields.index)
+
+
+def _bill_rates(dates: pd.DatetimeIndex) -> np.ndarray:
+    bills = _observations("DTB3") / 100.0
+    # Observations drop the bill days with no value, so the search lands on the last value
+    # before each date.
+    pos = bills.index.searchsorted(dates, side="right") - 1
+    if (pos < 0).any():
+        raise ValueError("bond dates start before the first 3-month bill observation")
+    return bills.to_numpy(dtype=np.float64)[pos]
 
 
 def _observations(series_id: str) -> pd.Series:

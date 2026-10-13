@@ -61,18 +61,21 @@ def test_missing_and_non_positive_prices_are_dropped(monkeypatch):
     np.testing.assert_allclose(df["open"], [70, 70])
 
 
-def test_bond_index_matches_hand_computation(monkeypatch):
-    # Fri 2024-01-05 at 4.00%, Mon 2024-01-08 at 5.00%, Tue 2024-01-09 at 4.00%. UST10 has
-    # D = 8 and C = 80. The Friday-to-Monday step spans 3 calendar days.
-    # Step 1: ret = 0.04 * 3/365 - 8 * 0.01 + 0.5 * 80 * 0.01**2 = -0.0756712328767
-    # Step 2: ret = 0.05 * 1/365 + 8 * 0.01 + 0.5 * 80 * 0.01**2 = +0.0841369863014
-    # Closes are 100, 100 * (1 + ret1), then the product of both factors. The convexity term
-    # is 0.004 per step.
-    csv = "observation_date,DGS10\n2024-01-05,4.00\n2024-01-08,5.00\n2024-01-09,4.00\n"
-    serve(monkeypatch, {"DGS10": csv})
+def test_excess_bond_index_matches_hand_computation(monkeypatch):
+    # UST10 has D = 8 and C = 80. Yields are 4.00% on Fri 2024-01-05, 5.00% on Mon 2024-01-08
+    # and 4.00% on Tue 2024-01-09. The Friday-to-Monday step spans 3 calendar days.
+    # DTB3 is 5.40% on Thu 2024-01-04 and 5.20% on Fri 2024-01-05. It has no value on
+    # Mon 2024-01-08, so the bill rate is 5.20% at both bond dates. The 5.40% row must not be
+    # used for Friday, since the bill rate at d0 is the last value at or before d0.
+    # Step 1: ret = 0.04 * 3/365 - 8 * 0.01 + 0.5 * 80 * 0.01**2 - 0.052 * 3/365 = -0.0760986301
+    # Step 2: ret = 0.05 * 1/365 + 8 * 0.01 + 0.5 * 80 * 0.01**2 - 0.052 * 1/365 = +0.0839945205
+    # The convexity term is 0.004 per step. Closes compound both factors.
+    dgs10 = "observation_date,DGS10\n2024-01-05,4.00\n2024-01-08,5.00\n2024-01-09,4.00\n"
+    dtb3 = "observation_date,DTB3\n2024-01-04,5.40\n2024-01-05,5.20\n2024-01-08,.\n"
+    serve(monkeypatch, {"DGS10": dgs10, "DTB3": dtb3})
     df = fred_markets.load_fred_market("UST10")
     validate_frame(df)
-    close = [100.0, 92.43287671232876, 100.20990039407019]
+    close = [100.0, 92.39013698630137, 100.15040224582474]
     np.testing.assert_allclose(df["close"], close, rtol=1e-10)
     np.testing.assert_allclose(df["open"], [100.0, 100.0, close[1]], rtol=1e-10)
     np.testing.assert_allclose(df["high"], [100.0, 100.0, close[2]], rtol=1e-10)
@@ -91,10 +94,13 @@ def test_month_window_covers_whole_month_and_opens_from_history(monkeypatch):
 
 
 def test_fresh_cache_skips_download(monkeypatch):
-    calls = serve(monkeypatch, {"DGS2": "observation_date,DGS2\n2024-01-02,4.0\n2024-01-03,4.1\n"})
+    dgs2 = "observation_date,DGS2\n2024-01-02,4.0\n2024-01-03,4.1\n"
+    dtb3 = "observation_date,DTB3\n2024-01-02,5.0\n2024-01-03,5.1\n"
+    calls = serve(monkeypatch, {"DGS2": dgs2, "DTB3": dtb3})
     fred_markets.load_fred_market("UST2")
     fred_markets.load_fred_market("UST2")
-    assert len(calls) == 1
+    # One download each for the bond series and the bill series, none on the second load.
+    assert sorted(call["id"] for call in calls) == ["DGS2", "DTB3"]
 
 
 def test_unknown_market_raises(monkeypatch):
