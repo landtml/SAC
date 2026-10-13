@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 from sactrader.agent.factory import make_agent
+from sactrader.agent.pathwise import PathwiseObjective
 from sactrader.agent.plasticity import dormant_fraction, redo_reset, shrink_perturb
 from sactrader.agent.replay import IndexReplay, materialize, relabel
 from sactrader.agent.sac import TQCSAC, SACConfig
@@ -139,6 +140,8 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
             agent.critic_target.load_state_dict(agent.critic.state_dict())
     replay = IndexReplay(cfg.replay_capacity)
     scale = cfg.reward_scale or auto_reward_scale(train_tapes, cfg.sac.gamma, cfg.env.vol_target)
+    pathwise = (PathwiseObjective(ts, cfg.sac.pathwise_horizon, cfg.sac.gamma, scale)
+                if cfg.sac.pathwise_horizon > 0 and not cfg.sac.discrete_levels else None)
     planned_updates = max(1.0, (cfg.total_steps - cfg.warmup_steps) * cfg.utd)
     ent_start = cfg.sac.target_entropy_scale
     ent_end = cfg.target_entropy_end_scale
@@ -176,8 +179,12 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
                                   (agent.critic_opt, cfg.sac.lr_critic)):
                     for group in opt.param_groups:
                         group["lr"] = base * mult
+            path_fn = None
+            if pathwise is not None:
+                def path_fn(ag, alpha, s=sample):
+                    return pathwise.value(ag, s["k"], s["t"], s["w_prev"], s["cost_mult"], alpha)
             stats = agent.update(obs, sample["action"], sample["reward"] * scale, next_obs,
-                                 sample["terminal"])
+                                 sample["terminal"], pathwise=path_fn)
             n_updates += 1
             if not np.isfinite(stats["critic_loss"]) or abs(stats["q_mean"]) > cfg.q_abs_limit:
                 # Value divergence: growing |Q| does not recover on its own (arXiv 2609.32819).

@@ -66,6 +66,9 @@ class SACConfig:
     # "simba": pre-LayerNorm residual MLPs (SimBa). "hyper": hidden states and weights on the
     # unit sphere (SimbaV2), which bounds feature norms under noisy targets.
     network: str = "simba"
+    # Steps of differentiable rollout along the recorded market path in the actor objective
+    # (agent/pathwise.py); 0 keeps the usual SAC actor loss.
+    pathwise_horizon: int = 0
 
 
 class _QuantileHuber(torch.autograd.Function):
@@ -157,8 +160,17 @@ class TQCSAC:
             return pooled.sort(dim=-1).values[:, :n_tail].mean(-1)
         raise ValueError(self.cfg.risk)
 
+    def q_value(self, o: torch.Tensor, a: torch.Tensor) -> torch.Tensor:
+        """(B,) value the actor maximizes: the clipped double-Q for HL-Gauss critics, the
+        risk-adjusted pooled quantiles otherwise."""
+        if self.cfg.critic_type == "hlgauss":
+            return self.critic.q(o, a).min(dim=0).values
+        return self._risk(self.critic(o, a))
+
     def update(self, obs: np.ndarray, action: np.ndarray, reward: np.ndarray,
-               next_obs: np.ndarray, terminal: np.ndarray) -> dict[str, float]:
+               next_obs: np.ndarray, terminal: np.ndarray, pathwise=None) -> dict[str, float]:
+        """One critic, actor and temperature step. ``pathwise(agent, alpha)`` may supply the
+        actor's objective as (per-sample value, log-probability of the first action)."""
         c = self.cfg
         f32 = torch.float32
         obs_t = torch.as_tensor(obs, dtype=f32)
@@ -196,12 +208,12 @@ class TQCSAC:
         self.critic_opt.step()
         renormalize(self.critic)
 
-        a_pi, logp = self.actor(o)
-        if hl:
-            q_pi = self.critic.q(o, a_pi).min(dim=0).values
+        if pathwise is not None:
+            value, logp = pathwise(self, alpha)
+            actor_loss = -value.mean()
         else:
-            q_pi = self._risk(self.critic(o, a_pi))
-        actor_loss = (alpha * logp - q_pi).mean()
+            a_pi, logp = self.actor(o)
+            actor_loss = (alpha * logp - self.q_value(o, a_pi)).mean()
         if c.smooth_coef > 0 or c.action_l2 > 0:
             mu, _ = self.actor(o, deterministic=True)
         if c.smooth_coef > 0:

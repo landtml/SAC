@@ -89,7 +89,9 @@ class DiscreteSAC:
         return self._levels_t[idx].numpy()[:, None]
 
     def update(self, obs: np.ndarray, action: np.ndarray, reward: np.ndarray,
-               next_obs: np.ndarray, terminal: np.ndarray) -> dict[str, float]:
+               next_obs: np.ndarray, terminal: np.ndarray, pathwise=None) -> dict[str, float]:
+        # ``pathwise`` is accepted for a shared call signature; categorical actions have no
+        # pathwise gradient, so the trainer never builds one for this agent.
         c = self.cfg
         f32 = torch.float32
         obs_t = torch.as_tensor(obs, dtype=f32)
