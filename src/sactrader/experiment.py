@@ -21,6 +21,7 @@ import pandas as pd
 import torch
 import yaml
 
+from sactrader.agent.factory import agent_from_state
 from sactrader.agent.sac import TQCSAC, SACConfig
 from sactrader.env.vec_env import N_CONTEXT, EnvConfig, TapeSet, rollout
 from sactrader.eval import baselines
@@ -217,7 +218,7 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
             reward_scales[seed] = res.reward_scale
             prev_states[seed] = res.best_state
             torch.save(res.best_state, out / f"agent_fold{k}_seed{seed}.pt")
-            agents.append(TQCSAC.from_state_dict(res.best_state))
+            agents.append(agent_from_state(res.best_state))
             seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale}
         runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names)
         test = parts["test"]

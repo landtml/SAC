@@ -46,6 +46,8 @@ class SACConfig:
     # Weight of a temporal-consistency penalty on the deterministic action between consecutive
     # states (CAPS-style). Oscillating targets pay spread and fees on every flip.
     smooth_coef: float = 0.0
+    # Position levels for categorical SAC; None keeps the continuous tanh-Gaussian policy.
+    discrete_levels: tuple[float, ...] | None = None
 
 
 class _QuantileHuber(torch.autograd.Function):

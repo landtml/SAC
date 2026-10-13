@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 
+from sactrader.agent.factory import make_agent
 from sactrader.agent.replay import IndexReplay, materialize, relabel
 from sactrader.agent.sac import TQCSAC, SACConfig
 from sactrader.env.vec_env import EnvConfig, TapeSet, VecTradingEnv, rollout
@@ -93,7 +94,7 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
     ts = TapeSet(train_tapes, cfg.env.window, feature_names)
     val = TapeSet(val_tapes, cfg.env.window, ts.feature_names) if val_tapes else None
     env = VecTradingEnv(ts, cfg.env, seed=cfg.seed)
-    agent = TQCSAC(ts.obs_dim, 1, cfg.sac, seed=cfg.seed)
+    agent = make_agent(ts.obs_dim, cfg.sac, cfg.seed)
     if init_state is not None:
         agent.load_state_dict(init_state)
     replay = IndexReplay(cfg.replay_capacity)

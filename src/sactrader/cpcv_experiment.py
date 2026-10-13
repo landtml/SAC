@@ -31,7 +31,7 @@ import pandas as pd
 import torch
 import yaml
 
-from sactrader.agent.sac import TQCSAC
+from sactrader.agent.factory import agent_from_state
 from sactrader.eval.cpcv import assemble_paths, cpcv_splits, group_bounds, n_paths
 from sactrader.eval.metrics import summarize
 from sactrader.eval.report import pooled_returns, to_markdown
@@ -115,7 +115,7 @@ def run_cpcv(cfg: dict, out_root: str | Path = "runs") -> dict:
                         log=lambda r, s=seed, k=sp.index: _append_jsonl(
                             out / "train_log.jsonl", {"split": k, "seed": s, **r}))
             torch.save(res.best_state, out / f"agent_split{sp.index}_seed{seed}.pt")
-            agents.append(TQCSAC.from_state_dict(res.best_state))
+            agents.append(agent_from_state(res.best_state))
         parts = {"train": train_tapes, "val": val_tapes, "test": test_tapes}
         runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names)
         split_pooled[sp.index] = {s: pooled_returns(run, test_tapes, start_row)
