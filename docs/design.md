@@ -1,7 +1,7 @@
 # Design
 
-softedge trains one Soft Actor-Critic agent family across four market types. Each section below
-names a choice and the failure it prevents.
+This page explains the design choices behind the SoftEdge agent, and the known limitations of the
+model they run on. Each section below names a choice and the failure it prevents.
 
 ## Market tape: one accounting model for four markets
 
@@ -47,8 +47,9 @@ can train on all four markets.
 
 The carry in the context is the carry of the interval that just ended. The tape's own carry at
 row `t` prices the next interval, and for perps that is the funding settled during the next bar,
-which the close at `t` does not know. Runs before this rule saw next-bar funding on perps, a small
-look-ahead (a few basis points a day at most); perp results from those runs are not comparable.
+which the close at `t` does not know. A run that used next-bar funding on perps has a small
+look-ahead (a few basis points a day at most), so its perp results are not comparable with the
+current ones.
 
 ## Action and reward
 
@@ -244,7 +245,7 @@ early-closing market reveals when it resolved.
 Survey of the newest arXiv submissions on Soft Actor-Critic and its applications (query run
 through the arXiv API, sorted by submission date, October 2026), with what each changed here.
 
-| Paper | Finding | Use in softedge |
+| Paper | Finding | Use in SoftEdge |
 | --- | --- | --- |
 | 2609.32819, value divergence in high-UTD SAC | Growing \|Q\| predicts divergence; collapsed representations recover, growing \|Q\| does not | `q_abs_limit` restores the best checkpoint when mean \|Q\| passes a bound |
 | 2610.03369, MoE crypto execution | Seeds vary a lot; annealed exploration removed policy collapses | Multiple seeds and an ensemble; `target_entropy_end_scale` anneals the entropy target |
