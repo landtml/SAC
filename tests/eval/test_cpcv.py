@@ -4,7 +4,7 @@ import math
 import pandas as pd
 import pytest
 
-from sactrader.eval.cpcv import cpcv_splits, group_bounds
+from sactrader.eval.cpcv import assemble_paths, cpcv_splits, group_bounds, n_paths
 
 START, END = "2020-01-01", "2021-01-01"  # 366 days, 2020 is a leap year
 T0 = pd.Timestamp(START, tz="UTC")
@@ -139,3 +139,51 @@ def test_empty_or_reversed_range_raises():
 def test_span_shorter_than_one_ns_per_group_raises():
     with pytest.raises(ValueError):
         group_bounds("2020-01-01T00:00:00", "2020-01-01T00:00:00.000000005", 6)
+
+
+@pytest.mark.parametrize("n_groups, n_test", GRID)
+def test_n_paths_equals_n_test_times_splits_over_n_groups(n_groups, n_test):
+    total = n_test * math.comb(n_groups, n_test)
+    assert total % n_groups == 0
+    assert n_paths(n_groups, n_test) == total // n_groups
+
+
+def test_six_groups_two_test_gives_five_paths():
+    assert n_paths(6, 2) == 5
+
+
+@pytest.mark.parametrize("n_groups, n_test", [(6, 0), (6, 6), (1, 1)])
+def test_n_paths_rejects_bad_arguments(n_groups, n_test):
+    with pytest.raises(ValueError):
+        n_paths(n_groups, n_test)
+
+
+@pytest.mark.parametrize("n_groups, n_test", GRID)
+def test_path_count_matches_n_paths(n_groups, n_test):
+    splits = cpcv_splits(START, END, n_groups, n_test)
+    assert len(assemble_paths(splits, n_groups)) == n_paths(n_groups, n_test)
+
+
+def test_paths_cover_each_group_once_and_use_each_split_test_slot_once():
+    splits = cpcv_splits(START, END, 6, 2)
+    paths = assemble_paths(splits, 6)
+    assert len(paths) == 5
+    by_index = {s.index: s for s in splits}
+    slots = []
+    for path in paths:
+        assert len(path) == 6
+        for g, split_index in enumerate(path):
+            # Path entry g must come from a split that holds group g out.
+            assert g in by_index[split_index].test_groups
+            slots.append((split_index, g))
+    # Every (split, test group) pair is used by exactly one path.
+    expected = [(s.index, g) for s in splits for g in s.test_groups]
+    assert sorted(slots) == sorted(expected)
+    for s in splits:
+        assert sum(split_index == s.index for path in paths for split_index in path) == 2
+
+
+def test_assemble_paths_rejects_splits_missing_a_group():
+    splits = cpcv_splits(START, END, 6, 2)
+    with pytest.raises(ValueError):
+        assemble_paths(splits[:-1], 6)

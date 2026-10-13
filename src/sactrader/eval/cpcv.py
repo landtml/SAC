@@ -16,6 +16,7 @@ Reference: Lopez de Prado, Advances in Financial Machine Learning (2018), ch. 7 
 from __future__ import annotations
 
 import itertools
+import math
 from dataclasses import dataclass
 
 import pandas as pd
@@ -128,3 +129,28 @@ def cpcv_splits(
             )
         )
     return splits
+
+
+def n_paths(n_groups: int, n_test: int) -> int:
+    """Number of backtest paths: ``C(n_groups - 1, n_test - 1)``."""
+    _check_folds(n_groups, n_test)
+    return math.comb(n_groups - 1, n_test - 1)
+
+
+def assemble_paths(splits: list[CPCVSplit], n_groups: int) -> list[list[int]]:
+    """Backtest paths, each a list of ``split.index`` values, one per group.
+
+    Path ``j`` takes group ``g`` from the ``j``-th split, in split order, whose test
+    groups contain ``g``. Each (split, test group) pair lands in exactly one path.
+    """
+    by_group: list[list[int]] = [[] for _ in range(n_groups)]
+    for split in splits:
+        for g in split.test_groups:
+            if not 0 <= g < n_groups:
+                raise ValueError(f"test group {g} is outside range({n_groups})")
+            by_group[g].append(split.index)
+    counts = {len(ids) for ids in by_group}
+    if len(counts) > 1:
+        raise ValueError("splits must cover every group the same number of times")
+    n = max(counts, default=0)
+    return [[by_group[g][j] for g in range(n_groups)] for j in range(n)]
