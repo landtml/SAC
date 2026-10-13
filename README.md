@@ -1,14 +1,20 @@
 # sactrader
 
-Distributional, risk-aware Soft Actor-Critic for trading four market types with one code path:
-crypto spot, perpetual futures, forex and binary prediction markets.
+Distributional, risk-aware Soft Actor-Critic for trading many market types with one code path:
+crypto spot, perpetual futures and the spot-perp carry trade, forex, equity indices, oil and
+Treasuries, and binary prediction markets (Polymarket, Kalshi).
 
 - **One accounting model.** Every instrument becomes a tape of long-side and short-side returns,
   carry and costs. Perp funding, forex carry, short borrow, NO-token pricing, binary settlement and
   margin liquidation all go through `portfolio.step_portfolio`.
 - **Leakage-tested features.** Scale-free, causal features; tests fail on any look-ahead.
-- **Agent.** Truncated quantile critics (TQC) on SimBa residual encoders, a mean or CVaR actor
-  objective, automatic entropy tuning, and log-growth reward net of all costs.
+- **Agent.** Truncated quantile critics (TQC) or HL-Gauss categorical critics on SimBa or
+  hyperspherical (SimbaV2) encoders, a mean or CVaR actor objective, automatic entropy tuning,
+  and log-growth reward net of all costs.
+- **Residual and pathwise policies.** An optional action map makes the policy a residual on a
+  causal prior (trend, carry, favourite-longshot) sized to a volatility target. An optional
+  pathwise actor objective differentiates realized rewards along the recorded market path for a
+  few steps before bootstrapping from the critic.
 - **Counterfactual replay.** Prices do not depend on a small trader's actions, so replayed
   transitions get fresh starting positions and actions with exactly recomputed rewards.
 - **Honest evaluation.** Checkpoints, no-trade band and a deploy-or-stay-flat gate are chosen on
@@ -52,12 +58,12 @@ and the seeds to train. `configs/` holds one per universe.
 
 | Path | Contents |
 | --- | --- |
-| `src/sactrader/data/` | Bar frame schema, download cache, Binance, FRED forex, Polymarket, synthetic markets |
-| `src/sactrader/features/causal.py` | Causal, scale-free features for every market kind |
+| `src/sactrader/data/` | Bar frame schema, download cache, Binance, spot-perp basis, FRED forex, rates and macro markets, Polymarket, Kalshi, synthetic markets |
+| `src/sactrader/features/` | Causal, scale-free features for every market kind; cross-asset context |
 | `src/sactrader/tape.py` | Market tape and cost model |
 | `src/sactrader/portfolio.py` | One-step accounting: costs, impact, carry, liquidation, drift |
 | `src/sactrader/env/vec_env.py` | Vectorized environment over many tapes, full-tape rollouts |
-| `src/sactrader/agent/` | SimBa networks, TQC-SAC learner, index replay with relabeling |
+| `src/sactrader/agent/` | SimBa and hyperspherical networks, TQC-SAC and discrete SAC, HL-Gauss critics, pathwise objective, plasticity tools, index replay with relabeling |
 | `src/sactrader/train.py` | Training loop with validation checkpointing |
 | `src/sactrader/eval/` | Backtest, metrics, PSR/DSR/bootstrap/PBO, baselines, walk-forward splits, reports |
 | `src/sactrader/experiment.py` | Config-driven experiments, walk-forward folds, the trial ledger |

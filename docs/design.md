@@ -31,6 +31,12 @@ volume and taker-flow z-scores, funding in basis points, time of day and week, a
 markets log-odds, its changes and log hours to the scheduled end date. Tests compare features on
 a prefix of a frame with features on the full frame, so any look-ahead fails the suite.
 
+With `data.cross_features: true`, every linear tape also sees its universe at the same close
+(`features/cross.py`): the cross-sectional mean of each return horizon scaled by the square root
+of the number of assets, the asset's 16-bar return minus the mean of the others, the dispersion
+of one-bar returns and the breadth of positive 16-bar returns. Crypto alts follow BTC, forex
+pairs share a dollar factor, and equity indices co-move.
+
 No scaler is fit on the full sample. The agent normalizes inputs with running statistics updated
 from training batches only.
 
@@ -88,6 +94,18 @@ per-bar volatility on non-binary tapes.
    `cvar_eta` share of pooled quantiles instead of their mean, trading expected growth for a
    thinner left tail.
 4. **Automatic entropy tuning** toward `-act_dim * target_entropy_scale`.
+5. **Hyperspherical networks** (`sac.network: hyper`, SimbaV2, Lee et al., 2025). Hidden states
+   and hidden weight rows stay on the unit sphere (weights are renormalized after every optimizer
+   step), with learnable scales and interpolated residuals. Bounded feature norms keep the
+   effective learning rate steady when targets are mostly noise.
+6. **Pathwise actor objective** (`sac.pathwise_horizon: H`, `agent/pathwise.py`). The market
+   path is exogenous, so the next `H` rewards along the recorded tape are exact, differentiable
+   functions of the actions (exposure drift, costs, carry and liquidation in torch). The actor
+   maximizes the realized `H`-step soft return plus a discounted critic bootstrap, as in
+   short-horizon actor-critic (SHAC, Xu et al., 2022) and direct reinforcement (Moody and
+   Saffell, 2001). The critic then covers only what lies beyond `H` steps, so less of the policy
+   gradient rests on a value estimate fit to noise. Rollouts stop at a binary settlement and
+   bootstrap at a tape's last row.
 
 The quantile Huber loss computes its gradient in closed form. On a 4-vCPU machine this takes the
 loss from 11 ms to 8 ms per batch of 256.
@@ -158,7 +176,16 @@ Set `purge` to at least the discount horizon `1 / (1 - gamma)` bars.
 | --- | --- | --- |
 | `crypto_spot`, `crypto_perp` | data.binance.vision monthly archives, funding events | 1h |
 | `fx` | FRED daily reference rates | 1D |
+| `crypto_basis` | Spot and perp legs of each symbol: long spot, short perp, funding received | 1h |
+| `macro` | FRED: S&P 500, Nasdaq, Nikkei, WTI, Brent; 10y and 2y Treasury excess returns | 1D |
 | `polymarket` | Gamma market list, CLOB price history in 14-day windows | 1h |
+| `kalshi` | Settled markets of macro series (Fed, CPI, payrolls, unemployment), hourly candles | 1h |
+
+Treasury markets are excess-return indices built from constant-maturity yields with a
+duration-convexity approximation, minus the 3-month bill rate, so a long position does not earn
+the cash rate for free. Binary markets stop at their actual close; only the scheduled close
+(Kalshi: latest expiration time) feeds the time-to-end feature, since the actual close of an
+early-closing market reveals when it resolved.
 
 ## Known limitations
 
@@ -170,6 +197,11 @@ Set `purge` to at least the discount horizon `1 / (1 - gamma)` bars.
   closes. This selects markets that drew attention and biases the universe.
 - Price history at hourly fidelity hides spikes inside the hour, and the spread is a constant
   assumption.
+- The basis frame assumes equal leg notionals at every bar and has no intrabar spread range, so
+  it ignores second-order drift between the legs and liquidation of the perp leg. Exchange
+  counterparty risk, the main real risk of the carry trade, is outside the model.
+- FRED equity indices are price indices without dividends and are not financed, two biases of
+  similar size and opposite sign for a long position.
 
 ## Recent work this design draws on
 
