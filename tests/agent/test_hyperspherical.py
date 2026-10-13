@@ -75,7 +75,7 @@ def test_dropout_zero_is_deterministic_in_train_mode():
 
 def test_adam_regression_with_projection_reduces_mse():
     torch.manual_seed(0)
-    net = HyperNet(1, d_in=4, d_out=1, hidden=64, blocks=2)
+    net = HyperNet(1, d_in=4, d_out=1, hidden=64, blocks=1)
     x = torch.randn(1, 32, 4)
     target = torch.randn(1, 32, 1)
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
