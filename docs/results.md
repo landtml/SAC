@@ -1,6 +1,9 @@
 # Results
 
-Results as of 2026-10-13. Every number here is out of sample: the test windows were not used to
+This page reports what the agent found on synthetic and real markets, with the statistics needed
+to read the numbers and their limits.
+
+Measured on 2026-10-13. Every number here is out of sample: the test windows were not used to
 train the agent or to pick its settings.
 
 ## What we found
@@ -9,9 +12,9 @@ train the agent or to pick its settings.
   the agent reaches a Sharpe ratio of 15.07. Buy-and-hold reaches 0.04.
 - **On random walks, with no edge to find, the agent does worse than buy-and-hold.** Its Sharpe
   ratio is -1.47 against 1.37 for buy-and-hold, and its deflated Sharpe ratio is 0.004.
-- **On real directional markets, no edge.** Forex, forex carry and crypto perpetual futures all
-  show differences from the simple rules whose 95% intervals include zero. The highest deflated
-  Sharpe ratio in these rows is 0.37.
+- **On real directional markets, no edge.** Forex, forex carry, crypto perpetual futures and macro
+  markets all show differences from the simple rules whose 95% intervals include zero. The highest
+  deflated Sharpe ratio in these rows is 0.37.
 - **On carry trades, a small gain over the funding rule.** Two of three carry universes show a
   difference whose 95% interval sits above zero: crypto cash-and-carry (+0.49 Sharpe) and the
   cross-venue funding spread (+0.47). The Hyperliquid basis gain (+0.29) is not statistically
@@ -21,8 +24,6 @@ train the agent or to pick its settings.
 
 ## How to read these numbers
 
-> **How to read these numbers**
->
 > - [Sharpe ratio](glossary.md#sharpe-ratio): average return divided by its volatility, after all
 >   costs, annualized from per-bar returns. Higher is better.
 > - 95% CI: the [bootstrap](glossary.md#bootstrap) interval for the Sharpe difference between the
@@ -44,14 +45,19 @@ random walk should not. The hidden-regime market has changing volatility and fat
 | --- | --- | --- | --- | --- |
 | Planted signal, 6 synthetic markets, 1 year hourly | 15.07 | buy-and-hold 0.04 | +15.0 [12.7, 17.6] | 1.000 (5) |
 | Random walk, 1 year hourly | -1.47 | buy-and-hold 1.37 | -2.8 [-4.8, -0.8] | 0.004 (5) |
-| Hidden-regime market, 1 year hourly | 3.76 | buy-and-hold 0.28; sign oracle 8.61 | +3.5 [1.2, 5.9] | 0.89 (15) |
+| Hidden-regime market, 1 year hourly | 3.76 | buy-and-hold 0.28; sign oracle 8.61 | +3.5 [1.2, 5.9] | 0.09 (40) |
+
+Every agent variant tried on the hidden-regime market counts as a trial, including the ablations
+below. The deflated Sharpe ratio falls from 0.89 at 15 trials to 0.09 at 40. The comparison with
+buy-and-hold, +3.5 [1.2, 5.9], is unaffected.
 
 The sign oracle reads each synthetic market's true next expected return and trades its sign. It
 shows the ceiling a rule could reach on that market. It is not a strategy.
 
 The planted signal is found with a deflated Sharpe ratio of 1.000. On the random walk, the agent
 loses to buy-and-hold. On the hidden-regime market, the agent beats buy-and-hold with an interval
-that stays above zero.
+that stays above zero. Its deflated Sharpe ratio is 0.09, so the Sharpe ratio is unlikely to be
+real once the trials are counted.
 
 ![SAC against the simple rules](../assets/png/figures/sac-vs-rule.png)
 
@@ -64,9 +70,10 @@ market.
 | --- | --- | --- | --- | --- |
 | G10 forex, 7 pairs, plain SAC, daily, 12.7 years (2014-2026) | 0.35 | buy-and-hold 0.01 | +0.33 [-0.24, 0.94] | 0.37 (10) |
 | G10 forex, SAC on a carry prior | 0.10 | carry rule 0.16 | -0.07 [-0.26, 0.12] | 0.11 (10) |
-| Crypto perpetual futures, 10 coins, daily, 3.7 years (2023-2026) | 0.41 | trend 0.64 | -0.24 [-1.54, 1.07] | 0.21 (10) |
+| Crypto perpetual futures, 10 coins, daily, 3.7 years (2023-2026) | 0.41 | trend 0.64 | -0.24 [-1.54, 1.07] | 0.15 (15) |
+| Macro: S&P 500, Nasdaq 100, Nikkei 225, WTI, Brent, 10y and 2y Treasuries, daily, volatility-targeted SAC (validation-gated) | 0.07 | buy-and-hold 0.55; trend 0.30 | -0.49 [-1.00, 0.05] | 0.18 (5) |
 
-All three intervals include zero, so no difference from the simple rule is established.
+All four intervals include zero, so no difference from the simple rule is established.
 
 ## Real markets, carry
 
@@ -77,8 +84,8 @@ residual on top of the funding rule. The "rule" column is the funding rule alone
 | Market | SAC Sharpe | Rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
 | --- | --- | --- | --- | --- |
 | Crypto [cash-and-carry](glossary.md#basis-cash-and-carry), long Binance spot, short perpetual; 10 coins, daily, 3.7 years | 10.61 | funding rule 10.12; passive carry 8.49 | +0.49 [0.15, 0.95], p=0.002 | 1.52, 0.88 (15) |
-| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
-| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.39 | funding rule 8.09 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
+| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.82 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
+| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | not reported | funding rule 8.02 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
 
 "Active over rule" is the Sharpe ratio of the agent's returns minus the rule's returns, and the
 deflated Sharpe ratio of that difference. Sharpe ratios in each row are measured on the same
