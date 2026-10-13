@@ -24,8 +24,8 @@ FIGS = ROOT / "assets" / "figures"
 RUN = "crypto_basis_1d_prior_v2"
 EQUITY_COLUMNS = ("sac_banded", "prior_only", "buy_and_hold")
 
-# Each figure draws its own light panel, so the colors are fixed light tokens from the
-# dataviz reference palette and do not follow the page theme.
+# Each figure draws its own light panel, so its colors are fixed light values and do not
+# follow the page theme.
 SURFACE = "#fcfcfb"
 GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
