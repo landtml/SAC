@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from sactrader.agent.hlgauss import CategoricalCritic, HLGauss
+from softedge.agent.hlgauss import CategoricalCritic, HLGauss
 
 
 @pytest.fixture

@@ -3,8 +3,8 @@ import json
 import numpy as np
 import pytest
 
-from sactrader.eval.leaderboard import COLUMNS, collect, leaderboard_markdown
-from sactrader.experiment import recompute_dsr, run_experiment
+from softedge.eval.leaderboard import COLUMNS, collect, leaderboard_markdown
+from softedge.experiment import recompute_dsr, run_experiment
 
 BASE = {
     "universe": "synthetic",

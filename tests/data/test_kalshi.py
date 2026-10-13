@@ -1,8 +1,8 @@
 import pandas as pd
 import pytest
 
-from sactrader.data import kalshi
-from sactrader.data.schema import validate_frame
+from softedge.data import kalshi
+from softedge.data.schema import validate_frame
 
 T0 = pd.Timestamp("2026-10-01T00:00:00Z")
 HOUR = pd.Timedelta(hours=1)
@@ -84,7 +84,7 @@ def isolated(request, tmp_path, monkeypatch):
     # Network tests keep the caller's cache directory.
     if request.node.get_closest_marker("network"):
         return
-    monkeypatch.setenv("SACTRADER_DATA", str(tmp_path))
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
     monkeypatch.setattr(kalshi, "REQUEST_INTERVAL_S", 0.0)
 
 

@@ -1,4 +1,4 @@
-# sactrader
+# softedge
 
 Distributional, risk-aware Soft Actor-Critic for trading many market types with one code path:
 crypto spot, perpetual futures (Binance, Hyperliquid), spot-perp and cross-venue funding carry
@@ -39,22 +39,22 @@ uv pip install --python .venv/bin/python -e ".[dev]"
 ## Use
 
 ```bash
-sactrader download crypto_perp          # Binance USD-M hourly klines and funding, 2020 on
-sactrader download fx                   # FRED daily rates for 7 major pairs
-sactrader download polymarket           # 300 largest resolved YES/NO markets, hourly
-sactrader run configs/crypto_perp.yaml  # train, select, test; writes runs/crypto_perp/report.md
-sactrader run configs/crypto_perp_wf.yaml   # walk-forward folds, one stitched out-of-sample record
-sactrader dsr --runs runs               # deflated Sharpe ratios over every saved run
-sactrader summary --runs runs           # SAC vs the best baseline of every run, paired bootstrap
-sactrader compare abl_base abl_dropout  # paired Sharpe tests of variants on shared bars
-sactrader pbo crypto_perp               # probability of backtest overfitting across a universe
+softedge download crypto_perp          # Binance USD-M hourly klines and funding, 2020 on
+softedge download fx                   # FRED daily rates for 7 major pairs
+softedge download polymarket           # 300 largest resolved YES/NO markets, hourly
+softedge run configs/crypto_perp.yaml  # train, select, test; writes runs/crypto_perp/report.md
+softedge run configs/crypto_perp_wf.yaml   # walk-forward folds, one stitched out-of-sample record
+softedge dsr --runs runs               # deflated Sharpe ratios over every saved run
+softedge summary --runs runs           # SAC vs the best baseline of every run, paired bootstrap
+softedge compare abl_base abl_dropout  # paired Sharpe tests of variants on shared bars
+softedge pbo crypto_perp               # probability of backtest overfitting across a universe
 ```
 
 A config evaluates with one `split`, consecutive `walk_forward` folds, or a `cpcv` block for
 combinatorial purged cross-validation with purge and embargo, which reports the spread of
 out-of-sample Sharpe and deflated Sharpe across backtest paths.
 
-Data is cached under `$SACTRADER_DATA` (default `./data`). A config names a universe, cost
+Data is cached under `$SOFTEDGE_DATA` (default `./data`). A config names a universe, cost
 overrides, a train / validation / test split by date, environment, agent and training settings,
 and the seeds to train. `configs/` holds one per universe.
 
@@ -62,13 +62,13 @@ and the seeds to train. `configs/` holds one per universe.
 
 | Path | Contents |
 | --- | --- |
-| `src/sactrader/data/` | Bar frame schema, download cache, Binance, spot-perp basis, FRED forex, rates and macro markets, Polymarket, Kalshi, synthetic markets |
-| `src/sactrader/features/` | Causal, scale-free features for every market kind; cross-asset context |
-| `src/sactrader/tape.py` | Market tape and cost model |
-| `src/sactrader/portfolio.py` | One-step accounting: costs, impact, carry, liquidation, drift |
-| `src/sactrader/env/vec_env.py` | Vectorized environment over many tapes, full-tape rollouts |
-| `src/sactrader/agent/` | SimBa and hyperspherical networks, TQC-SAC and discrete SAC, HL-Gauss critics, pathwise objective, plasticity tools, index replay with relabeling |
-| `src/sactrader/train.py` | Training loop with validation checkpointing |
-| `src/sactrader/eval/` | Backtest, metrics, PSR/DSR/bootstrap/PBO, baselines, walk-forward splits, reports |
-| `src/sactrader/experiment.py` | Config-driven experiments, walk-forward folds, the trial ledger |
-| `src/sactrader/cpcv_experiment.py` | Combinatorial purged cross-validation of the agent |
+| `src/softedge/data/` | Bar frame schema, download cache, Binance, spot-perp basis, FRED forex, rates and macro markets, Polymarket, Kalshi, synthetic markets |
+| `src/softedge/features/` | Causal, scale-free features for every market kind; cross-asset context |
+| `src/softedge/tape.py` | Market tape and cost model |
+| `src/softedge/portfolio.py` | One-step accounting: costs, impact, carry, liquidation, drift |
+| `src/softedge/env/vec_env.py` | Vectorized environment over many tapes, full-tape rollouts |
+| `src/softedge/agent/` | SimBa and hyperspherical networks, TQC-SAC and discrete SAC, HL-Gauss critics, pathwise objective, plasticity tools, index replay with relabeling |
+| `src/softedge/train.py` | Training loop with validation checkpointing |
+| `src/softedge/eval/` | Backtest, metrics, PSR/DSR/bootstrap/PBO, baselines, walk-forward splits, reports |
+| `src/softedge/experiment.py` | Config-driven experiments, walk-forward folds, the trial ledger |
+| `src/softedge/cpcv_experiment.py` | Combinatorial purged cross-validation of the agent |

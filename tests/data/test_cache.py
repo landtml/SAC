@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 
-from sactrader.data.cache import cache_dir, load_frame, save_frame
-from sactrader.data.schema import make_frame, validate_frame
+from softedge.data.cache import cache_dir, load_frame, save_frame
+from softedge.data.schema import make_frame, validate_frame
 
 
 def test_frame_roundtrip_keeps_attrs(tmp_path, monkeypatch):
-    monkeypatch.setenv("SACTRADER_DATA", str(tmp_path))
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
     idx = pd.date_range("2024-01-01", periods=3, freq="1h", tz="UTC")
     c = np.array([1.0, 2.0, 3.0])
     df = make_frame(idx, c, c, c, c, None, symbol="X", kind="perp", bar="1h",

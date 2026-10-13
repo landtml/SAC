@@ -1,7 +1,7 @@
 import pandas as pd
 
-from sactrader.data.synthetic import binary_market, gbm
-from sactrader.pipeline import BINARY_FEATURES, Period, SplitSpec, split_tapes, to_tapes
+from softedge.data.synthetic import binary_market, gbm
+from softedge.pipeline import BINARY_FEATURES, Period, SplitSpec, split_tapes, to_tapes
 
 
 def test_split_cuts_linear_tapes_and_keeps_binary_markets_whole():
@@ -25,9 +25,9 @@ def test_split_cuts_linear_tapes_and_keeps_binary_markets_whole():
 def test_resample_hourly_perp_to_daily():
     import numpy as np
 
-    from sactrader.data.schema import validate_frame
-    from sactrader.data.synthetic import with_funding
-    from sactrader.pipeline import resample_frame
+    from softedge.data.schema import validate_frame
+    from softedge.data.synthetic import with_funding
+    from softedge.pipeline import resample_frame
 
     fr = with_funding(gbm(24 * 10, seed=3, symbol="P"), seed=1)
     fr["taker_buy_base"] = 1.0

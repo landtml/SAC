@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from sactrader.agent.networks import RunningNorm, TanhGaussianActor
-from sactrader.agent.sac import TQCSAC, SACConfig, quantile_huber
+from softedge.agent.networks import RunningNorm, TanhGaussianActor
+from softedge.agent.sac import TQCSAC, SACConfig, quantile_huber
 
 
 def _reference_quantile_huber(pred, target, kappa=1.0):

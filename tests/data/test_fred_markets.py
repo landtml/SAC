@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data import fred_markets
-from sactrader.data.schema import validate_frame
+from softedge.data import fred_markets
+from softedge.data.schema import validate_frame
 
 
 class FakeResponse:
@@ -16,7 +16,7 @@ def isolated(request, tmp_path, monkeypatch):
     # Network tests keep the caller's cache directory.
     if request.node.get_closest_marker("network"):
         return
-    monkeypatch.setenv("SACTRADER_DATA", str(tmp_path))
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
     monkeypatch.setattr(fred_markets, "REQUEST_INTERVAL_S", 0.0)
 
 

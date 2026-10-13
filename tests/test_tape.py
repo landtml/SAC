@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data.schema import FrameError, make_frame
-from sactrader.tape import CostSpec, build_tape
+from softedge.data.schema import FrameError, make_frame
+from softedge.tape import CostSpec, build_tape
 
 
 def _frame(close, kind="spot", resolution=None, funding=None):

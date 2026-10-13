@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
-from sactrader.agent.replay import IndexReplay, materialize, relabel
-from sactrader.data.synthetic import binary_market, gbm, with_funding
-from sactrader.env.vec_env import N_CONTEXT, EnvConfig, TapeSet, VecTradingEnv, rollout
-from sactrader.features.causal import FeatureConfig, compute_features
-from sactrader.portfolio import log_reward, step_portfolio
-from sactrader.tape import build_tape
+from softedge.agent.replay import IndexReplay, materialize, relabel
+from softedge.data.synthetic import binary_market, gbm, with_funding
+from softedge.env.vec_env import N_CONTEXT, EnvConfig, TapeSet, VecTradingEnv, rollout
+from softedge.features.causal import FeatureConfig, compute_features
+from softedge.portfolio import log_reward, step_portfolio
+from softedge.tape import build_tape
 
 CFG = FeatureConfig(horizons=(1, 4, 16), ema_spans=(16,), vol_long_span=64)
 
@@ -127,7 +127,7 @@ def test_tape_sigma_is_causal_and_sliced():
 
 
 def test_action_map_targets_follow_prior_and_vol_target():
-    from sactrader.env.vec_env import N_MAP_CONTEXT, ActionMap
+    from softedge.env.vec_env import N_MAP_CONTEXT, ActionMap
 
     tapes = _tapes()
     amap = ActionMap(prior_feature="ret_h16", prior_gain=0.5, residual=0.5, vol_target=0.2)
@@ -156,7 +156,7 @@ def test_action_map_targets_follow_prior_and_vol_target():
 
 
 def test_identity_action_map_is_inactive():
-    from sactrader.env.vec_env import ActionMap
+    from softedge.env.vec_env import ActionMap
 
     ts = TapeSet(_tapes(), window=4, action_map=ActionMap())
     assert ts.action_map is None and EnvConfig().action_map is None
@@ -175,7 +175,7 @@ def test_rollout_band_holds_small_rebalances(tapeset):
 
 
 def test_relabel_is_exact_under_an_action_map():
-    from sactrader.env.vec_env import ActionMap
+    from softedge.env.vec_env import ActionMap
 
     ts = TapeSet(_tapes(), window=4, action_map=ActionMap(prior_feature="ret_h4", vol_target=0.3))
     env = VecTradingEnv(ts, EnvConfig(window=4, episode_len=32, n_envs=8), seed=2)
@@ -192,8 +192,8 @@ def test_relabel_is_exact_under_an_action_map():
 def test_train_warm_start_shrink_and_redo_log_dormancy():
     import json  # noqa: F401
 
-    from sactrader.agent.sac import SACConfig
-    from sactrader.train import TrainConfig, train
+    from softedge.agent.sac import SACConfig
+    from softedge.train import TrainConfig, train
 
     tapes = _tapes()[:2]
     cfg = TrainConfig(total_steps=640, warmup_steps=160, utd=0.25, eval_every=40, threads=1,
@@ -213,7 +213,7 @@ def replace_cfg(cfg, **kw):
 
 
 def test_several_priors_sum_and_skip_missing_features():
-    from sactrader.env.vec_env import ActionMap
+    from softedge.env.vec_env import ActionMap
 
     tapes = _tapes()
     cfg = EnvConfig(prior_features={"ret_h4": 0.5, "funding_last": -0.2, "absent": 3.0})

@@ -1,11 +1,11 @@
 # Design
 
-sactrader trains one Soft Actor-Critic agent family across four market types. Each section below
+softedge trains one Soft Actor-Critic agent family across four market types. Each section below
 names a choice and the failure it prevents.
 
 ## Market tape: one accounting model for four markets
 
-Every instrument becomes a `MarketTape` (`src/sactrader/tape.py`): per-step returns, worst
+Every instrument becomes a `MarketTape` (`src/softedge/tape.py`): per-step returns, worst
 intra-bar returns, carry and trading cost, stored separately for the long and the short side.
 
 | Market | Long unit | Short unit | Carry | Settlement |
@@ -164,16 +164,16 @@ Lopez de Prado (2012, 2014) on per-bar returns:
 Trial counting is per universe and covers every SAC variant ever reported on it: each seed, the
 seed ensemble, the banded and the gated policy, in every experiment recorded in
 `runs/trials.jsonl`. `V` is the variance of their per-bar Sharpe ratios, floored at `1/(T - 1)`,
-the scatter of Sharpe estimates of zero-skill strategies over `T` bars. `sactrader dsr`
+the scatter of Sharpe estimates of zero-skill strategies over `T` bars. `softedge dsr`
 recomputes the table over all saved runs, so earlier results deflate further as trials accumulate.
 
 ## Comparing variants
 
 Deflated Sharpe ratios ask whether a strategy beats luck. Choosing between variants run on the
-same markets and periods is sharper: `sactrader compare` bootstraps the Sharpe difference of two
+same markets and periods is sharper: `softedge compare` bootstraps the Sharpe difference of two
 runs on their shared bars (a stationary bootstrap keeps the pairing and the serial dependence),
-which cancels the market noise they share. `sactrader summary` tests the validation-gated policy
-of every run against the best baseline of its market in the same way, and `sactrader pbo` gives
+which cancels the market noise they share. `softedge summary` tests the validation-gated policy
+of every run against the best baseline of its market in the same way, and `softedge pbo` gives
 the probability of backtest overfitting (CSCV) over every SAC variant tried on a universe.
 
 ## Combinatorial purged cross-validation
@@ -244,7 +244,7 @@ early-closing market reveals when it resolved.
 Survey of the newest arXiv submissions on Soft Actor-Critic and its applications (query run
 through the arXiv API, sorted by submission date, October 2026), with what each changed here.
 
-| Paper | Finding | Use in sactrader |
+| Paper | Finding | Use in softedge |
 | --- | --- | --- |
 | 2609.32819, value divergence in high-UTD SAC | Growing \|Q\| predicts divergence; collapsed representations recover, growing \|Q\| does not | `q_abs_limit` restores the best checkpoint when mean \|Q\| passes a bound |
 | 2610.03369, MoE crypto execution | Seeds vary a lot; annealed exploration removed policy collapses | Multiple seeds and an ensemble; `target_entropy_end_scale` anneals the entropy target |

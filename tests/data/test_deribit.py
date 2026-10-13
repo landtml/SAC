@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data import deribit
-from sactrader.data.schema import make_frame
+from softedge.data import deribit
+from softedge.data.schema import make_frame
 
 HOUR_MS = 3_600_000
 DAY_MS = 86_400_000
@@ -78,7 +78,7 @@ def _bars(start: str, periods: int, bar: str):
 def _offline(request, tmp_path, monkeypatch):
     monkeypatch.setattr(deribit, "MIN_INTERVAL_S", 0.0)
     if request.node.get_closest_marker("network") is None:
-        monkeypatch.setenv("SACTRADER_DATA", str(tmp_path))
+        monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
         monkeypatch.setattr(deribit, "http_get", _no_network)
 
 

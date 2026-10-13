@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sactrader.portfolio import log_reward, step_portfolio
+from softedge.portfolio import log_reward, step_portfolio
 
 
 def _step(w_prev, target, lr=0.0, sr=None, sg=None, lw=None, sw=None,

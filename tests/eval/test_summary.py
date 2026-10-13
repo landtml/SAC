@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from sactrader.eval.summary import COLUMNS, run_summary
+from softedge.eval.summary import COLUMNS, run_summary
 
 
 def test_summary_tests_gated_against_best_baseline(tmp_path):

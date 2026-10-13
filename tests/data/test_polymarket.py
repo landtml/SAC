@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data import polymarket
-from sactrader.data.schema import validate_frame
+from softedge.data import polymarket
+from softedge.data.schema import validate_frame
 
 TOKEN = "12345678901234567890" * 4
 T0 = int(pd.Timestamp("2024-01-01", tz="UTC").timestamp())
@@ -26,7 +26,7 @@ def isolated(request, tmp_path, monkeypatch):
     # Network tests keep the caller's cache directory.
     if request.node.get_closest_marker("network"):
         return
-    monkeypatch.setenv("SACTRADER_DATA", str(tmp_path))
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
     monkeypatch.setattr(polymarket, "REQUEST_INTERVAL_S", 0.0)
 
 
@@ -270,7 +270,7 @@ def test_top_resolved_market_loads_live():
 
 
 def test_listing_parses_mixed_iso_timestamps():
-    from sactrader.data.polymarket import COLUMNS, _markets_frame
+    from softedge.data.polymarket import COLUMNS, _markets_frame
 
     base = dict.fromkeys(COLUMNS, "x")
     rows = [{**base, "start": "2024-01-01T00:00:00Z", "end": "2024-02-01T12:00:00Z",

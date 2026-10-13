@@ -3,8 +3,8 @@ import pandas as pd
 import pytest
 from scipy.stats import kurtosis
 
-from sactrader.data.schema import validate_frame
-from sactrader.data.synthetic import nonlinear_regime_market
+from softedge.data.schema import validate_frame
+from softedge.data.synthetic import nonlinear_regime_market
 
 N_LONG = 50000
 SNR = 0.08  # default snr of nonlinear_regime_market

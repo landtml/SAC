@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from sactrader.eval.walkforward import walk_forward_splits
+from softedge.eval.walkforward import walk_forward_splits
 
 START, END = "2020-01-01", "2021-01-01"  # 366 days, 2020 is a leap year
 

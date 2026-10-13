@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from sactrader.data.schema import make_frame
-from sactrader.tape import CostSpec, MarketTape, build_tape
+from softedge.data.schema import make_frame
+from softedge.tape import CostSpec, MarketTape, build_tape
 
 
 def make_tape(

@@ -13,8 +13,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from sactrader.data import binance
-from sactrader.data.schema import validate_frame
+from softedge.data import binance
+from softedge.data.schema import validate_frame
 
 FIXTURES = Path(__file__).parent / "fixtures" / "binance"
 SPOT_1H = "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h"
@@ -46,7 +46,7 @@ def fixture_zip(name: str) -> bytes:
 
 
 def serve(monkeypatch, tmp_path: Path, files: dict[str, bytes]) -> Archive:
-    monkeypatch.setenv("SACTRADER_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path / "data"))
     archive = Archive(files)
     monkeypatch.setattr(binance, "fetch_bytes", archive)
     return archive

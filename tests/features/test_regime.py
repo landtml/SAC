@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data.schema import make_frame
-from sactrader.features.regime import (
+from softedge.data.schema import make_frame
+from softedge.features.regime import (
     _GAUSS_FLOORED_LOG_STD,
     RegimeConfig,
     regime_features,

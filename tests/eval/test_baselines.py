@@ -1,6 +1,6 @@
 import numpy as np
 
-from sactrader.eval.baselines import buy_and_hold, flat, random_exposures, vol_target_trend
+from softedge.eval.baselines import buy_and_hold, flat, random_exposures, vol_target_trend
 
 from .helpers import make_tape
 

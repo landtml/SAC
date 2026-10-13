@@ -4,7 +4,7 @@ import math
 import pandas as pd
 import pytest
 
-from sactrader.eval.cpcv import assemble_paths, cpcv_splits, group_bounds, n_paths
+from softedge.eval.cpcv import assemble_paths, cpcv_splits, group_bounds, n_paths
 
 START, END = "2020-01-01", "2021-01-01"  # 366 days, 2020 is a leap year
 T0 = pd.Timestamp(START, tz="UTC")

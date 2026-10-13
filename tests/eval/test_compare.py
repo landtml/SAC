@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.eval.compare import COLUMNS, compare_runs
+from softedge.eval.compare import COLUMNS, compare_runs
 
 
 def _write(root, name, frame):
@@ -37,7 +37,7 @@ def test_unfinished_run_raises(tmp_path):
 
 
 def test_universe_pbo_pools_sac_columns_of_one_universe(tmp_path):
-    from sactrader.eval.compare import universe_pbo
+    from softedge.eval.compare import universe_pbo
 
     rng = np.random.default_rng(1)
     idx = pd.date_range("2022-01-01", periods=640, freq="1h", tz="UTC", name="time")

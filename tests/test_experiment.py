@@ -1,7 +1,7 @@
 import json
 
-from sactrader.cli import main
-from sactrader.experiment import run_experiment
+from softedge.cli import main
+from softedge.experiment import run_experiment
 
 CFG = {
     "name": "tiny",
@@ -38,7 +38,7 @@ def test_run_experiment_writes_report_and_counts_trials(tmp_path):
 
 
 def test_recompute_dsr_counts_trials_per_universe(tmp_path):
-    from sactrader.experiment import recompute_dsr
+    from softedge.experiment import recompute_dsr
 
     run_experiment({**CFG, "name": "a", "seeds": [0]}, tmp_path)
     run_experiment({**CFG, "name": "b", "seeds": [1]}, tmp_path)
@@ -92,7 +92,7 @@ def test_discrete_agent_trains_through_the_runner(tmp_path):
 
 
 def test_sources_concatenate_universes_with_their_own_costs():
-    from sactrader.experiment import build_all_tapes
+    from softedge.experiment import build_all_tapes
 
     src = {"data": {"start": "2021-01", "end": "2021-02"}}
     cfg = {"universe": "mixed", "sources": [

@@ -2,17 +2,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data import synthetic
-from sactrader.env.vec_env import TapeSet, rollout
-from sactrader.eval.report import (
+from softedge.data import synthetic
+from softedge.env.vec_env import TapeSet, rollout
+from softedge.eval.report import (
     per_tape_table,
     pooled_returns,
     rollout_exposures,
     summary_table,
     to_markdown,
 )
-from sactrader.features.causal import FeatureConfig, compute_features
-from sactrader.tape import build_tape
+from softedge.features.causal import FeatureConfig, compute_features
+from softedge.tape import build_tape
 
 CFG = FeatureConfig(horizons=(1, 4), ema_spans=(8,), vol_long_span=32)
 WINDOW = 4

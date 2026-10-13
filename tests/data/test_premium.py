@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data import premium
-from sactrader.data.schema import make_frame
+from softedge.data import premium
+from softedge.data.schema import make_frame
 
 PREMIUM_1H = "https://data.binance.vision/data/futures/um/monthly/premiumIndexKlines/BTCUSDT/1h"
 HEADER = (
@@ -38,7 +38,7 @@ class Archive:
 
 
 def serve(monkeypatch, tmp_path: Path, files: dict[str, bytes]) -> Archive:
-    monkeypatch.setenv("SACTRADER_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path / "data"))
     archive = Archive(files)
     monkeypatch.setattr(premium, "fetch_bytes", archive)
     return archive

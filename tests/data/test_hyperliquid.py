@@ -10,8 +10,8 @@ import pandas as pd
 import pytest
 import requests
 
-from sactrader.data import hyperliquid
-from sactrader.data.schema import validate_frame
+from softedge.data import hyperliquid
+from softedge.data.schema import validate_frame
 
 HOUR = 3_600_000
 CANDLE_CAP = 5000
@@ -76,9 +76,9 @@ class FakeReply:
 
 @pytest.fixture(autouse=True)
 def _cache_root(request, monkeypatch, tmp_path):
-    # The network test writes to whatever SACTRADER_DATA the shell sets, so the shared cache fills.
+    # The network test writes to whatever SOFTEDGE_DATA the shell sets, so the shared cache fills.
     if request.node.get_closest_marker("network") is None:
-        monkeypatch.setenv("SACTRADER_DATA", str(tmp_path / "data"))
+        monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path / "data"))
 
 
 def test_list_perps_keeps_name_leverage_and_size_decimals(monkeypatch):

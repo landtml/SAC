@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 import torch
 
-from sactrader.agent.discrete_sac import DiscreteSAC
-from sactrader.agent.sac import TQCSAC, SACConfig
+from softedge.agent.discrete_sac import DiscreteSAC
+from softedge.agent.sac import TQCSAC, SACConfig
 
 LEVELS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 

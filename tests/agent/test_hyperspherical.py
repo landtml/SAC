@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch.nn import functional as F
 
-from sactrader.agent.hyperspherical import HyperNet
+from softedge.agent.hyperspherical import HyperNet
 
 torch.set_num_threads(1)
 

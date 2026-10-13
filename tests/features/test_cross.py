@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data.synthetic import gbm
-from sactrader.features.causal import compute_features
-from sactrader.features.cross import CROSS_HORIZONS, cross_features
+from softedge.data.synthetic import gbm
+from softedge.features.causal import compute_features
+from softedge.features.cross import CROSS_HORIZONS, cross_features
 
 T0 = pd.Timestamp("2024-01-01", tz="UTC")
 PRICE = ["open", "high", "low", "close"]

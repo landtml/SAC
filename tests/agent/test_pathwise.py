@@ -2,13 +2,13 @@ import numpy as np
 import pytest
 import torch
 
-from sactrader.agent.pathwise import PathwiseObjective, step_portfolio_torch
-from sactrader.agent.sac import TQCSAC, SACConfig
-from sactrader.data.synthetic import binary_market, gbm, with_funding
-from sactrader.env.vec_env import ActionMap, TapeSet
-from sactrader.features.causal import FeatureConfig, compute_features
-from sactrader.portfolio import log_reward, step_portfolio
-from sactrader.tape import build_tape
+from softedge.agent.pathwise import PathwiseObjective, step_portfolio_torch
+from softedge.agent.sac import TQCSAC, SACConfig
+from softedge.data.synthetic import binary_market, gbm, with_funding
+from softedge.env.vec_env import ActionMap, TapeSet
+from softedge.features.causal import FeatureConfig, compute_features
+from softedge.portfolio import log_reward, step_portfolio
+from softedge.tape import build_tape
 
 CFG = FeatureConfig(horizons=(1, 4, 16), ema_spans=(16,), vol_long_span=64)
 GAMMA = 0.9
@@ -91,8 +91,8 @@ def test_value_matches_numpy_rollout(amap, horizon):
 
 
 def test_pathwise_gradient_reaches_actor_and_training_runs():
-    from sactrader.env.vec_env import EnvConfig
-    from sactrader.train import TrainConfig, train
+    from softedge.env.vec_env import EnvConfig
+    from softedge.train import TrainConfig, train
 
     ts = TapeSet(_tapes(), window=4)
     agent = TQCSAC(ts.obs_dim, 1, SACConfig(hidden=32, critic_blocks=1, actor_hidden=16), seed=0)

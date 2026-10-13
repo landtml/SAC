@@ -2,8 +2,8 @@ import json
 
 import pandas as pd
 
-from sactrader.cpcv_experiment import carve_validation
-from sactrader.experiment import run_experiment
+from softedge.cpcv_experiment import carve_validation
+from softedge.experiment import run_experiment
 
 CFG = {
     "name": "cpcv_tiny",

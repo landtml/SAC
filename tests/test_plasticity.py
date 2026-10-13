@@ -2,8 +2,8 @@ import pytest
 import torch
 from torch import nn
 
-from sactrader.agent.networks import RunningNorm, SimbaNet
-from sactrader.agent.plasticity import _dormant_masks, dormant_fraction, redo_reset, shrink_perturb
+from softedge.agent.networks import RunningNorm, SimbaNet
+from softedge.agent.plasticity import _dormant_masks, dormant_fraction, redo_reset, shrink_perturb
 
 MEMBERS, D_IN, D_OUT, HIDDEN = 2, 6, 3, 16
 UNITS = 4 * HIDDEN  # SimbaBlock expansion width

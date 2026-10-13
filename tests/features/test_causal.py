@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data.schema import make_frame
-from sactrader.features.causal import FeatureConfig, compute_features, warmup_bars
-from sactrader.tape import build_tape
+from softedge.data.schema import make_frame
+from softedge.features.causal import FeatureConfig, compute_features, warmup_bars
+from softedge.tape import build_tape
 
 KINDS = ("spot", "perp", "fx", "binary")
 N = 600  # past the 256-bar horizon and the 512-bar long-vol span
@@ -264,7 +264,7 @@ def test_warmup_follows_config():
 
 @pytest.mark.parametrize("bar", ["1h", "1D"])
 def test_implied_vol_features_compare_implied_with_realized(bar):
-    from sactrader.data.synthetic import gbm
+    from softedge.data.synthetic import gbm
 
     frame = gbm(600, sigma=0.01, seed=3, symbol="BTCUSDT")
     if bar == "1D":
@@ -285,7 +285,7 @@ def test_implied_vol_features_compare_implied_with_realized(bar):
 
 
 def test_premium_features_in_basis_points():
-    from sactrader.data.synthetic import gbm, with_funding
+    from softedge.data.synthetic import gbm, with_funding
 
     frame = with_funding(gbm(400, sigma=0.01, seed=2, symbol="P"), seed=3)
     frame["premium"] = 2e-4

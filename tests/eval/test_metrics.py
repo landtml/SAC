@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sactrader.eval.metrics import sharpe, summarize
+from softedge.eval.metrics import sharpe, summarize
 
 
 def test_sharpe_annualizes_with_sqrt_bars_per_year():

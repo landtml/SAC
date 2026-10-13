@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data.schema import validate_frame
-from sactrader.data.synthetic import (
+from softedge.data.schema import validate_frame
+from softedge.data.synthetic import (
     ar_returns,
     binary_market,
     gbm,

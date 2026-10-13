@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sactrader.eval.stats import (
+from softedge.eval.stats import (
     deflated_sharpe_ratio,
     expected_max_sharpe,
     pbo_cscv,
@@ -91,7 +91,7 @@ def test_pbo_rejects_bad_shapes():
 
 
 def test_min_track_record_length_is_where_psr_crosses_95pct():
-    from sactrader.eval.stats import min_track_record_length, probabilistic_sharpe_ratio
+    from softedge.eval.stats import min_track_record_length, probabilistic_sharpe_ratio
 
     rng = np.random.default_rng(7)
     r = rng.normal(0.02, 1.0, 50_000)
@@ -106,7 +106,7 @@ def test_min_track_record_length_is_where_psr_crosses_95pct():
 
 
 def test_dsr_summary_deflates_with_trials_and_floors_variance():
-    from sactrader.eval.stats import dsr_summary, null_sr_variance
+    from softedge.eval.stats import dsr_summary, null_sr_variance
 
     rng = np.random.default_rng(3)
     r = rng.normal(0.01, 1.0, 5000)

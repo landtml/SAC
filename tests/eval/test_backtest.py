@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from sactrader.eval.backtest import backtest, backtest_exposures
-from sactrader.eval.metrics import summarize
-from sactrader.portfolio import step_portfolio
-from sactrader.tape import CostSpec
+from softedge.eval.backtest import backtest, backtest_exposures
+from softedge.eval.metrics import summarize
+from softedge.portfolio import step_portfolio
+from softedge.tape import CostSpec
 
 from .helpers import make_tape
 

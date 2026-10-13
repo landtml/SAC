@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sactrader.data.basis import basis_frame
-from sactrader.data.schema import make_frame, validate_frame
+from softedge.data.basis import basis_frame
+from softedge.data.schema import make_frame, validate_frame
 
 T0 = pd.Timestamp("2024-01-01", tz="UTC")
 
@@ -86,8 +86,8 @@ def test_mismatched_bars_or_symbols_and_swapped_legs_raise():
 
 
 def test_spread_of_two_perps_nets_their_funding():
-    from sactrader.data.basis import spread_frame
-    from sactrader.data.schema import make_frame
+    from softedge.data.basis import spread_frame
+    from softedge.data.schema import make_frame
 
     idx = pd.date_range("2024-01-01", periods=4, freq="1D", tz="UTC")
 
@@ -106,8 +106,8 @@ def test_spread_of_two_perps_nets_their_funding():
 
 
 def test_short_basis_pays_spot_borrow_on_the_tape():
-    from sactrader.features.causal import FeatureConfig, compute_features
-    from sactrader.tape import CostSpec, build_tape
+    from softedge.features.causal import FeatureConfig, compute_features
+    from softedge.tape import CostSpec, build_tape
 
     idx = pd.date_range("2024-01-01", periods=80, freq="1D", tz="UTC")
     c = np.linspace(100, 120, 80)
