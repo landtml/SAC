@@ -56,10 +56,14 @@ class EnvConfig:
     prior_gain: float = 1.0
     residual: float = 1.0
     vol_target: float | None = None
+    # Several priors at once, feature -> gain, summed before clipping. A feature a tape lacks is
+    # zero there, so one pooled agent can hold funding carry on crypto and rate carry on forex.
+    prior_features: dict[str, float] | None = None
 
     @property
     def action_map(self) -> ActionMap | None:
-        m = ActionMap(self.prior_feature, self.prior_gain, self.residual, self.vol_target)
+        extra = tuple(sorted((self.prior_features or {}).items())) or None
+        m = ActionMap(self.prior_feature, self.prior_gain, self.residual, self.vol_target, extra)
         return m if m.active else None
 
 
@@ -69,10 +73,21 @@ class ActionMap:
     prior_gain: float = 1.0
     residual: float = 1.0
     vol_target: float | None = None
+    prior_features: tuple[tuple[str, float], ...] | None = None
+
+    @property
+    def gains(self) -> tuple[tuple[str, float], ...]:
+        """Every (feature, gain) pair of the prior."""
+        single = ((self.prior_feature, self.prior_gain),) if self.prior_feature is not None else ()
+        return single + tuple(self.prior_features or ())
+
+    @property
+    def has_prior(self) -> bool:
+        return bool(self.gains)
 
     @property
     def active(self) -> bool:
-        return self.prior_feature is not None or self.vol_target is not None or self.residual != 1.0
+        return self.has_prior or self.vol_target is not None or self.residual != 1.0
 
 
 class TapeSet:
@@ -124,11 +139,12 @@ class TapeSet:
         if am is None:
             return np.zeros(len(lev)), lev
         prior = np.zeros(len(lev))
-        if am.prior_feature is not None:
-            if am.prior_feature not in col:
-                raise ValueError(f"prior feature {am.prior_feature!r} is not a tape feature")
-            f = self.features[:, col[am.prior_feature]].astype(np.float64)
-            prior = np.clip(am.prior_gain * f, -1.0, 1.0)
+        if am.has_prior:
+            present = [(name, gain) for name, gain in am.gains if name in col]
+            if not present:
+                raise ValueError(f"no prior feature of {[n for n, _ in am.gains]} is a tape feature")
+            raw = sum(gain * self.features[:, col[name]].astype(np.float64) for name, gain in present)
+            prior = np.clip(raw, -1.0, 1.0)
         scale = lev.copy()
         if am.vol_target is not None:
             parts = []

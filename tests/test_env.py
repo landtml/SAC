@@ -210,3 +210,17 @@ def replace_cfg(cfg, **kw):
     from dataclasses import replace
 
     return replace(cfg, **kw)
+
+
+def test_several_priors_sum_and_skip_missing_features():
+    from sactrader.env.vec_env import ActionMap
+
+    tapes = _tapes()
+    cfg = EnvConfig(prior_features={"ret_h4": 0.5, "funding_last": -0.2, "absent": 3.0})
+    ts = TapeSet(tapes, window=4, action_map=cfg.action_map)
+    names = ts.feature_names
+    f = ts.features.astype(np.float64)
+    raw = 0.5 * f[:, names.index("ret_h4")] - 0.2 * f[:, names.index("funding_last")]
+    np.testing.assert_allclose(ts.prior, np.clip(raw, -1, 1), atol=1e-12)
+    assert (ts.prior != 0).any()
+    assert ActionMap(prior_features=(("ret_h4", 1.0),)).has_prior
