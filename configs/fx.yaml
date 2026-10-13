@@ -1,7 +1,7 @@
 name: fx
 universe: fx
 data: {start: "2000-01"}
-costs: {fee_bps: 0.0, half_spread_bps: 1.0, max_leverage: 3.0, maint_margin: 0.02}
+costs: {fee_bps: 0.0, half_spread_bps: 1.0, max_leverage: 3.0, maint_margin: 0.02, swap_apr_long: 0.005, swap_apr_short: 0.005}
 split:
   train: [null, "2016-01-01"]
   val: ["2016-01-01", "2019-01-01"]

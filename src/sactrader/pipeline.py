@@ -54,9 +54,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         load = binance.load_perp if universe == "crypto_perp" else binance.load_spot
         return [load(s, "1h", start, end) for s in (symbols or CRYPTO_SYMBOLS)]
     if universe == "fx":
-        from sactrader.data import fx
+        from sactrader.data import fx, rates
 
-        return [fx.load_fx_daily(p, start=f"{start}-01") for p in (symbols or FX_PAIRS)]
+        return [rates.attach_rate_diff(fx.load_fx_daily(p, start=f"{start}-01"))
+                for p in (symbols or FX_PAIRS)]
     if universe == "polymarket":
         from sactrader.data import polymarket
 
