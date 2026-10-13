@@ -37,11 +37,22 @@ def main(argv: list[str] | None = None) -> int:
     cmp.add_argument("--runs", default="runs")
     cmp.add_argument("--strategy", default="sac_banded")
 
+    sm = sub.add_parser("summary", help="SAC against the best baseline of every finished run")
+    sm.add_argument("--runs", default="runs")
+
     pbo = sub.add_parser("pbo", help="probability of backtest overfitting across a universe")
     pbo.add_argument("universe")
     pbo.add_argument("--runs", default="runs")
 
     args = parser.parse_args(argv)
+    if args.cmd == "summary":
+        from sactrader.eval.report import to_markdown
+        from sactrader.eval.summary import run_summary
+
+        text = to_markdown(run_summary(args.runs))
+        (__import__("pathlib").Path(args.runs) / "summary.md").write_text(text + "\n")
+        print(text)
+        return 0
     if args.cmd == "pbo":
         from sactrader.eval.compare import universe_pbo
 
