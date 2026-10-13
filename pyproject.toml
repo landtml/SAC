@@ -4,11 +4,33 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "softedge"
-version = "0.1.0"
-description = "Distributional, risk-aware Soft Actor-Critic for trading crypto spot, perpetual futures, forex and prediction markets"
+version = "0.2.0"
+description = "Soft Actor-Critic trading agents tested with honest out-of-sample statistics across crypto, forex, macro and prediction markets"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+authors = [{ name = "landtml" }]
+keywords = [
+    "reinforcement-learning",
+    "soft-actor-critic",
+    "sac",
+    "algorithmic-trading",
+    "quantitative-finance",
+    "crypto",
+    "forex",
+    "prediction-markets",
+    "deflated-sharpe-ratio",
+    "backtesting",
+    "pytorch",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.1",
@@ -24,6 +46,11 @@ dev = ["pytest>=8", "pytest-xdist>=3", "ruff>=0.5"]
 
 [project.scripts]
 softedge = "softedge.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/landtml/SAC"
+Repository = "https://github.com/landtml/SAC"
+Issues = "https://github.com/landtml/SAC/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
