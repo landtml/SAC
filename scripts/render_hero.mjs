@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Renders the README hero from assets/hero.svg into assets/hero.gif (one 8 s loop at 20 fps,
-// 1000 px wide) and assets/hero.png (frame 0 at 2x). Frames are drawn by setting the clock of
-// every CSS animation, so a run produces the same frames each time.
+// 1000 px wide) and assets/hero.png (the settled frame at 6 s, at 2x). Frames are drawn by
+// setting the clock of every CSS animation, so a run produces the same frames each time.
 //
 // Usage: node scripts/render_hero.mjs [--preview <dir>]
 //   --preview keeps the 160 source frames in <dir> for review. Needs ffmpeg and Playwright
@@ -67,7 +67,7 @@ try {
   });
   await capture(browser, svg, {
     scale: 2,
-    times: [0],
+    times: [6000],
     pathFor: () => join(ASSETS, 'hero.png'),
   });
 } finally {
