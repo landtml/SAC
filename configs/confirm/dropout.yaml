@@ -1,0 +1,55 @@
+costs:
+  borrow_apr: 0.0
+  fee_bps: 2.0
+  half_spread_bps: 0.5
+  max_leverage: 1.0
+data:
+  end: 2023-01
+  start: 2021-01
+deploy:
+  gate_psr: 0.8
+env:
+  episode_len: 512
+  n_envs: 16
+  window: 4
+name: conf_dropout
+reference: buy_and_hold
+sac:
+  actor_hidden: 64
+  critic_blocks: 1
+  gamma: 0.99
+  hidden: 128
+  critic_dropout: 0.1
+seeds:
+- 0
+- 1
+- 2
+symbols:
+- H0
+- H1
+- H2
+- H3
+- H4
+- H5
+- H6
+- H7
+- H8
+- H9
+- H10
+- H11
+train:
+  eval_every: 1000
+  relabel_frac: 0.5
+  threads: 1
+  total_steps: 40000
+  utd: 0.25
+  warmup_steps: 5000
+universe: synthetic_hard
+walk_forward:
+  embargo: 2D
+  end: '2023-01-01'
+  first_test: '2022-01-01'
+  fold_steps: 15000
+  test: 120D
+  val: 60D
+  warm_start: true
