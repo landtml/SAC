@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Renders the README hero from assets/hero.svg into assets/hero.gif (one 8 s loop at 20 fps,
-// 1000 px wide) and assets/hero.png (the settled frame at 6 s, at 2x). Frames are drawn by
+// Renders the README header from assets/header.svg into assets/header.gif (one 8 s loop at 20 fps,
+// 1000 px wide) and assets/header.png (the settled frame at 6 s, at 2x). Frames are drawn by
 // setting the clock of every CSS animation, so a run produces the same frames each time.
 //
 // Usage: node scripts/render_hero.mjs [--preview <dir>]
@@ -54,7 +54,7 @@ async function capture(browser, svg, { scale, times, pathFor }) {
   await context.close();
 }
 
-const svg = readFileSync(join(ASSETS, 'hero.svg'), 'utf8');
+const svg = readFileSync(join(ASSETS, 'header.svg'), 'utf8');
 const workDir = previewDir ?? mkdtempSync(join(tmpdir(), 'hero-'));
 mkdirSync(workDir, { recursive: true });
 
@@ -68,13 +68,13 @@ try {
   await capture(browser, svg, {
     scale: 2,
     times: [6000],
-    pathFor: () => join(ASSETS, 'hero.png'),
+    pathFor: () => join(ASSETS, 'header.png'),
   });
 } finally {
   await browser.close();
 }
 
-const gifPath = join(ASSETS, 'hero.gif');
+const gifPath = join(ASSETS, 'header.gif');
 execFileSync(
   'ffmpeg',
   [
@@ -97,6 +97,6 @@ if (!previewDir) rmSync(workDir, { recursive: true, force: true });
 
 const bytes = statSync(gifPath).size;
 if (bytes > GIF_MAX_BYTES) {
-  throw new Error(`hero.gif is ${bytes} bytes, over the ${GIF_MAX_BYTES} byte limit`);
+  throw new Error(`header.gif is ${bytes} bytes, over the ${GIF_MAX_BYTES} byte limit`);
 }
-console.log(`hero.gif ${bytes} bytes, ${frameTimes.length} frames`);
+console.log(`header.gif ${bytes} bytes, ${frameTimes.length} frames`);

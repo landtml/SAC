@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.gif" alt="SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly. The logo is the agent's Gaussian policy over positions; it slides back to zero when there is no edge, while a price line shows the agent staying flat and then trading the out-of-sample window." width="100%">
+  <img src="assets/header.gif" alt="SoftEdge: Soft Actor-Critic agents in search of a trading edge, measured honestly. The logo is the agent's Gaussian policy over positions; it slides back to zero when there is no edge, while a price line shows the agent staying flat and then trading the out-of-sample window." width="100%">
 </p>
 
 <p align="center">

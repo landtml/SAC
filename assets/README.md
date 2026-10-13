@@ -8,7 +8,7 @@ it has. When the evidence is weak the policy moves back to zero and the agent st
 
 - `logo.svg`: the mark on a dark tile, for icons down to 32 px.
 - `banner.svg`: mark, wordmark and tagline for the repository header. It has its own background, so it reads on light and dark GitHub themes.
-- `hero.svg`: the animated README header; `hero.gif` and `hero.png` are its renderings
+- `header.svg`: the animated README header; `header.gif` and `header.png` are its renderings
   (`scripts/render_hero.mjs`).
 - `animations/sac-loop.svg`: the animated learning loop; `sac-loop.gif` is its rendering
   (`scripts/render_sac_loop.mjs`).
