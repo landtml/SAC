@@ -2,7 +2,7 @@ PY ?= .venv/bin/python
 UV ?= uv
 CPU_INDEX ?= https://download.pytorch.org/whl/cpu
 
-.PHONY: install test test-network lint figures
+.PHONY: install test test-network lint figures assets
 
 install:
 	test -d .venv || $(UV) venv .venv -p 3.12
@@ -20,3 +20,6 @@ lint:
 
 figures:
 	$(PY) scripts/make_figures.py
+
+assets:
+	node scripts/render_assets.mjs
