@@ -14,9 +14,9 @@ sign is the API's ``fundingRate`` sign, unchanged.
 bar: the sum of the events inside ``[bar open, bar open + interval)``, 0.0 for a bar without one.
 It adds the float64 column ``trades``. Bars are indexed by candle open time in UTC.
 
-History cap: the API serves only recent candles and nothing older. Measured on 2026-10-13, 1h
-candles reach back to 2026-03-19 09:00 UTC (5001 bars), 4h to 2024-07-02 12:00 UTC (5000 bars)
-and 1d to 2020-08-19 00:00 UTC (2247 bars, the full history served).
+History cap: the API serves only recent candles and nothing older. How far back it reaches
+depends on the interval: 1h candles reach the least far, daily candles the furthest, and the
+full daily history is served.
 
 Cache under ``$SOFTEDGE_DATA/hyperliquid``. Each calendar month that has ended is kept as raw
 JSON rows in ``raw/<coin>/<kind>/<YYYY-MM>.json``, written atomically. The parsed perp frame is

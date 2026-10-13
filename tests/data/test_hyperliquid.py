@@ -169,7 +169,7 @@ def test_unsupported_interval_is_refused_before_any_request(monkeypatch, interva
 
 
 def test_history_the_api_does_not_serve_is_left_out(monkeypatch):
-    # Only March 2026 is served, as measured for 1h candles. February returns nothing.
+    # The fake holds 1h candles from 2026-03-19 09:00 only, so February returns nothing.
     served = [candle(ms("2026-03-19T09:00") + i * HOUR, OHLC) for i in range(48)]
     monkeypatch.setattr(hyperliquid, "_post_json", InfoServer(candles=served))
     frame = hyperliquid.load_perp("BTC", "1h", "2026-02", "2026-03")
