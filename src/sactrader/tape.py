@@ -225,8 +225,12 @@ def build_tape(
         elif kind == "spot":
             carry_short[cur] = costs.borrow_apr * per_bar
         elif kind == "fx":
-            carry_long[cur] = costs.swap_apr_long * per_bar
-            carry_short[cur] = costs.swap_apr_short * per_bar
+            # A long holds the base currency and borrows the quote currency, so it earns the
+            # rate differential; swap_apr_* is the broker's financing markup on top.
+            rd = (frame["rate_diff"].to_numpy(np.float64) if "rate_diff" in frame.columns
+                  else np.zeros(n))
+            carry_long[cur] = (costs.swap_apr_long - rd[cur]) * per_bar
+            carry_short[cur] = (costs.swap_apr_short + rd[cur]) * per_bar
         c = (costs.fee_bps + costs.half_spread_bps) * 1e-4
         cost_long = np.full(n, c)
         cost_short = np.full(n, c)

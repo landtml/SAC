@@ -77,3 +77,12 @@ def test_schema_rejects_bad_frames():
         _frame([0.5, 1.2], kind="binary", resolution=1.0)
     with pytest.raises(FrameError):
         _frame([100, 101], kind="perp")
+
+
+def test_fx_rate_diff_pays_longs_and_charges_shorts():
+    fr = _frame([1.10, 1.10, 1.10, 1.10], kind="fx")
+    fr["rate_diff"] = 0.02
+    spec = CostSpec(swap_apr_long=0.005, swap_apr_short=0.005, max_leverage=5.0)
+    tape = build_tape(fr, _features(fr, warmup=0), spec, bars_per_year=250)
+    np.testing.assert_allclose(tape.carry_long[:-1], (0.005 - 0.02) / 250)
+    np.testing.assert_allclose(tape.carry_short[:-1], (0.005 + 0.02) / 250)

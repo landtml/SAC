@@ -130,6 +130,10 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
             # A last bar that closes after the scheduled end has no time left to run.
             cols["log_hours_to_end"] = np.log1p(np.maximum(hours, 0.0)) / 5.0
 
+    if "rate_diff" in frame.columns:
+        # 5% differential maps to 1.0, the carry signal behind forex carry trades.
+        cols["rate_diff"] = frame["rate_diff"].astype("float64").fillna(0.0) * 20.0
+
     if "signal" in frame.columns:
         cols["signal"] = frame["signal"].astype("float64")
 

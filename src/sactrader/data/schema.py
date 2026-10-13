@@ -10,6 +10,8 @@ A bar frame is a pandas DataFrame with:
 * perps only: ``funding_rate`` (float64). The rate charged to a long position at a
   funding event that falls inside the bar, 0.0 for bars without one. A positive
   rate means longs pay shorts.
+* fx, optional: ``rate_diff`` (float64), annualized short-rate differential base minus quote
+  known at the bar close. Longs earn it, shorts pay it.
 * binary only: prices are the YES token price in ``(0, 1)``. ``df.attrs["resolution"]``
   holds the settlement value of the YES token (1.0 or 0.0).
 
