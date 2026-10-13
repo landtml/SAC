@@ -43,6 +43,9 @@ class SACConfig:
     risk: str = "mean"  # "mean" or "cvar"
     cvar_eta: float = 0.25
     grad_clip: float = 10.0
+    # Weight of a temporal-consistency penalty on the deterministic action between consecutive
+    # states (CAPS-style). Oscillating targets pay spread and fees on every flip.
+    smooth_coef: float = 0.0
 
 
 class _QuantileHuber(torch.autograd.Function):
@@ -155,6 +158,10 @@ class TQCSAC:
         a_pi, logp = self.actor(o)
         q_pi = self._risk(self.critic(o, a_pi))
         actor_loss = (alpha * logp - q_pi).mean()
+        if c.smooth_coef > 0:
+            mu, _ = self.actor(o, deterministic=True)
+            mu_next, _ = self.actor(o2, deterministic=True)
+            actor_loss = actor_loss + c.smooth_coef * (mu - mu_next).pow(2).mean()
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), c.grad_clip)

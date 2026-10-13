@@ -32,6 +32,7 @@ from sactrader.eval.report import (
     summary_from_pooled,
     to_markdown,
 )
+from sactrader.eval.stats import probabilistic_sharpe_ratio
 from sactrader.pipeline import Period, SplitSpec, load_frames, split_tapes, to_tapes
 from sactrader.tape import DEFAULT_COSTS, MarketTape
 from sactrader.train import TrainConfig, sharpe, train
@@ -140,8 +141,17 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     policy = ensemble_policy(agents)
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
-    band, band_scores = choose_band(policy, TapeSet(parts["val"], window, feature_names))
+    val_ts = TapeSet(parts["val"], window, feature_names)
+    band, band_scores = choose_band(policy, val_ts)
     runs["sac_banded"] = rollout(test_ts, banded(policy, band))
+    # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
+    # validation record. Below the gate the strategy stays flat for this fold.
+    gate_psr = float(cfg.get("deploy", {}).get("gate_psr", 0.8))
+    val_run = rollout(val_ts, banded(policy, band))
+    val_psr = probabilistic_sharpe_ratio(pooled_returns(val_run, parts["val"], start_row).to_numpy())
+    deploy = bool(np.isfinite(val_psr) and val_psr >= gate_psr)
+    runs["sac_gated"] = runs["sac_banded"] if deploy else [
+        rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
     runs["flat"] = [rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
     runs["buy_and_hold"] = [rollout_exposures(tp, baselines.buy_and_hold(tp), start_row)
                             for tp in test]
@@ -149,7 +159,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]
-    return runs, {"chosen": band, "val_sharpe": band_scores}
+    return runs, {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
+                  "gate_psr": gate_psr, "deployed": deploy}
 
 
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:

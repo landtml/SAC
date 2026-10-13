@@ -21,10 +21,12 @@ CFG = {
 
 def test_run_experiment_writes_report_and_counts_trials(tmp_path):
     res = run_experiment(CFG, tmp_path)
-    assert {"sac_seed0", "sac_seed1", "sac_ensemble", "sac_banded", "flat", "buy_and_hold",
+    assert {"sac_seed0", "sac_seed1", "sac_ensemble", "sac_banded", "sac_gated", "flat", "buy_and_hold",
             "trend"} <= set(res["summary"])
     band = res["folds"][0]["no_trade_band"]
     assert band["chosen"] in band["val_sharpe"]
+    gated = res["summary"]["sac_gated"]["sharpe"]
+    assert gated == (res["summary"]["sac_banded"]["sharpe"] if band["deployed"] else 0.0)
     assert res["summary"]["flat"]["sharpe"] == 0.0
     out = tmp_path / "tiny"
     assert (out / "agent_fold0_seed0.pt").exists() and "## Out-of-sample summary" in (out / "report.md").read_text()

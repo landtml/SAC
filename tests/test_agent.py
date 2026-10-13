@@ -64,6 +64,20 @@ def test_update_runs_and_state_roundtrip():
     np.testing.assert_allclose(clone.act(obs, deterministic=True), agent.act(obs, deterministic=True))
 
 
+def test_smoothness_penalty_runs_and_shrinks_action_gap():
+    rng = np.random.default_rng(1)
+    obs = rng.normal(size=(64, 4)).astype(np.float32)
+    nxt = (obs + rng.normal(scale=2.0, size=obs.shape)).astype(np.float32)
+    gaps = {}
+    for coef in (0.0, 5.0):
+        cfg = SACConfig(hidden=32, critic_blocks=1, actor_hidden=16, smooth_coef=coef, lr_actor=3e-3)
+        agent = TQCSAC(4, 1, cfg, seed=0)
+        for _ in range(150):
+            agent.update(obs, rng.uniform(-1, 1, 64), rng.normal(size=64), nxt, np.zeros(64, bool))
+        gaps[coef] = float(np.abs(agent.act(obs, True) - agent.act(nxt, True)).mean())
+    assert gaps[5.0] < gaps[0.0]
+
+
 def test_critic_learns_constant_reward_value():
     """With reward 1 every step, no termination and a near-zero entropy bonus, the soft value
     approaches 1 / (1 - gamma)."""
