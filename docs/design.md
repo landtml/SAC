@@ -127,6 +127,13 @@ optional per-episode cost multiplier the agent observes (domain randomization ov
 `eval_every` updates the deterministic policy runs over the full validation tapes; the checkpoint
 with the best mean validation Sharpe is kept. The test period is evaluated once, after selection.
 
+A fold deploys only on validation evidence (`sac_gated`): the banded policy trades the test
+window if its probabilistic Sharpe on the validation record clears `deploy.gate_psr`, and stays
+flat otherwise. That record already chose the checkpoint and the band, so its Sharpe is biased
+upward. With `deploy.gate: dsr` the gate deflates it by that search (checkpoint evaluations times
+candidate bands, zero-skill variance floor). On a random walk the plain gate let noise folds
+through; the deflated gate is the stricter, honest one.
+
 ## Evaluation
 
 `experiment.py` trains each seed, evaluates each seed and the seed ensemble (mean action) on the

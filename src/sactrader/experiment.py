@@ -33,7 +33,12 @@ from sactrader.eval.report import (
     summary_from_pooled,
     to_markdown,
 )
-from sactrader.eval.stats import dsr_summary, probabilistic_sharpe_ratio
+from sactrader.eval.stats import (
+    deflated_sharpe_ratio,
+    dsr_summary,
+    null_sr_variance,
+    probabilistic_sharpe_ratio,
+)
 from sactrader.pipeline import (
     Period,
     SplitSpec,
@@ -140,7 +145,7 @@ def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
 
 
 def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, window: int,
-               feature_names: tuple[str, ...]) -> tuple[dict, dict]:
+               feature_names: tuple[str, ...], n_val_evals: int = 1) -> tuple[dict, dict]:
     start_row = window - 1
     test = parts["test"]
     action_map = build_train_config(cfg, seeds[0]).env.action_map
@@ -155,10 +160,18 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     band, band_scores = choose_band(policy, val_ts)
     runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
-    # validation record. Below the gate the strategy stays flat for this fold.
-    gate_psr = float(cfg.get("deploy", {}).get("gate_psr", 0.8))
+    # validation record. Below the gate the strategy stays flat for this fold. The same validation
+    # record picked the checkpoints and the band, so gate "dsr" deflates it by that search:
+    # checkpoint evaluations times bands, with the zero-skill variance floor.
+    deploy_cfg = cfg.get("deploy", {})
+    gate_psr = float(deploy_cfg.get("gate_psr", 0.8))
     val_run = rollout(val_ts, policy, band=band)
-    val_psr = probabilistic_sharpe_ratio(pooled_returns(val_run, parts["val"], start_row).to_numpy())
+    val_r = pooled_returns(val_run, parts["val"], start_row).to_numpy()
+    if deploy_cfg.get("gate", "psr") == "dsr":
+        n_search = max(1, n_val_evals) * len(NO_TRADE_BANDS)
+        val_psr = deflated_sharpe_ratio(val_r, n_search, null_sr_variance(len(val_r)))
+    else:
+        val_psr = probabilistic_sharpe_ratio(val_r)
     deploy = bool(np.isfinite(val_psr) and val_psr >= gate_psr)
     runs["sac_gated"] = runs["sac_banded"] if deploy else [
         rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
@@ -178,7 +191,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]
     return runs, {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
-                  "gate_psr": gate_psr, "deployed": deploy}
+                  "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
+                  "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
 
 
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
@@ -227,8 +241,10 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
             prev_states[seed] = res.best_state
             torch.save(res.best_state, out / f"agent_fold{k}_seed{seed}.pt")
             agents.append(agent_from_state(res.best_state))
-            seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale}
-        runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names)
+            seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale,
+                               "n_val_evals": len(res.history)}
+        runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names,
+                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()))
         test = parts["test"]
         fold_sharpe = {}
         for strat, run in runs.items():

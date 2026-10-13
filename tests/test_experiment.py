@@ -101,3 +101,13 @@ def test_sources_concatenate_universes_with_their_own_costs():
     tapes = build_all_tapes(cfg)
     assert [tp.symbol for tp in tapes] == ["A", "B", "C"]
     assert tapes[0].cost_long[0] < tapes[2].cost_long[0]
+
+
+def test_deflated_gate_is_stricter_than_plain_psr(tmp_path):
+    res = run_experiment({**CFG, "name": "gate_dsr", "seeds": [0],
+                          "deploy": {"gate": "dsr", "gate_psr": 0.8}}, tmp_path)
+    for fold in res["folds"]:
+        info = fold["no_trade_band"]
+        assert info["gate"] == "dsr"
+        assert info["val_psr"] <= info["val_psr_plain"] + 1e-12
+        assert info["deployed"] == (info["val_psr"] >= 0.8)
