@@ -229,3 +229,75 @@ def binary_market(n: int, *, info_rate: float = 0.05, noise: float = 0.02,
                        bar=bar, resolution=resolution)
     frame.attrs["end_time"] = (frame.index[-1] + pd.Timedelta(bar)).isoformat()
     return frame
+
+
+def nonlinear_regime_market(n: int, *, snr: float = 0.08, sigma: float = 0.01, df: float = 4.0,
+                            garch: tuple[float, float] = (0.08, 0.9), p_stay: float = 0.99,
+                            rho: float = 0.95, kind: str = "spot", seed: int = 0,
+                            start: str = "2020-01-01", bar: str = "1h", symbol: str,
+                            substeps: int = 8) -> pd.DataFrame:
+    """Hidden two-regime market with GARCH volatility and a weak nonlinear edge.
+
+    A hidden regime ``z`` is +1 (trend) or -1 (revert). It stays with probability ``p_stay``.
+    Bar volatility ``sigma_t`` follows GARCH(1, 1) with unconditional std ``sigma``. The
+    expected log return of bar ``t`` is ``snr * sigma_t * g``, where
+    ``g = z * tanh(2 m) + 0.5 * tanh(2 x)`` uses the state at the close of bar ``t - 1``.
+    Here ``m`` is the sum of the last 8 log returns over ``sigma * sqrt(8)``, zero before
+    8 bars exist, and ``x`` is an AR(1) driver with coefficient ``rho``. The shock is a
+    unit-variance Student-t with ``df`` degrees of freedom, times ``sigma_t``.
+
+    Columns beyond OHLC: ``signal`` is ``x`` at the close of each bar, known then. ``regime``
+    is ``z`` at the close of each bar, for diagnostics only. ``mu_next`` is the expected log
+    return of the next bar, for oracle scoring only. Neither ``regime`` nor ``mu_next`` may
+    be used as a feature.
+    """
+    _check(n, substeps, kind)
+    a, b = garch
+    if sigma <= 0.0:
+        raise ValueError("sigma must be positive")
+    if df <= 2.0:
+        raise ValueError("df must exceed 2 so the Student-t shock has unit variance")
+    if a < 0.0 or b < 0.0 or a + b >= 1.0:
+        raise ValueError("garch needs a >= 0, b >= 0 and a + b < 1")
+    if not 0.0 < p_stay < 1.0:
+        raise ValueError("p_stay must lie in (0, 1)")
+    if not -1.0 < rho < 1.0:
+        raise ValueError("rho must lie in (-1, 1)")
+    rng = np.random.default_rng(seed)
+    # State arrays have one extra entry: index k holds the state at the close of bar k - 1,
+    # so index 0 is the state before the frame starts. Bar t reads the state at index t.
+    flips = np.where(rng.random(n + 1) < p_stay, 1.0, -1.0)
+    flips[0] = 1.0
+    regime = (2.0 * rng.integers(2) - 1.0) * np.cumprod(flips)
+    driver = _ar1(rng, n + 1, rho, 1.0)
+    shocks = rng.standard_t(df, size=n) * np.sqrt((df - 2.0) / df)
+
+    # Volatility and momentum both feed back on past returns, so no step can be vectorized.
+    w = sigma**2 * (1.0 - a - b)
+    z, x, eps = regime.tolist(), driver.tolist(), shocks.tolist()
+    h = sigma**2
+    mom = 0.0
+    last8 = [0.0] * 8
+    rets: list[float] = []
+    vols: list[float] = []
+    mus: list[float] = []
+    for t in range(n):
+        s = h**0.5
+        mu = snr * s * (z[t] * np.tanh(2.0 * mom) + 0.5 * np.tanh(2.0 * x[t]))
+        shock = s * eps[t]
+        r = mu + shock
+        rets.append(r)
+        vols.append(s)
+        mus.append(mu)
+        last8[t % 8] = r
+        mom = sum(last8) / (s * 8.0**0.5) if t >= 7 else 0.0
+        h = w + a * shock * shock + b * h
+    s = h**0.5
+    mus.append(snr * s * (z[n] * np.tanh(2.0 * mom) + 0.5 * np.tanh(2.0 * x[n])))
+
+    frame = _linear(rng, np.asarray(rets), np.asarray(vols), kind=kind, start=start, bar=bar,
+                    symbol=symbol, substeps=substeps)
+    frame["signal"] = driver[1:]
+    frame["mu_next"] = np.asarray(mus[1:])
+    frame["regime"] = regime[1:].astype(np.int64)
+    return frame
