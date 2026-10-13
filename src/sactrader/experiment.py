@@ -165,6 +165,10 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     runs["flat"] = [rollout_exposures(tp, baselines.flat(tp), start_row) for tp in test]
     runs["buy_and_hold"] = [rollout_exposures(tp, baselines.buy_and_hold(tp), start_row)
                             for tp in test]
+    if all("mu_next" in tp.extra for tp in test):
+        # Synthetic markets know their expected return: the sign oracle bounds what is learnable.
+        runs["oracle"] = [rollout_exposures(tp, np.sign(tp.extra["mu_next"]) * tp.max_leverage,
+                                            start_row) for tp in test]
     if test[0].kind != "binary":
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)

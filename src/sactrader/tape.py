@@ -41,6 +41,8 @@ import pandas as pd
 from sactrader.data.schema import validate_frame
 
 KIND_INDEX = {"spot": 0, "perp": 1, "fx": 2, "binary": 3}
+# Frame columns kept on the tape for scoring only, never observed by the agent.
+DIAGNOSTIC_COLUMNS = ("mu_next", "regime")
 
 
 @dataclass(frozen=True)
@@ -118,13 +120,15 @@ class MarketTape:
             if not at_end:
                 a[-1] = 1.0 if name == "short_growth" else 0.0
             arrays[name] = a
+        extra = {k: (v[start:stop] if isinstance(v, np.ndarray) and len(v) == n else v)
+                 for k, v in self.extra.items()}
         return MarketTape(
             symbol=self.symbol, kind=self.kind, bar=self.bar,
             times=self.times[start:stop], close=self.close[start:stop],
             features=self.features[start:stop], feature_names=self.feature_names,
             bars_per_year=self.bars_per_year, max_leverage=self.max_leverage,
             maint_margin=self.maint_margin, impact=self.impact,
-            terminal_at_end=self.terminal_at_end and at_end, extra=dict(self.extra),
+            terminal_at_end=self.terminal_at_end and at_end, extra=extra,
             **arrays,
         )
 
@@ -236,6 +240,9 @@ def build_tape(
         cost_short = np.full(n, c)
 
     rows = slice(first, n)
+    # Diagnostic columns of synthetic markets (never features), aligned with the rows.
+    extra = {c: frame[c].to_numpy(np.float64)[rows].copy() for c in DIAGNOSTIC_COLUMNS
+             if c in frame.columns}
     return MarketTape(
         symbol=frame.attrs["symbol"],
         kind=kind,
@@ -258,4 +265,5 @@ def build_tape(
         maint_margin=float(costs.maint_margin),
         impact=float(costs.impact),
         terminal_at_end=kind == "binary",
+        extra=extra,
     )
