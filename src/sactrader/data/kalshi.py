@@ -33,6 +33,8 @@ PRICE_FLOOR = 0.001
 PRICE_CEIL = 0.999
 # Kalshi answers 429 to bursts faster than two requests per second.
 REQUEST_INTERVAL_S = 0.5
+# Throttling has lasted longer than the default four retries (about 30 s in total).
+RETRIES = 6
 COLUMNS = ("ticker", "series_ticker", "event_ticker", "title", "start", "end", "scheduled_end",
            "resolution", "volume")
 
@@ -49,7 +51,7 @@ def _pace() -> None:
 
 def _get_json(url: str, params: dict | None = None):
     _pace()
-    return http_get(url, params=params).json()
+    return http_get(url, params=params, retries=RETRIES).json()
 
 
 def _write_atomic(path: Path, data: bytes) -> None:
@@ -136,13 +138,15 @@ def _scan_settled(series: tuple[str, ...], min_volume: float, max_markets: int) 
 def _markets_frame(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=list(COLUMNS))
     for column in ("start", "end", "scheduled_end"):
-        df[column] = pd.to_datetime(df[column], utc=True)
+        # Kalshi mixes fractional and whole seconds, and pandas 3 infers one format from the
+        # first row, so each value must be read as ISO 8601 on its own.
+        df[column] = pd.to_datetime(df[column], format="ISO8601", utc=True)
     df["resolution"] = df["resolution"].astype(float)
     df["volume"] = df["volume"].astype(float)
     return df
 
 
-def list_settled_markets(series: tuple[str, ...] = DEFAULT_SERIES, min_volume: float = 1e5,
+def list_settled_markets(series: tuple[str, ...] = DEFAULT_SERIES, min_volume: float = 2e4,
                          max_markets: int = 300) -> pd.DataFrame:
     """Settled YES/NO markets of ``series``, largest volume first, at most ``max_markets`` rows.
 

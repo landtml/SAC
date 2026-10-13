@@ -191,6 +191,27 @@ def test_listing_maps_fields_and_takes_scheduled_end_from_latest_expiration(monk
     assert row["volume"] == 250000.0
 
 
+@pytest.mark.parametrize("fractional_first", [True, False])
+def test_listing_parses_timestamps_with_and_without_fractional_seconds(monkeypatch,
+                                                                       fractional_first):
+    # pandas infers one format from the first row, so the two kinds must sit in both orders.
+    # The listing sorts by volume, so the volumes decide which row comes first.
+    fractional = market(ticker="F-1", volume_fp="300000" if fractional_first else "100000",
+                        open_time="2026-10-01T00:00:00.123456Z",
+                        close_time="2026-10-04T00:00:00.654321Z")
+    plain = market(ticker="P-1", volume_fp="200000")
+    serve_series(monkeypatch, {"KXTEST": [fractional, plain]})
+
+    rows = kalshi.list_settled_markets(series=("KXTEST",), min_volume=0, max_markets=5)
+
+    by_ticker = rows.set_index("ticker")
+    assert list(rows["ticker"]) == (["F-1", "P-1"] if fractional_first else ["P-1", "F-1"])
+    assert by_ticker.loc["F-1", "start"] == pd.Timestamp("2026-10-01T00:00:00.123456Z")
+    assert by_ticker.loc["F-1", "end"] == pd.Timestamp("2026-10-04T00:00:00.654321Z")
+    assert by_ticker.loc["P-1", "start"] == T0
+    assert by_ticker.loc["P-1", "end"] == T0 + 3 * DAY
+
+
 def test_scheduled_end_falls_back_to_expiration_time(monkeypatch):
     market_without_latest = market()
     del market_without_latest["latest_expiration_time"]
