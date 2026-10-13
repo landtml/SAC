@@ -37,7 +37,16 @@ def main(argv: list[str] | None = None) -> int:
     cmp.add_argument("--runs", default="runs")
     cmp.add_argument("--strategy", default="sac_banded")
 
+    pbo = sub.add_parser("pbo", help="probability of backtest overfitting across a universe")
+    pbo.add_argument("universe")
+    pbo.add_argument("--runs", default="runs")
+
     args = parser.parse_args(argv)
+    if args.cmd == "pbo":
+        from sactrader.eval.compare import universe_pbo
+
+        print(json.dumps(universe_pbo(args.runs, args.universe)))
+        return 0
     if args.cmd == "compare":
         from sactrader.eval.compare import compare_runs
         from sactrader.eval.report import to_markdown

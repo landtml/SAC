@@ -10,12 +10,14 @@ paired stationary-bootstrap test of the difference against the base.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
-from sactrader.eval.stats import sharpe_diff_test
+from sactrader.eval.stats import pbo_cscv, sharpe_diff_test
 
 COLUMNS = ["run", "n_bars", "sharpe", "seed_mean_sharpe", "oracle_share", "diff_vs_base",
            "diff_lo", "diff_hi", "p_value"]
@@ -69,3 +71,30 @@ def compare_runs(root: str | Path, base: str, names: list[str], strategy: str = 
                        p_value=test["p_value"])
         rows.append(row)
     return pd.DataFrame(rows, columns=COLUMNS)
+
+
+def universe_pbo(root: str | Path, universe: str, n_splits: int = 16) -> dict:
+    """Probability of backtest overfitting across every SAC variant tried on ``universe``.
+
+    Collects the ``sac_*`` columns of every finished run of the universe, keeps the timestamps
+    all of them share, and runs CSCV on that T x N matrix. Returns the PBO with the number of
+    variants and bars it rests on. Raises ``ValueError`` below two variants or 2 * n_splits bars.
+    """
+    root = Path(root)
+    cols = []
+    for res in sorted(root.glob("*/result.json")):
+        run = res.parent.name
+        cfg_path = res.parent / "config.yaml"
+        pooled = res.parent / "pooled_returns.csv"
+        if not pooled.exists() or not cfg_path.exists():
+            continue
+        if yaml.safe_load(cfg_path.read_text()).get("universe") != universe:
+            continue
+        json.loads(res.read_text())  # an unreadable result means an unfinished run
+        df = pd.read_csv(pooled, index_col=0, parse_dates=True)
+        cols += [df[c].rename(f"{run}:{c}") for c in df.columns if c.startswith("sac_")]
+    if len(cols) < 2:
+        raise ValueError(f"universe {universe!r} has {len(cols)} SAC variants, need two")
+    matrix = pd.concat(cols, axis=1, join="inner")
+    return {"universe": universe, "pbo": pbo_cscv(matrix.to_numpy(), n_splits),
+            "n_variants": matrix.shape[1], "n_bars": matrix.shape[0]}

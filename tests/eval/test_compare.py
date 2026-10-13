@@ -34,3 +34,21 @@ def test_unfinished_run_raises(tmp_path):
     (tmp_path / "base").mkdir()
     with pytest.raises(FileNotFoundError):
         compare_runs(tmp_path, "base", ["other"])
+
+
+def test_universe_pbo_pools_sac_columns_of_one_universe(tmp_path):
+    from sactrader.eval.compare import universe_pbo
+
+    rng = np.random.default_rng(1)
+    idx = pd.date_range("2022-01-01", periods=640, freq="1h", tz="UTC", name="time")
+    for name, universe in (("a", "u"), ("b", "u"), ("c", "other")):
+        frame = pd.DataFrame({"sac_seed0": rng.normal(0, 0.01, 640),
+                              "sac_banded": rng.normal(0, 0.01, 640),
+                              "buy_and_hold": rng.normal(0, 0.01, 640)}, index=idx)
+        _write(tmp_path, name, frame)
+        (tmp_path / name / "config.yaml").write_text(f"universe: {universe}\n")
+        (tmp_path / name / "result.json").write_text("{}")
+    out = universe_pbo(tmp_path, "u")
+    assert out["n_variants"] == 4 and out["n_bars"] == 640 and 0.0 <= out["pbo"] <= 1.0
+    with pytest.raises(ValueError):
+        universe_pbo(tmp_path, "missing")
