@@ -227,7 +227,7 @@ def sac_vs_rule_svg(df: pd.DataFrame) -> str:
     )
     lay = Layout(width=760, label_x=24, plot_x0=318, plot_x1=566, value_x=590)
     return forest_svg(
-        "SAC beats its simple rule only in funding-carry markets",
+        "On real markets, SAC beats its simple rule only in funding-carry markets",
         subtitle,
         "Forest plot: SAC minus its best simple rule, Sharpe, with 95% intervals.",
         (controls, real),

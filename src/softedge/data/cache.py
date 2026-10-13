@@ -13,12 +13,12 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-USER_AGENT = "softedge/0.1 (+https://github.com/landtml/SAC)"
+USER_AGENT = "softedge/0.2 (+https://github.com/landtml/SoftEdge)"
 RETRY_STATUS = {429, 500, 502, 503, 504}
 
 
 def cache_dir(*parts: str) -> Path:
-    # SACTRADER_DATA is the name used before the project was renamed.
+    # SACTRADER_DATA, the variable's name before release 0.2.0, is still read as a fallback.
     root = Path(os.environ.get("SOFTEDGE_DATA") or os.environ.get("SACTRADER_DATA") or "data")
     path = root.joinpath(*parts)
     path.mkdir(parents=True, exist_ok=True)
@@ -83,7 +83,7 @@ def load_frame(path: Path) -> pd.DataFrame:
     table = pq.read_table(path)
     df = table.to_pandas()
     meta = table.schema.metadata or {}
-    # Frames cached before the project was renamed keep their attrs under the old key.
+    # Frames cached by releases before 0.2.0 store their attrs under the key b"sactrader".
     raw = meta.get(b"softedge") or meta.get(b"sactrader")
     df.attrs = json.loads(raw) if raw else {}
     return df
