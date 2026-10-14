@@ -49,7 +49,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     carry trade whose return is mostly funding. ``hl_basis`` is the same trade against
     Hyperliquid's perp (long Binance spot, short Hyperliquid perp) and ``perp_spread`` the
     cross-venue funding spread (long Binance perp, short Hyperliquid perp), both daily from
-    mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
+    mid-2023. ``delivery_basis`` is long spot against the front quarterly future of Binance
+    (BTC and ETH), daily from 2021 (see ``softedge.data.delivery``). ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
     FRED. ``implied_vol`` joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
     premium index, which leads the next funding payment, onto Binance perp legs.
@@ -115,6 +116,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         return [basis_frame(binance.load_spot(s, "1h", start, end),
                             _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
                 for s in (symbols or CRYPTO_SYMBOLS)]
+    if universe == "delivery_basis":
+        from softedge.data.delivery import DELIVERY_SYMBOLS, load_delivery_basis
+
+        return load_delivery_basis(symbols or DELIVERY_SYMBOLS, start, end)
     if universe == "macro":
         from softedge.data.fred_markets import load_fred_market
 
