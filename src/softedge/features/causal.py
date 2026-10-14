@@ -162,6 +162,9 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         from softedge.data.pegs import peg_deviation
 
         cols["peg_dev"] = peg_deviation(frame)
+    if "vrp_prior" in frame.columns:
+        # Implied minus realized variance at the close; zero while gated or in warm-up.
+        cols["vrp_prior"] = frame["vrp_prior"].astype("float64").fillna(0.0)
 
     if "signal" in frame.columns:
         cols["signal"] = frame["signal"].astype("float64")

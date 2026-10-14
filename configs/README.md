@@ -135,6 +135,23 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 | `macro/macro_1d_curve.yaml` | As `macro_1d_vt.yaml` with the 10-year minus 2-year yield slope as prior (`curve_slope`) on the Treasury tapes. | No |
 | `macro/macro_1d_tsmom_curve.yaml` | As `macro_1d_vt.yaml` with both macro priors summed before clipping (`prior_features`). | No |
 
+## Variance risk premium
+
+A short-variance index on the S&P 500, daily, from FRED. The SP500 series starts in October 2016 (2016-10-14 in the cached file), so the sample is about ten years. Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
+
+The payoff is a proxy. VIX stands in for implied variance and trailing 21-day realized variance is the other leg; no variance-swap quotes are used. The 21-day window smooths crash days, so tail losses are understated.
+
+The SPXVRP index is always on. It is the P&L of a short-variance position held at every bar, so it is the premium itself, with no policy in it. The drawdown gate in the prior file reads that premium. It does not read the strategy's P&L.
+
+Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The template does not fit a variance index. The borrow lands on negative exposure, which is long variance, and long variance carries no borrow in practice. The short-variance side, where the premium is earned, carries no carry cost. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Roll cost is not modelled. A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
+
+Scale. The prior is `vrp_prior = iv - rv`, an annualized variance difference, and `ActionMap` clips `gain * vrp_prior` to [-1, 1]. With gain 50 the clip binds at a gap of 0.02, since 50 x 0.02 = 1. For example, VIX 20 gives implied variance 0.04, and realized volatility of about 14.1% gives 0.02. The 63-bar gate window is 252 / 4, one quarter of trading days. The repo does not record whether gain 50 or the 63-bar window was fixed before the first run. Both count as trials until a run records otherwise.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `vrp/vrp_spx_1d.yaml` | Short variance on the S&P 500, daily, vol target 0.1, no prior. | No |
+| `vrp/vrp_spx_1d_prior.yaml` | As `vrp_spx_1d.yaml` with the variance risk premium prior (implied minus trailing realized variance, gain 50, so the position is long the index when implied exceeds realized) and a drawdown gate that zeroes the prior while the SPXVRP index (the always-on premium, not the policy's P&L) is below its 63-bar high. | No |
+
 ## Prediction markets
 
 Binary YES and NO markets from Kalshi and Polymarket, each with a single split. The priors use
