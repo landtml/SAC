@@ -52,6 +52,9 @@ COST_BP: dict[str, float] = {
 BOND_DURATION = 8.0
 TRADING_DAYS = 252
 
+# The registered start date. Observations before it are dropped for every series before any return is taken.
+REGISTERED_START = "1971-01-01"
+
 
 def bond_returns(yield_pct: pd.Series) -> pd.Series:
     """Daily bond proxy return from a yield series in percent, stamped on the later date."""
@@ -60,9 +63,14 @@ def bond_returns(yield_pct: pd.Series) -> pd.Series:
     return (prev / TRADING_DAYS - BOND_DURATION * (y - prev)).dropna()
 
 
-def asset_returns(asset: str) -> pd.Series:
-    """Daily simple returns of one asset, indexed by UTC date. Raises ``KeyError`` for an unknown asset."""
+def asset_returns(asset: str, start: str = REGISTERED_START) -> pd.Series:
+    """Daily simple returns of one asset, indexed by UTC date. Raises ``KeyError`` for an unknown asset.
+
+    Observations dated before ``start`` are dropped before the returns are taken, so the first
+    return is built from prints on or after ``start`` only.
+    """
     values = _observations(FRED_SERIES[asset])
+    values = values[values.index >= pd.Timestamp(start, tz="UTC")]
     if asset == "UST10":
         return bond_returns(values)
     if asset == "WTI":
@@ -72,9 +80,13 @@ def asset_returns(asset: str) -> pd.Series:
     return values.pct_change().dropna()
 
 
-def load_daily_panel() -> tuple[pd.DataFrame, pd.Series]:
-    """Wide frame of daily returns (dates by assets) and the cost series in bp per unit turnover."""
-    returns = pd.DataFrame({asset: asset_returns(asset) for asset in FRED_SERIES}).sort_index()
+def load_daily_panel(start: str = REGISTERED_START) -> tuple[pd.DataFrame, pd.Series]:
+    """Wide frame of daily returns (dates by assets) and the cost series in bp per unit turnover.
+
+    Every series is trimmed to observations on or after ``start`` (default: the registered
+    1971-01-01) before any return is computed.
+    """
+    returns = pd.DataFrame({asset: asset_returns(asset, start) for asset in FRED_SERIES}).sort_index()
     returns.index.name = "date"
     costs = pd.Series({asset: COST_BP[asset] for asset in returns.columns}, name="cost_bp")
     return returns, costs

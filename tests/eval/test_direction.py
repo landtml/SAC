@@ -368,3 +368,28 @@ def test_crypto_panel_names_the_loader_it_waits_for():
     study = _study_script()
     with pytest.raises(NotImplementedError, match="load_crypto_xs"):
         study.main(["--out", "unused", "--panel", "crypto"])
+
+
+def test_runner_start_defaults_to_the_registered_1971_date():
+    study = _study_script()
+    assert study.build_parser().parse_args(["--out", "x"]).start == "1971-01-01"
+    assert study.build_parser().parse_args(["--out", "x", "--start", "1975-01-01"]).start == (
+        "1975-01-01")
+
+
+def test_runner_passes_start_to_the_fred_loader(monkeypatch):
+    from softedge.data import long_daily
+
+    study = _study_script()
+    seen = {}
+    panel = pd.DataFrame({"A": [0.0, 0.01]}, index=pd.date_range("1971-01-04", periods=2, tz="UTC"))
+
+    def fake_loader(start=None):
+        seen["start"] = start
+        return panel, pd.Series({"A": 2.0}, name="cost_bp")
+
+    monkeypatch.setattr(long_daily, "load_daily_panel", fake_loader)
+    study._load(study.build_parser().parse_args(["--out", "x"]))
+    assert seen["start"] == "1971-01-01"
+    study._load(study.build_parser().parse_args(["--out", "x", "--start", "1975-01-01"]))
+    assert seen["start"] == "1975-01-01"
