@@ -22,7 +22,7 @@ import torch
 import yaml
 
 from softedge.agent.factory import agent_from_state
-from softedge.agent.online import online_rollout
+from softedge.agent.online import deploy_online
 from softedge.agent.sac import TQCSAC, SACConfig
 from softedge.env.vec_env import EnvConfig, TapeSet, rollout
 from softedge.eval import baselines
@@ -170,17 +170,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     band, band_scores = choose_band(policy, val_ts)
     online_info = None
     if tc.online_every > 0:
-        if reward_scales is None:
-            raise ValueError("online deployment is supported in walk-forward runs only")
-        # The deployed banded ensemble keeps learning from the transitions it realizes. Copies of
-        # the agents do the learning, so the checkpoints behind the validation gate stay frozen.
-        deployed = [agent_from_state(a.state_dict()) for a in agents]
-        out, live = online_rollout(test_ts, deployed, [reward_scales[s] for s in seeds],
-                                   every=tc.online_every, steps=tc.online_steps,
-                                   window=tc.online_window, batch_size=tc.sac.batch_size,
-                                   relabel_frac=tc.relabel_frac, seed=tc.seed, band=band)
-        runs["sac_banded"] = out
-        online_info = {key: live[key] for key in ("blocks", "updates", "restores")}
+        runs["sac_banded"], online_info = deploy_online(agents, test_ts, reward_scales, seeds, tc,
+                                                        band)
     else:
         runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled

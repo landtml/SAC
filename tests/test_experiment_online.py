@@ -1,6 +1,12 @@
+from pathlib import Path
+
 import pandas as pd
 
 from softedge.experiment import run_experiment
+
+# Returns of every strategy in the frozen walk-forward. Regenerate only when the frozen deployment
+# changes on purpose.
+GOLDEN = Path(__file__).parent / "data" / "online_switch_off_pooled.csv"
 
 CFG = {
     "name": "tiny",
@@ -25,6 +31,8 @@ def test_online_switch_moves_only_the_deployed_banded_run(tmp_path):
     on = run_experiment(on_cfg, tmp_path)
     off_r = pd.read_csv(tmp_path / "off" / "pooled_returns.csv", index_col=0, parse_dates=True)
     on_r = pd.read_csv(tmp_path / "on" / "pooled_returns.csv", index_col=0, parse_dates=True)
+    golden = pd.read_csv(GOLDEN, index_col=0, parse_dates=True)
+    pd.testing.assert_frame_equal(off_r, golden, check_exact=False, rtol=1e-9, atol=1e-12)
     # Only the deployed banded run may move. This tiny policy holds flat under its band, so its
     # banded column can coincide with the frozen one; test_blocks_update_the_policy_and_are_counted
     # shows that online updates change the executed targets.
