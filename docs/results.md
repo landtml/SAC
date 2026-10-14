@@ -47,18 +47,19 @@ random walk should not. The hidden-regime market has changing volatility and fat
 | --- | --- | --- | --- | --- |
 | Planted signal, 6 synthetic markets, 1 year hourly | 15.07 | buy-and-hold 0.04 | +15.0 [12.7, 17.6] | 1.000 (5) |
 | Random walk, 1 year hourly | -1.47 | buy-and-hold 1.37 | -2.8 [-4.8, -0.8] | 0.004 (5) |
-| Hidden-regime market, 1 year hourly | 3.76 | buy-and-hold 0.28; sign oracle 8.61 | +3.5 [1.2, 5.9] | 0.09 (40) |
+| Hidden-regime market, 1 year hourly | 3.76 | buy-and-hold 0.28; sign oracle 8.61 | +3.5 [1.2, 5.9] | 0.14 (70) |
 
-Every agent variant tried on the hidden-regime market counts as a trial, including the ablations
-below. The deflated Sharpe ratio falls from 0.89 at 15 trials to 0.09 at 40. The comparison with
-buy-and-hold, +3.5 [1.2, 5.9], is unaffected.
+Sharpe is the validation-gated policy's over the full test record, against the best simple rule
+of each market (`softedge summary`). Every agent variant tried on the hidden-regime market counts
+as a trial, including the ablations below: 70 in all. The comparison with buy-and-hold,
++3.5 [1.2, 5.9], does not depend on that count.
 
 The sign oracle reads each synthetic market's true next expected return and trades its sign. It
 shows the ceiling a rule could reach on that market. It is not a strategy.
 
 The planted signal is found with a deflated Sharpe ratio of 1.000. On the random walk, the agent
 loses to buy-and-hold. On the hidden-regime market, the agent beats buy-and-hold with an interval
-that stays above zero. Its deflated Sharpe ratio is 0.09: once every variant tried on this market is
+that stays above zero. Its deflated Sharpe ratio is 0.14: once every variant tried on this market is
 counted, luck alone could explain a Sharpe ratio this high.
 
 ![SAC against the simple rules](../assets/png/figures/sac-vs-rule.png)
@@ -66,14 +67,16 @@ counted, luck alone could explain a Sharpe ratio this high.
 ## Real markets, directional
 
 These markets have no known answer. The agent is compared with the best simple rule for each
-market.
+market. Sharpe is the validation-gated policy's over the full test record, against the best
+baseline in `softedge summary`; the carry-prior row instead compares with the carry prior alone
+on the same days.
 
 | Market | SAC Sharpe | Best simple rule | SAC minus rule, 95% CI | DSR (trials) |
 | --- | --- | --- | --- | --- |
 | G10 forex, 7 pairs, plain SAC, daily, 12.7 years (2014-2026) | 0.35 | buy-and-hold 0.01 | +0.33 [-0.24, 0.94] | 0.37 (10) |
-| G10 forex, SAC on a carry prior | 0.10 | carry rule 0.16 | -0.07 [-0.26, 0.12] | 0.11 (10) |
-| Crypto perpetual futures, 10 coins, daily, 3.7 years (2023-2026) | 0.41 | trend 0.64 | -0.24 [-1.54, 1.07] | 0.15 (15) |
-| Macro: S&P 500, Nasdaq 100, Nikkei 225, WTI, Brent, 10y and 2y Treasuries, daily, volatility-targeted SAC (validation-gated) | 0.07 | buy-and-hold 0.55; trend 0.30 | -0.49 [-1.00, 0.05] | 0.18 (5) |
+| G10 forex, SAC on a carry prior | 0.10 | carry rule 0.16 | -0.05 [-0.63, 0.54] | 0.11 (10) |
+| Crypto perpetual futures, 10 coins, daily, 3.7 years (2023-2026) | 0.41 | trend 0.64 | -0.24 [-1.54, 1.07] | 0.11 (25) |
+| Macro: S&P 500, Nasdaq 100, Nikkei 225, WTI, Brent, 10y and 2y Treasuries, daily, volatility-targeted SAC (validation-gated) | 0.07 | buy-and-hold 0.55; trend 0.30 | -0.49 [-1.00, 0.05] | 0.07 (15) |
 
 All four intervals include zero, so no difference from the simple rule is established.
 
@@ -86,12 +89,13 @@ residual on top of the funding rule. The "rule" column is the funding rule alone
 | Market | SAC Sharpe | Rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
 | --- | --- | --- | --- | --- |
 | Crypto [cash-and-carry](glossary.md#basis-cash-and-carry), long Binance spot, short perpetual; 10 coins, daily, 3.7 years | 10.61 | funding rule 10.12; passive carry 8.49 | +0.49 [0.15, 0.95], p=0.002 | 1.52, 0.82 (25) |
-| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.998 (10) |
-| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.39 | funding rule 8.09 | +0.29 [-0.21, 0.83], p=0.13 | 2.16, 0.85 (15) |
+| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.43 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.996 (15) |
+| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.31 | funding rule 8.02 | +0.29 [-0.21, 0.83], p=0.13 | 2.16, 0.85 (15) |
 
-"Active over rule" is the Sharpe ratio of the agent's returns minus the rule's returns, and the
-deflated Sharpe ratio of that difference. Sharpe ratios in each row are measured on the same
-days as the paired test.
+Each row uses the banded policy (the agent without the validation gate), the funding rule (the
+prior alone) and buy-and-hold, all on the same test days as the paired test. "Active over rule" is
+the Sharpe ratio of the banded policy's returns minus the rule's returns, and the deflated Sharpe
+ratio of that difference.
 
 Trial counts include the wider-list and CPCV runs below, which count as further variants on the
 same universes.
@@ -101,13 +105,14 @@ same universes.
 Two checks test whether the carry gains depend on the coin list or on the walk-forward split.
 
 **A wider coin list.** Each carry universe was rerun on 32 coins instead of 10, with the same
-configuration.
+configuration. Measures are those of the carry table above: banded policy, funding rule and the
+same test days.
 
 | Market, 32 coins, daily | SAC Sharpe | Funding rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
 | --- | --- | --- | --- | --- |
-| Crypto cash-and-carry, 3.7 years | 10.74 | 10.37 | +0.37 [0.02, 0.79], p=0.019 | 0.46, 0.13 (25) |
-| Cross-venue funding spread, 1.7 years | 7.58 | 6.91 | +0.66 [0.41, 0.96], p<0.001 | 6.01, 1.00 (10) |
-| Hyperliquid basis, 1.7 years | 8.11 | 8.36 | -0.24 [-1.16, 0.58], p=0.72 | 0.28, 0.08 (15) |
+| Crypto cash-and-carry, 3.7 years | 10.70 | 10.33 | +0.37 [0.04, 0.76], p=0.015 | 0.46, 0.13 (25) |
+| Cross-venue funding spread, 1.7 years | 7.51 | 6.85 | +0.66 [0.39, 0.96], p<0.001 | 6.01, 1.00 (15) |
+| Hyperliquid basis, 1.7 years | 8.04 | 8.28 | -0.24 [-1.10, 0.59], p=0.68 | 0.28, 0.08 (15) |
 
 The cross-venue gain holds and grows on the wider list. The cash-and-carry gain shrinks: the paired
 interval stays just above zero, but the deflated Sharpe ratio of the active return falls to 0.13.
@@ -126,10 +131,10 @@ supports the sign of the gain, not its size.
 ## Ablations
 
 Each row changes one thing from the base agent on the hidden-regime market, except the last row,
-which runs on the crypto carry market. The ensemble Sharpe ratio is the Sharpe ratio of the mean
-action across seeds.
+which runs on the crypto carry market. Sharpe is that of the banded policy (`sac_banded`), not of
+the seed ensemble, which scores 3.35 for the base.
 
-| Variant | Ensemble Sharpe | Difference from base, 95% CI | Label |
+| Variant | Banded Sharpe | Difference from base, 95% CI | Label |
 | --- | --- | --- | --- |
 | Base: TQC critics, SimBa encoders, counterfactual replay | 3.76 | reference | reference |
 | Critic dropout 0.1 | 4.48 | +0.73 [-0.60, 1.97] | inconclusive |
