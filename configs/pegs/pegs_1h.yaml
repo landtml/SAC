@@ -1,0 +1,26 @@
+# Pegged spot pairs, hourly, walk-forward from 2024, no prior. The agent observes peg_dev but
+# no action map is set. Pairs: USDCUSDT, FDUSDUSDT, TUSDUSDT (peg 1.0) and WBETHETH, BNSOLSOL
+# (trailing 30-day median). DAIUSDT is not in the Binance spot archive.
+# Costs: the normal spot fee of 10 bp per trade, as in the carry configs, not the zero-fee
+# promotions many stablecoin pairs had. The 5% borrow rate is an assumption, as in the carry configs.
+name: pegs_1h
+universe: pegs
+data: {start: "2020-01", end: "2026-09"}
+costs: {fee_bps: 10.0, half_spread_bps: 1.0, borrow_apr: 0.05, max_leverage: 1.0, maint_margin: 0.05}
+walk_forward:
+  first_test: "2024-01-01"
+  end: "2026-09-01"
+  test: "365D"
+  val: "180D"
+  embargo: "5D"
+  warm_start: true
+  fold_steps: 40000
+env: {window: 8, episode_len: 2048, n_envs: 16, cost_mult_low: 0.5, cost_mult_high: 2.0}
+sac: {hidden: 128, critic_blocks: 1, actor_hidden: 64, gamma: 0.99, risk: mean,
+      target_entropy_scale: 0.5, smooth_coef: 0.2}
+train: {total_steps: 120000, warmup_steps: 10000, utd: 0.25, relabel_frac: 0.5, eval_every: 2500,
+        threads: 2, target_entropy_end_scale: 2.0}
+trend: {lookback: 30, target_vol: 0.4, vol_span: 7}
+deploy: {gate_psr: 0.8, gate: dsr}
+seeds: [0, 1]
+reference: buy_and_hold
