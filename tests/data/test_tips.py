@@ -256,3 +256,15 @@ def test_config_charges_each_unit_two_legs_at_one_bp_fee_and_half_spread(name):
     # The tape charges one fee and one half spread per unit of spread turnover. A unit trades
     # two bonds, each at 1 bp fee plus 1 bp half spread, so the per-unit charge is 4 bp.
     assert costs["fee_bps"] + costs["half_spread_bps"] == pytest.approx(4.0)
+
+
+@pytest.mark.parametrize("name", [
+    "tips_breakeven_1d", "tips_breakeven_1d_prior", "tips_breakeven_1d_gross",
+    "tips_breakeven_1d_cost3x",
+])
+def test_tips_configs_charge_no_borrow_on_the_spot_branch(name):
+    # The tape's spot branch debits costs.borrow_apr on shorts. The TIPS frame has no borrow term,
+    # so a nonzero value would charge or credit the spread with a borrow the frame never sourced.
+    with open(ROOT / "configs" / "tips" / f"{name}.yaml") as f:
+        costs = yaml.safe_load(f)["costs"]
+    assert costs["borrow_apr"] == 0.0
