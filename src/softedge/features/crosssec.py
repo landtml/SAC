@@ -9,7 +9,9 @@ two columns on its own index:
     (MAD), clipped to ``[-clip, clip]``. A coin one MAD above the median reads 1.0.
 
 ``funding_topk``
-    1.0 for the ``topk`` coins with the highest trailing income at the bar, 0.0 otherwise.
+    1.0 for the ``topk`` coins with the highest trailing income at the bar, 0.0 otherwise. A tie
+    at the cut takes the average rank, so tied coins are both in or both out and the column order
+    of the frames does not matter.
 
 Income is ``-funding_rate``. A carry frame writes its funding in carry sign (see
 ``softedge.data.basis``), so the income of a short perpetual leg is positive when the perpetual
@@ -59,7 +61,8 @@ def xs_funding_features(frames: list[pd.DataFrame], window: int = 7, topk: int =
 
     z = trail.sub(med, axis=0).div(mad, axis=0).clip(-clip, clip).to_numpy()
     z = np.where(member, z, 0.0)
-    rank = trail.rank(axis=1, ascending=False, method="first").to_numpy()
+    # Tied coins share their average rank, so a tie at the cut is in or out for both or neither.
+    rank = trail.rank(axis=1, ascending=False, method="average").to_numpy()
     top = np.where(member & (rank <= topk), 1.0, 0.0)
 
     out = []

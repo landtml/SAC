@@ -66,6 +66,22 @@ def test_xs_funding_reads_no_bar_after_t():
             assert np.array_equal(out[k].iloc[:t + 1].to_numpy(), ref[k].iloc[:t + 1].to_numpy()), t
 
 
+def test_topk_ties_at_the_cut_do_not_depend_on_column_order():
+    # B and C tie for the second place of a top-two cut. Which of them is flagged must not depend
+    # on the order of the frames.
+    income = {"A": 10.0, "B": 5.0, "C": 5.0, "D": 1.0}
+
+    def topk_by_symbol(order):
+        frames = [carry_frame(s, [income[s]] * 5) for s in order]
+        out = xs_funding_features(frames, window=3, topk=2)
+        return {s: o["funding_topk"].iloc[4] for s, o in zip(order, out, strict=True)}
+
+    flags = topk_by_symbol("ABCD")
+    assert flags == topk_by_symbol("ACBD")
+    # Average rank for the tie is 2.5, so neither B nor C is inside the top two.
+    assert flags == {"A": 1.0, "B": 0.0, "C": 0.0, "D": 0.0}
+
+
 def test_xs_funding_needs_at_least_min_coins_and_daily_bars():
     two = xs_funding_features([carry_frame("A", [1.0] * 5), carry_frame("B", [2.0] * 5)], window=3)
     assert all((o == 0.0).all().all() for o in two)
