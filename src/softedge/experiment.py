@@ -21,6 +21,12 @@ import pandas as pd
 import torch
 import yaml
 
+from softedge.agent.disagree import (
+    ShrinkPolicy,
+    disagree_shrink_on,
+    multiplier_matched_policy,
+    validation_tau,
+)
 from softedge.agent.factory import agent_from_state
 from softedge.agent.online import deploy_online
 from softedge.agent.sac import TQCSAC, SACConfig
@@ -167,6 +173,18 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
     val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    disagree: dict = {}
+    if disagree_shrink_on(cfg.get("deploy", {})):
+        # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.
+        if len(agents) < 2:
+            raise ValueError("deploy.disagree_shrink needs at least two seeds")
+        tau = validation_tau(agents, val_ts)
+        shrunk = ShrinkPolicy(agents, tau=tau)
+        runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
+        matched = multiplier_matched_policy(agents, val_ts, tau)
+        runs["sac_multiplier_matched"] = rollout(test_ts, matched)
+        # Both tau and the matched constant are fixed on validation bars.
+        disagree = {"tau": tau, "matched_const": matched.const}
     band, band_scores = choose_band(policy, val_ts)
     online_info = None
     if tc.online_every > 0:
@@ -213,6 +231,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
             "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
     if online_info is not None:
         info["online"] = online_info
+    if disagree:
+        info["disagree"] = disagree
     return runs, info
 
 
