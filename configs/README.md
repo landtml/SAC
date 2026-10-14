@@ -248,6 +248,21 @@ holds the multiplier constant at its mean over the validation bars, on the same 
 so no test-fold bar sets it. Both new runs use no no-trade band,
 as does `sac_ensemble`. The file pair needs at least two seeds.
 
+Run each file of the pair in its own output root (`--out`). Each run appends its `sac_*` strategies
+to `trials.jsonl` in its root, and later runs on the same universe in that root count them. An off
+run after an on run in one root has `n_trials` 12 instead of 5, so its deflated Sharpe ratio is not
+the one it gets alone.
+
+The shrunk run and the matched control differ in how much their targets change from bar to bar,
+so their gap includes a trading-cost effect as well as the multiplier. Compare `turnover_per_year`
+and `cost_per_year` per tape in the run's `report.md` before reading that gap as the effect of the
+shrink.
+
+`tau` and the matched constant are set on the validation bars. Those bars also choose the
+checkpoints and the no-trade band, so the shrink adds validation selection on top of them. No test
+bar enters either value. Both new runs count as trials in `n_trials`, which deflates the reported
+DSR for them. `tau` is one fixed median and is not searched.
+
 | File | What it tests | Results |
 | --- | --- | --- |
 | `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
