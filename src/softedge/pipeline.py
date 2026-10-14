@@ -60,7 +60,9 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     every other coin, the crypto market's implied volatility; for ``vrp_spx`` it selects the
     variance risk premium prior of ``softedge.data.vrp``). ``premium`` joins the Binance perp
     mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
-    FRED. ``macro_fomc`` holds the equity indices (SPX, NDX, NKY by default) with the column
+    FRED. ``tips_breakeven`` holds the nominal-minus-TIPS spread at the 5 and 10 year tenors
+    (``softedge.data.tips``), with the column ``tips_prior``. ``macro_fomc`` holds the equity
+    indices (SPX, NDX, NKY by default) with the column
     ``fomc_next``, the scheduled-announcement flag of ``softedge.data.fomc``. ``implied_vol``
     joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
@@ -136,6 +138,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         return [basis_frame(binance.load_spot(s, "1h", start, end),
                             _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
                 for s in (symbols or CRYPTO_SYMBOLS)]
+    if universe == "tips_breakeven":
+        from softedge.data.tips import load_tips_breakeven
+
+        return [load_tips_breakeven(t, start, end) for t in (symbols or ("5", "10"))]
     if universe == "pegs":
         from softedge.data.pegs import load_peg_frames
 
