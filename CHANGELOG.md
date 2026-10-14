@@ -4,6 +4,16 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Markets: long nominal Treasury against short TIPS at the 5- and 10-year tenors, daily from 2003,
+  with a breakeven prior (breakeven minus trailing 12-month CPI inflation, from CPI released by each
+  bar's close). Known limitations: the short TIPS borrow charge is an assumed 0.5 percent a year, the
+  spread carries no margin or repo haircut, and FRED has no October 2025 CPI value, which carries
+  September forward.
+
 ## [0.2.0] - 2026-10-13
 
 ### Changed

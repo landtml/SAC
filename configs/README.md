@@ -139,6 +139,21 @@ reference is price-only too.
 | `macro/fomc_1d_vt.yaml` | S&P 500, Nasdaq (FRED NASDAQCOM, the `NDX` symbol) and Nikkei 225, daily, volatility target 0.1, no prior. The plain baseline for the FOMC prior. | No |
 | `macro/fomc_1d_prior.yaml` | As `fomc_1d_vt.yaml` with the scheduled-announcement flag as prior (`fomc_next`, gain 1: 1 on a session with a scheduled announcement, else 0) and action penalty 0.05. | No |
 
+## TIPS breakeven
+
+Long nominal Treasury against short TIPS of the same tenor, at 5 and 10 years, daily from 2003 (`softedge.data.tips`).
+The spread earns the breakeven inflation rate less realized inflation. The prior is the breakeven minus the trailing
+12-month CPI inflation, both in percentage points, using only CPI released by each bar's close; each month's CPI is
+taken as released on the 16th of the following month. The TIPS accrual uses CPI lagged three months. Assumptions, not
+sourced: the short TIPS leg pays a borrow charge of 0.5 percent a year, and the spread carries no margin or repo
+haircut. Each leg's duration and convexity are fixed per tenor. October 2025 has no CPI print in the FRED series, so
+that month carries September's value forward.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `tips/tips_breakeven_1d.yaml` | Long nominal, short TIPS, 5 and 10 years. Volatility target 0.05, up to 4x leverage, no prior. The plain baseline for the breakeven prior. | No |
+| `tips/tips_breakeven_1d_prior.yaml` | As `tips_breakeven_1d.yaml` with the breakeven prior (`tips_prior`, gain 0.5 per point, clipped at 1). | No |
+
 ## Variance risk premium
 
 A short-variance index on the S&P 500, daily, from FRED. The SP500 series starts on 2016-10-13, so the sample is about ten years. Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. The 252 is a scaling convention: the index is a return series, not a traded instrument. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
