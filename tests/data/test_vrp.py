@@ -79,6 +79,19 @@ def test_index_moves_by_implied_now_minus_realized_next():
         assert index[t] / index[t - 1] - 1.0 == pytest.approx(expected, rel=1e-9)
 
 
+@pytest.mark.parametrize("which", ["iv", "rv"])
+def test_missing_input_after_warm_up_raises_instead_of_zeroing(which):
+    _, spx, vix = sample()
+    iv = (vix / 100.0) ** 2
+    rv = vrp.realized_variance(spx)
+    if which == "iv":
+        iv[40] = np.nan
+    else:
+        rv[60] = np.nan
+    with pytest.raises(ValueError, match="after warm-up"):
+        vrp.short_variance_closes(iv, rv)
+
+
 def test_prior_is_implied_minus_realized_and_zero_while_gated(monkeypatch, tmp_path):
     dates, spx, vix = sample()
     frame = build(monkeypatch, tmp_path / "a", dates, spx, vix)

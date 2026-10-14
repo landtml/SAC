@@ -51,8 +51,15 @@ def realized_variance(close: np.ndarray) -> np.ndarray:
 def short_variance_closes(iv: np.ndarray, rv: np.ndarray) -> np.ndarray:
     """Index closes from 100 at row 0: row ``t`` times ``1 + (iv[t-1] - rv[t]) / 252``.
 
-    ``iv`` is implied variance. A row with a missing input moves by zero.
+    ``iv`` is implied variance. Rows ``1`` to ``RV_WINDOW - 1`` move by zero while the realized
+    window fills. Any other missing input raises, so a day's P&L is never dropped silently.
     """
+    rows = np.arange(1, len(rv))
+    missing = ~np.isfinite(iv[:-1]) | (~np.isfinite(rv[1:]) & (rows >= RV_WINDOW))
+    if missing.any():
+        raise ValueError(
+            f"{int(missing.sum())} rows after warm-up lack iv or rv, first at row {int(rows[missing][0])}"
+        )
     ret = np.zeros(len(rv))
     ret[1:] = (iv[:-1] - rv[1:]) / TRADING_DAYS
     ret = np.nan_to_num(ret, nan=0.0)
