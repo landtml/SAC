@@ -245,8 +245,8 @@ test fold adds two runs, `sac_disagree_shrink` and `sac_exposure_matched`, and b
 The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is the
 spread of the members' residuals and tau is the median spread over validation bars. The control
 holds the multiplier constant at its mean over the validation bars, on the same path that sets tau,
-so no test-fold bar sets it. Both new runs use no no-trade band,
-as does `sac_ensemble`. The file pair needs at least two seeds.
+so no test-fold bar sets it. Both new runs use no no-trade band, as does `sac_ensemble`. The file
+pair needs at least two seeds.
 
 Run each file of the pair in its own output root (`--out`). Each run appends its `sac_*` strategies
 to `trials.jsonl` in its root, and later runs on the same universe in that root count them. An off
