@@ -124,3 +124,37 @@ def test_vrp_frames_join_hourly_spot_opens_with_dvol(monkeypatch):
     assert fr.attrs["symbol"] == "BTC-VRP" and fr.attrs["kind"] == "spot"
     np.testing.assert_allclose(fr["open"].iloc[1:].to_numpy(), fr["close"].iloc[:-1].to_numpy())
     assert len(fr) == len(opens)
+
+
+def test_variance_frame_rejects_gaps_in_daily_opens():
+    opens, dvol = _market(n=60)
+    gapped = opens.drop(opens.index[20:25])
+    with pytest.raises(ValueError, match="consecutive"):
+        variance_frame(gapped, dvol, "BTC")
+
+
+def _spot_with_gap_and_dvol(monkeypatch, opens_gap_at: slice, n: int = 60):
+    from softedge.data import binance, deribit
+
+    opens, dvol = _market(n=n)
+    opens = opens.drop(opens.index[opens_gap_at])
+    hours = pd.date_range(opens.index[0], opens.index[-1] + pd.Timedelta("23h"), freq="h")
+    hourly = pd.DataFrame({"open": opens.reindex(hours.floor("D")).to_numpy()}, index=hours)
+    monkeypatch.setattr(binance, "load_spot", lambda symbol, interval, start, end: hourly)
+    monkeypatch.setattr(deribit, "load_dvol", lambda cur, start, end, res: dvol)
+    return vrp_frames("2022-01", "2022-03", ("BTC",))
+
+
+def test_vrp_frames_split_at_gaps_in_daily_opens(monkeypatch):
+    frames = _spot_with_gap_and_dvol(monkeypatch, slice(20, 25))
+    assert [len(fr) for fr in frames] == [20, 35]
+    assert [fr.attrs["symbol"] for fr in frames] == ["BTC-VRP-1", "BTC-VRP-2"]
+    for fr in frames:
+        assert (fr.index.to_series().diff().dropna() == pd.Timedelta("1D")).all()
+
+
+def test_vrp_frames_drop_runs_shorter_than_three_days(monkeypatch):
+    # Dropping days 2 to 56 leaves a 2-day run at the start and a 3-day run at the end.
+    frames = _spot_with_gap_and_dvol(monkeypatch, slice(2, 57))
+    assert [len(fr) for fr in frames] == [3]
+    assert frames[0].attrs["symbol"] == "BTC-VRP"

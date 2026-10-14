@@ -29,21 +29,25 @@ from softedge.data.schema import make_frame
 RV_WINDOW = 30
 DAYS_PER_YEAR = 365.0
 BAR = "1D"
+DAY_NS = 86_400_000_000_000
 
 
 def variance_frame(opens: pd.Series, dvol: pd.Series, symbol: str) -> pd.DataFrame:
     """Daily variance-carry frame of one underlying. See the module docstring.
 
-    ``opens`` holds the underlying's daily open prices indexed by UTC day open. ``dvol`` holds
-    DVOL closes in annualized decimal indexed by candle end time. Days before the first DVOL
-    candle are dropped, since their payoff is undefined. Raises ``ValueError`` when fewer than
-    three days remain or when DVOL is missing on a day that needs it.
+    ``opens`` holds the underlying's daily open prices indexed by UTC day open, on consecutive
+    days; ``vrp_frames`` splits at gaps first. ``dvol`` holds DVOL closes in annualized decimal
+    indexed by candle end time. Days before the first DVOL candle are dropped, since their payoff
+    is undefined. Raises ``ValueError`` when the days are not consecutive, when fewer than three
+    daily opens are given, or when DVOL is missing on a day that needs it.
     """
     days = opens.index
     px = opens.to_numpy(dtype=np.float64)
     n = len(px)
     if n < 3:
         raise ValueError("need at least 3 daily opens")
+    if (np.diff(days.as_unit("ns").asi8) != DAY_NS).any():
+        raise ValueError("daily opens must be consecutive days; split at gaps first")
     # Log return of each day, open to next open. The last day has no next open.
     sq = np.full(n, np.nan)
     sq[:-1] = np.diff(np.log(px)) ** 2
@@ -72,7 +76,11 @@ def variance_frame(opens: pd.Series, dvol: pd.Series, symbol: str) -> pd.DataFra
 
 def vrp_frames(start: str = "2021-03", end: str = "2026-09",
                symbols: tuple[str, ...] = ("BTC", "ETH")) -> list[pd.DataFrame]:
-    """One variance-carry frame per coin, from Binance spot opens and Deribit DVOL."""
+    """Variance-carry frames per coin, from Binance spot opens and Deribit DVOL.
+
+    A missing day in the opens starts a new frame, so each frame covers consecutive days. A coin
+    with more than one run gets frames labeled ``<COIN>-VRP-1``, ``<COIN>-VRP-2`` and so on.
+    """
     from softedge.data import binance, deribit
 
     frames = []
@@ -80,8 +88,21 @@ def vrp_frames(start: str = "2021-03", end: str = "2026-09",
         hourly = binance.load_spot(f"{coin.upper()}USDT", "1h", start, end)
         opens = hourly["open"].resample(BAR).first().dropna()
         dvol = deribit.load_dvol(coin, start, end, "1h")
-        frames.append(variance_frame(opens, dvol, coin.upper()))
+        runs = _consecutive_runs(opens)
+        for k, run in enumerate(runs, start=1):
+            fr = variance_frame(run, dvol, coin.upper())
+            if len(runs) > 1:
+                fr.attrs["symbol"] = f"{coin.upper()}-VRP-{k}"
+            frames.append(fr)
     return frames
+
+
+def _consecutive_runs(opens: pd.Series) -> list[pd.Series]:
+    """Runs of daily opens on consecutive days. Runs shorter than three days carry no payoff."""
+    ns = opens.index.as_unit("ns").asi8
+    cuts = [0, *(np.flatnonzero(np.diff(ns) != DAY_NS) + 1), len(opens)]
+    runs = [opens.iloc[a:b] for a, b in zip(cuts[:-1], cuts[1:], strict=True)]
+    return [run for run in runs if len(run) >= 3]
 
 
 def _dvol_at(dvol: pd.Series, days: pd.DatetimeIndex) -> np.ndarray:
