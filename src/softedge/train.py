@@ -41,10 +41,22 @@ class TrainConfig:
     warm_shrink: float | None = None
     # Gradient updates between ReDo resets of dormant units (Sokar et al., 2023); None disables.
     redo_every: int | None = None
+    # Causal online updates while deployed (agent/online.py): before every ``online_every``-th test
+    # bar the deployed agents take ``online_steps`` gradient steps on transitions realized by that
+    # bar and recorded in the last ``online_window`` steps. 0 keeps the frozen deployment.
+    online_every: int = 0
+    online_steps: int = 16
+    online_window: int = 5000
     seed: int = 0
     threads: int = 4
     env: EnvConfig = field(default_factory=EnvConfig)
     sac: SACConfig = field(default_factory=SACConfig)
+
+    def __post_init__(self) -> None:
+        if self.online_every > 0 and (self.target_entropy_end_scale is not None
+                                      or self.lr_schedule is not None):
+            raise ValueError("online deployment does not carry the entropy annealing or the "
+                             "learning-rate schedule of training")
 
 
 @dataclass
