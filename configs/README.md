@@ -241,12 +241,16 @@ the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `ora
 same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`).
 
 The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on). When on, each
-test fold adds two runs, `sac_disagree_shrink` and `sac_multiplier_matched`, and both count as trials.
-The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is the
-spread of the members' residuals and tau is the median spread over validation bars. The control
+test fold adds two runs, `sac_disagree_shrink` and `sac_multiplier_matched`, and both count as
+trials. The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is
+the spread of the members' residuals and tau is the median spread over validation bars. The control
 holds the multiplier constant at its mean over the validation bars, on the same path that sets tau,
 so no test-fold bar sets it. Both new runs use no no-trade band, as does `sac_ensemble`. The file
 pair needs at least two seeds.
+
+Neither new run passes through the deploy gate. Only `sac_gated` is gated, and its validation PSR
+is computed on the unshrunk banded policy. So `sac_gated` on the `_on` run is not the shrink, and
+it is not the shrink's deployed result. The shrink's test-fold result is `sac_disagree_shrink`.
 
 Run each file of the pair in its own output root (`--out`). Each run appends its `sac_*` strategies
 to `trials.jsonl` in its root, and later runs on the same universe in that root count them. An off
