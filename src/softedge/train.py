@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 
+from softedge.agent.drawdown import DrawdownShaping
 from softedge.agent.factory import make_agent
 from softedge.agent.pathwise import PathwiseObjective
 from softedge.agent.plasticity import dormant_fraction, redo_reset, shrink_perturb
@@ -47,6 +48,11 @@ class TrainConfig:
     online_every: int = 0
     online_steps: int = 16
     online_window: int = 5000
+    # Drawdown-hinged reward (agent/drawdown.py): penalty in units of the buffer reward's standard
+    # deviation per unit of log drawdown beyond the tolerance, up to DD_EXCESS_CAP. 0 keeps the
+    # log-growth reward.
+    dd_penalty: float = 0.0
+    dd_tolerance: float = 0.05
     seed: int = 0
     threads: int = 4
     env: EnvConfig = field(default_factory=EnvConfig)
@@ -57,6 +63,11 @@ class TrainConfig:
                                       or self.lr_schedule is not None):
             raise ValueError("online deployment does not carry the entropy annealing or the "
                              "learning-rate schedule of training")
+        if self.dd_penalty > 0.0 and not self.env.drawdown_obs:
+            raise ValueError("the drawdown penalty needs the drawdown observation (obs.drawdown)")
+        if self.env.drawdown_obs and (self.online_every > 0 or self.sac.pathwise_horizon > 0):
+            raise ValueError("the drawdown state is not carried by online updates or the pathwise "
+                             "objective")
 
 
 @dataclass
@@ -141,8 +152,10 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
     torch.set_num_threads(cfg.threads)
     rng = np.random.default_rng(cfg.seed)
     amap = cfg.env.action_map
-    ts = TapeSet(train_tapes, cfg.env.window, feature_names, amap)
-    val = TapeSet(val_tapes, cfg.env.window, ts.feature_names, amap) if val_tapes else None
+    dd_obs = cfg.env.drawdown_obs
+    ts = TapeSet(train_tapes, cfg.env.window, feature_names, amap, drawdown=dd_obs)
+    val = (TapeSet(val_tapes, cfg.env.window, ts.feature_names, amap, drawdown=dd_obs)
+           if val_tapes else None)
     env = VecTradingEnv(ts, cfg.env, seed=cfg.seed)
     agent = make_agent(ts.obs_dim, cfg.sac, cfg.seed)
     if init_state is not None:
@@ -152,7 +165,8 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
             shrink_perturb(agent.actor, fresh.actor, cfg.warm_shrink)
             shrink_perturb(agent.critic, fresh.critic, cfg.warm_shrink)
             agent.critic_target.load_state_dict(agent.critic.state_dict())
-    replay = IndexReplay(cfg.replay_capacity)
+    replay = IndexReplay(cfg.replay_capacity, drawdown=dd_obs)
+    shaping = DrawdownShaping(cfg.dd_penalty, cfg.dd_tolerance) if cfg.dd_penalty > 0 else None
     scale = cfg.reward_scale or auto_reward_scale(train_tapes, cfg.sac.gamma, cfg.env.vol_target)
     pathwise = (PathwiseObjective(ts, cfg.sac.pathwise_horizon, cfg.sac.gamma, scale)
                 if cfg.sac.pathwise_horizon > 0 and not cfg.sac.discrete_levels else None)
@@ -197,7 +211,12 @@ def train(train_tapes: list[MarketTape], val_tapes: list[MarketTape] | None, cfg
             if pathwise is not None:
                 def path_fn(ag, alpha, s=sample):
                     return pathwise.value(ag, s["k"], s["t"], s["w_prev"], s["cost_mult"], alpha)
-            stats = agent.update(obs, sample["action"], sample["reward"] * scale, next_obs,
+            reward = sample["reward"]
+            if shaping is not None:
+                if shaping.sd is None:  # fixed on the first buffer of warm-up transitions
+                    shaping.fit(replay.data["reward"][: replay.size])
+                reward = shaping.shape(reward, sample["u"])
+            stats = agent.update(obs, sample["action"], reward * scale, next_obs,
                                  sample["terminal"], pathwise=path_fn)
             n_updates += 1
             if not np.isfinite(stats["critic_loss"]) or abs(stats["q_mean"]) > cfg.q_abs_limit:

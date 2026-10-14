@@ -12,18 +12,22 @@ from __future__ import annotations
 
 import numpy as np
 
+from softedge.agent.drawdown import next_drawdown
 from softedge.env.vec_env import Batch, TapeSet
 
 FIELDS = {
     "k": np.int64, "t": np.int64, "w_prev": np.float64, "action": np.float64,
     "reward": np.float64, "w_next": np.float64, "terminal": np.bool_, "cost_mult": np.float64,
 }
+# Stored only with the drawdown observation: the log drawdown u_t before each transition.
+DRAWDOWN_FIELDS = {"u": np.float64}
 
 
 class IndexReplay:
-    def __init__(self, capacity: int):
+    def __init__(self, capacity: int, drawdown: bool = False):
         self.capacity = capacity
-        self.data = {f: np.zeros(capacity, dtype=d) for f, d in FIELDS.items()}
+        fields = {**FIELDS, **DRAWDOWN_FIELDS} if drawdown else FIELDS
+        self.data = {f: np.zeros(capacity, dtype=d) for f, d in fields.items()}
         self.size = 0
         self.ptr = 0
 
@@ -33,8 +37,11 @@ class IndexReplay:
     def add(self, batch: Batch) -> None:
         n = len(batch.k)
         idx = (self.ptr + np.arange(n)) % self.capacity
-        for f in FIELDS:
-            self.data[f][idx] = getattr(batch, f)
+        for f in self.data:
+            value = getattr(batch, f)
+            if value is None:
+                raise ValueError(f"the batch has no {f}, which the replay stores")
+            self.data[f][idx] = value
         self.ptr = int((self.ptr + n) % self.capacity)
         self.size = min(self.size + n, self.capacity)
 
@@ -71,10 +78,16 @@ def relabel(sample: dict[str, np.ndarray], tapes: TapeSet, frac: float,
 
 
 def materialize(sample: dict[str, np.ndarray], tapes: TapeSet) -> tuple[np.ndarray, np.ndarray]:
-    """Observation and next observation for a sampled batch."""
+    """Observation and next observation for a sampled batch.
+
+    With the drawdown observation the next drawdown follows the batch's (possibly relabelled)
+    reward, so call this after ``relabel``.
+    """
     k, t = sample["k"], sample["t"]
-    obs = tapes.observe(k, t, sample["w_prev"], sample["cost_mult"])
+    u = sample.get("u")
+    obs = tapes.observe(k, t, sample["w_prev"], sample["cost_mult"], u)
     # Terminal steps leave the tape; their next observation is masked out of the target.
     t_next = np.minimum(t + 1, tapes.lengths[k] - 1)
-    next_obs = tapes.observe(k, t_next, sample["w_next"], sample["cost_mult"])
+    u_next = None if u is None else next_drawdown(u, sample["reward"])
+    next_obs = tapes.observe(k, t_next, sample["w_next"], sample["cost_mult"], u_next)
     return obs, next_obs

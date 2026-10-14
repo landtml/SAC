@@ -29,6 +29,7 @@ from softedge.agent.disagree import (
     multiplier_matched_policy,
     validation_tau,
 )
+from softedge.agent.drawdown import drawdown_switch
 from softedge.agent.factory import agent_from_state
 from softedge.agent.online import deploy_online
 from softedge.agent.sac import TQCSAC, SACConfig
@@ -83,7 +84,14 @@ def build_train_config(cfg: dict, seed: int) -> TrainConfig:
     env = _dataclass_from(EnvConfig, cfg.get("env"))
     sac = _dataclass_from(SACConfig, cfg.get("sac"))
     tc = _dataclass_from(TrainConfig, cfg.get("train"))
-    return replace(tc, env=env, sac=sac, seed=seed)
+    # The drawdown switch lives in the reward and obs sections, so it cannot be set twice.
+    for section, key in (("env", "drawdown_obs"), ("train", "dd_penalty"),
+                         ("train", "dd_tolerance")):
+        if key in (cfg.get(section) or {}):
+            raise ValueError(f"set the drawdown switch in reward and obs, not {section}.{key}")
+    dd = drawdown_switch(cfg)
+    return replace(tc, env=replace(env, drawdown_obs=dd.obs), sac=sac, seed=seed,
+                   dd_penalty=dd.penalty, dd_tolerance=dd.tolerance)
 
 
 def build_all_tapes(cfg: dict) -> list[MarketTape]:
@@ -106,6 +114,7 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
                          implied_vol=bool(data.get("implied_vol", False)),
                          premium=bool(data.get("premium", False)),
                          roll_days=data.get("roll_days"), roll_cost=data.get("roll_cost"),
+                         open_interest=bool(data.get("open_interest", False)),
                          family=data.get("family", "all"),
                          seed_offset=int(data.get("seed_offset", 0)))
     if data.get("resample"):
@@ -173,14 +182,15 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     test = parts["test"]
     tc = build_train_config(cfg, seeds[0])
     action_map = tc.env.action_map
-    test_ts = TapeSet(test, window, feature_names, action_map)
+    dd_obs = tc.env.drawdown_obs
+    test_ts = TapeSet(test, window, feature_names, action_map, drawdown=dd_obs)
     runs = {}
     for seed, agent in zip(seeds, agents, strict=True):
         runs[f"sac_seed{seed}"] = rollout(test_ts, lambda o, a=agent: a.act(o, deterministic=True))
     policy = ensemble_policy(agents)
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
-    val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    val_ts = TapeSet(parts["val"], window, feature_names, action_map, drawdown=dd_obs)
     disagree: dict = {}
     if disagree_shrink_on(cfg.get("deploy", {})):
         # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.

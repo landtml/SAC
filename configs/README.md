@@ -97,6 +97,8 @@ funding priors are a causal average of recent funding, with gain -1. Basis and s
 | `carry/crypto_basis_xsfund_prior.yaml` | As `crypto_basis_wide_prior.yaml` (32 coins, daily, same folds) with the cross-sectional funding rank as the prior. `funding_xs` is the trailing 7-day income of each coin, minus the cross-sectional median, divided by the median absolute deviation across coins listed with a full window; gain 1, so a 1 MAD gap maps to about 1. A 5% APR spot-borrow placeholder is charged on the short-basis side, as in the sibling configs. The coin list holds coins listed today, so it carries survivorship bias. Each run adds five trials to `crypto_basis` for the deflated Sharpe gate. | No |
 | `carry/crypto_basis_xsfund_topk.yaml` | As `crypto_basis_xsfund_prior.yaml` with the top-k benchmark as the prior: 1 for the coins above the fifth place by trailing 7-day income, 0 for those below it. Coins tied across the fifth place split the places left for them, so each gets a fraction (three coins tied for places 4 to 6 get 2/3 each). The flags sum to five on each day with five or more eligible coins. Its `prior_only` strategy is the top-k rule on the same days. | No |
 | `carry/crypto_basis_xsfund_plain.yaml` | As `crypto_basis_xsfund_prior.yaml` with no prior and no cross-sectional features. The comparison with the prior config is joint: the prior configs also add `funding_xs` and `funding_topk` as observed features, so the difference is the prior and the observed features together. No config isolates the prior alone. | No |
+| `carry/crypto_basis_1d_squeeze_gate.yaml` | As `crypto_basis_1d_prior_v2.yaml` with the funding prior multiplied by an open-interest squeeze gate (`funding_ewm_gated`). The gate is 0 while the seven-day growth in Binance USD open interest is above the 80th percentile of the trailing 180 calendar days, and 1 (open) wherever it cannot be computed, which is the base carry. The loader requests open interest from 2022-01 (`OI_START` in `softedge.data.metrics`, its request floor, since each day costs one request), and every cached coin file starts there, so the history starts 2022-01 (not 2020-01 as in `prior_v2`). The gate first computes on 2022-07-06. Fold 0 has no training data and is skipped, so the runs cover three test folds. Each run adds 5 trials (two seeds, ensemble, banded, gated) to the crypto_basis universe. | No |
+| `carry/crypto_basis_1d_squeeze_base.yaml` | Ungated baseline for the squeeze gate: identical to `crypto_basis_1d_prior_v2.yaml` except for the name and the start, which is 2022-01 to match the gated config (`prior_v2` starts 2020-01). The start is the loader's request floor for open interest (`OI_START`); fold 0 has no training data and is skipped, so the runs cover three test folds. Each run adds 5 trials (two seeds, ensemble, banded, gated) to the crypto_basis universe. | No |
 
 ## Pegs
 
@@ -285,7 +287,7 @@ works as `prior_feature`.
 
 Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
 the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
-same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair).
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair), 3200 (the drawdown pair).
 
 The online pair differs only in `train.online_every`: the deployed agents take 16 gradient
 steps every 24 test bars on the transitions realized in the last 5000 bars (`agent/online.py`).
@@ -318,6 +320,23 @@ checkpoints and the no-trade band, so the shrink adds validation selection on to
 bar enters either value. Both new runs count as trials in `n_trials`, which deflates the reported
 DSR for them. `tau` is one fixed median and is not searched.
 
+The `drawdown-penalty` pair differs only in `reward.dd_penalty` and `obs.drawdown` (off: 0 and
+false; on: 1.0 and true). The reward is the per-bar log growth minus `dd_penalty` times the standard
+deviation of the buffer's base reward, times the log drawdown beyond `dd_tolerance` (0.05) after the
+step, capped at 1.0 log unit beyond the tolerance (`DD_EXCESS_CAP` in `agent/drawdown.py`). The
+drawdown is measured from the running equity peak of each training episode and each test tape.
+Limit: the peak resets at those starts, so a drawdown carried across a fold boundary is erased and
+the penalty does not charge it. The observation carries `log1p` of the drawdown, and the penalty
+requires that observation. The penalty is applied on the replayed transitions, and the drawdown
+observation is refused with online updates or the pathwise objective. Both runs count as trials in
+`n_trials`, which deflates the reported DSR for them.
+
+The pair's comparison must report, for the off and on runs: the mean max drawdown on vs off; the
+share of the sign oracle's Sharpe captured on vs off; and the mean absolute exposure by drawdown
+bucket on vs off, with the buckets u = 0, 0 < u <= `dd_tolerance`, and u > `dd_tolerance`. The
+switch-off equivalence is shown on one small config (the pinned digest and absent-equals-off tests
+in `tests/agent/test_drawdown.py`), not on the bench.
+
 | File | What it tests | Results |
 | --- | --- | --- |
 | `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
@@ -326,3 +345,5 @@ DSR for them. `tau` is one fixed median and is not searched.
 | `bench/disagree-shrink_on.yaml` | As `disagree-shrink_off.yaml`, with the disagreement shrink on. | No |
 | `bench/online-deploy-updates_off.yaml` | All four families, seed offset 3100, online updates off (the base of the pair). | No |
 | `bench/online-deploy-updates_on.yaml` | As the off config with `online_every: 24`: causal online updates during deployment. | No |
+| `bench/drawdown-penalty_off.yaml` | All four families, eight markets, seed offset 3200, the drawdown penalty and drawdown observation off. | No |
+| `bench/drawdown-penalty_on.yaml` | As `drawdown-penalty_off.yaml` with `dd_penalty` 1.0, `dd_tolerance` 0.05 and the drawdown observation on. | No |
