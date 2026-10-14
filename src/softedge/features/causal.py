@@ -153,6 +153,10 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         # 5% differential maps to 1.0, the carry signal behind forex carry trades.
         cols["rate_diff"] = frame["rate_diff"].astype("float64").fillna(0.0) * 20.0
 
+    if "vrp_prior" in frame.columns:
+        # Implied minus realized variance at the close; zero while gated or in warm-up.
+        cols["vrp_prior"] = frame["vrp_prior"].astype("float64").fillna(0.0)
+
     if "signal" in frame.columns:
         cols["signal"] = frame["signal"].astype("float64")
 

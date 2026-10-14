@@ -115,6 +115,15 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 | `macro/macro_1d_prior.yaml` | As `macro_1d_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
 | `macro/macro_1d_rich.yaml` | As `macro_1d_prior.yaml` with implied volatility, regime features and cross-asset features. | No |
 
+## Variance risk premium
+
+A short-variance index on the S&P 500, daily, from FRED (about ten years: the SP500 series starts in October 2016). Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `vrp/vrp_spx_1d.yaml` | Short variance on the S&P 500, daily, vol target 0.1, no prior. | No |
+| `vrp/vrp_spx_1d_prior.yaml` | As `vrp_spx_1d.yaml` with the variance risk premium prior (implied minus trailing realized variance, gain -50) and a drawdown gate that zeroes the prior while the index is below its 63-bar high. | No |
+
 ## Prediction markets
 
 Binary YES and NO markets from Kalshi and Polymarket, each with a single split. The priors use

@@ -51,7 +51,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     cross-venue funding spread (long Binance perp, short Hyperliquid perp), both daily from
     mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
     FRED. ``implied_vol`` joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
-    every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
+    every other coin, the crypto market's implied volatility; for ``vrp_spx`` it selects the
+    variance risk premium prior of ``softedge.data.vrp``). ``premium`` joins the Binance perp
     premium index, which leads the next funding payment, onto Binance perp legs.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
@@ -115,6 +116,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         return [basis_frame(binance.load_spot(s, "1h", start, end),
                             _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
                 for s in (symbols or CRYPTO_SYMBOLS)]
+    if universe == "vrp_spx":
+        from softedge.data.vrp import load_vrp_frame
+
+        return [load_vrp_frame(start, end, prior=implied_vol)]
     if universe == "macro":
         from softedge.data.fred_markets import load_fred_market
 
