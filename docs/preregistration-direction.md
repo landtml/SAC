@@ -41,3 +41,13 @@ Pass = Newey-West t > 2.5 AND DSR > 0.95 AND Sharpe > 0 in both halves.
 
 - **Null panels**: every hypothesis is also run on 5 random-walk panels with the same assets, dates and vols. The share of null runs that pass is reported as the false-positive rate.
 - **Delay check**: each signal delayed by 1 extra day (position held over t+2) should give a similar or weaker result. A delayed signal that does clearly better points to a timing bug.
+
+## Amendments before any run (2026-10-14)
+
+Five changes were made to the design above after a code review. No test had been run on real data when they were made. Each change is listed with its reason.
+
+1. **Delisting.** A coin leaves the cross-section on the first day it has no print. Its signal is missing from that day, so its weight goes to zero and the exit trade pays the cost for its asset class. Reason: a missing print was treated as a zero return, so a delisted coin kept a valid signal and could remain in a quintile after it stopped trading. This rule applies on the crypto panel, where a missing print means the coin has left the market.
+2. **Ridge refit timing.** A refit on day d trains only on targets realised before day d. Reason: the earlier code included the target realised on the refit day itself, which is one day later than the timing rule allows.
+3. **Missing prints on calendar days.** On the FRED panel, a day on which an asset has no print, such as a holiday in that market, keeps the asset's previous position, and the asset takes no new signal that day. Reason: a holiday in one market would otherwise close and reopen the position, paying costs that are not part of the strategy.
+4. **Null panels.** Each hypothesis is run on 100 random-walk panels, replacing the 5 panels stated above. Reason: with 5 panels the false-positive rate can take only six values and cannot measure a 5% rate. The report gives the share of null panels that pass and its 95% Wilson interval.
+5. **Deflated Sharpe ratio.** The registered figure stays the primary result: the repo's deflated Sharpe function at 11 trials. A second column uses the variance of the trial Sharpe ratios observed in the run. Reason: the registered figure takes the cross-trial spread from a null variance, and the second column shows whether the conclusion depends on that choice.
