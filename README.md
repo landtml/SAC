@@ -9,6 +9,7 @@
   <a href="docs/design.md">Design</a> ·
   <a href="docs/glossary.md">Glossary</a> ·
   <a href="docs/roadmap.md">Roadmap</a> ·
+  <a href="docs/research-log.md">Research log</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
