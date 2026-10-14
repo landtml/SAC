@@ -1,55 +1,130 @@
-"""Active return of a learned policy over its prior rule, with its deflated Sharpe ratio.
+"""Active return of a learned policy over its rule baseline, with its deflated Sharpe ratio.
 
-For a run whose ``pooled_returns.csv`` has a ``prior_only`` column, the active return is the
-policy's per-bar return minus the prior's on the same bars. Runs without that column are
-skipped.
+The active return of a run is ``strategy`` minus its rule baseline, per bar, on the bars both
+share. The baseline is the ``prior_only`` column when the run saved one. A run without that
+column whose config declares ``env.prior_feature`` gets the baseline rebuilt by
+``rule_prior``: the zero-residual policy rolled out on the same test tapes. Runs with neither
+are skipped.
 
-The trial count is the number of SAC variants that ``trials.jsonl`` records for the run's
-universe (``trial_stats``). ``dsr`` takes the null floor as the cross-trial variance, which is
-what the post-hoc script behind docs/results.md used. ``dsr_cross_trial`` takes the variance
-of the registry's per-bar Sharpe ratios, which is what ``recompute_dsr`` uses.
+Trial count: ``trial_stats`` for the run's universe (every SAC variant recorded in
+``trials.jsonl``).
+
+Cross-trial variance, ``dsr``: the variance (ddof=1) of the active per-bar Sharpe ratios of
+the universe's runs that have a baseline. With fewer than ``MIN_BASELINE_TRIALS`` such runs
+the null floor is used and the row is flagged ``floor``.
+
+Sensitivity columns: ``dsr_floor`` uses the null floor; ``dsr_abs`` uses the variance of the
+absolute SAC Sharpe ratios of the universe, as ``recompute_dsr`` does.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
-from softedge.eval.stats import dsr_summary
-from softedge.experiment import load_config, trial_stats
+from softedge.env.vec_env import TapeSet, rollout
+from softedge.eval.report import pooled_returns
+from softedge.eval.stats import dsr_summary, null_sr_variance, sharpe_moments
+from softedge.experiment import (
+    build_all_tapes,
+    build_train_config,
+    load_config,
+    make_splits,
+    recompute_dsr,
+    trial_stats,
+)
+from softedge.pipeline import split_tapes
 
 PRIOR = "prior_only"
-COLUMNS = ["run", "universe", "strategy", "n_bars", "sharpe", "psr", "n_trials", "dsr",
-           "dsr_cross_trial"]
+MIN_BASELINE_TRIALS = 3
+COLUMNS = ["run", "universe", "strategy", "n_bars", "sharpe", "psr", "n_trials",
+           "n_with_baseline", "cross_var", "dsr", "dsr_floor", "dsr_abs"]
 
 
 def active_table(runs: str | Path, strategy: str = "sac_banded") -> pd.DataFrame:
-    """One row per run with a ``prior_only`` column: the Sharpe and DSR of ``strategy`` minus it."""
+    """One row per run with a rule baseline: the DSR of ``strategy`` minus that baseline."""
     root = Path(runs)
-    rows = []
+    absolute_var = _absolute_variances(root, strategy)
+    entries = []
     for run in sorted(p for p in root.iterdir() if p.is_dir() and (p / "config.yaml").exists()):
-        pooled_path = run / "pooled_returns.csv"
-        if not pooled_path.exists():
+        cfg = load_config(run / "config.yaml")
+        active = _active_series(run, cfg, strategy)
+        if active is None or len(active) < 3:
             continue
-        if PRIOR not in pd.read_csv(pooled_path, nrows=0).columns:
-            continue
-        pooled = pd.read_csv(pooled_path, index_col=0, parse_dates=True,
-                             float_precision="round_trip")
-        active = (pooled[strategy] - pooled[PRIOR]).dropna()
-        universe = load_config(run / "config.yaml")["universe"]
-        n_trials, registry_variance = trial_stats(root, universe, [])
-        bars_per_year = _bars_per_year(active.index)
-        null_floor = dsr_summary(active.to_numpy(), bars_per_year, n_trials)
-        cross_trial = dsr_summary(active.to_numpy(), bars_per_year, n_trials,
-                                  registry_variance)
-        rows.append({
-            "run": run.name, "universe": universe, "strategy": strategy,
-            "n_bars": len(active), "sharpe": null_floor["sharpe"], "psr": null_floor["psr"],
-            "n_trials": n_trials, "dsr": null_floor["dsr"],
-            "dsr_cross_trial": cross_trial["dsr"],
-        })
+        entries.append({"run": run.name, "universe": cfg["universe"], "active": active,
+                        "bars_per_year": _bars_per_year(active.index),
+                        "sr_bar": sharpe_moments(active.to_numpy())["sr"]})
+
+    rows = []
+    for universe in sorted({e["universe"] for e in entries}):
+        group = [e for e in entries if e["universe"] == universe]
+        n_trials, _ = trial_stats(root, universe, [])
+        srs = [e["sr_bar"] for e in group]
+        active_var = (float(np.var(srs, ddof=1))
+                      if len(group) >= MIN_BASELINE_TRIALS else None)
+        for e in group:
+            values = e["active"].to_numpy()
+            bpy = e["bars_per_year"]
+            primary = dsr_summary(values, bpy, n_trials, active_var)
+            flagged = active_var is None or active_var < null_sr_variance(len(values))
+            rows.append({
+                "run": e["run"], "universe": universe, "strategy": strategy,
+                "n_bars": len(values), "sharpe": primary["sharpe"], "psr": primary["psr"],
+                "n_trials": n_trials, "n_with_baseline": len(group),
+                "cross_var": "floor" if flagged else "active",
+                "dsr": primary["dsr"],
+                "dsr_floor": dsr_summary(values, bpy, n_trials)["dsr"],
+                "dsr_abs": dsr_summary(values, bpy, n_trials,
+                                       absolute_var.get(e["run"]))["dsr"],
+            })
     return pd.DataFrame(rows, columns=COLUMNS)
+
+
+def rule_prior(run: Path, cfg: dict) -> pd.Series:
+    """Per-bar return of the zero-residual policy on the test tapes of each walk-forward split.
+
+    A split contributes only when it has train, validation and test tapes.
+    """
+    tapes = build_all_tapes(cfg)
+    train_cfg = build_train_config(cfg, 0)
+    amap, window = train_cfg.env.action_map, train_cfg.env.window
+    rollouts, all_test = [], []
+    for split in make_splits(cfg):
+        parts = split_tapes(tapes, split)
+        if parts["train"] and parts["val"] and parts["test"]:
+            rollouts += rollout(TapeSet(parts["test"], window, None, amap),
+                                lambda obs: np.zeros(len(obs)))
+            all_test += parts["test"]
+    return pooled_returns(rollouts, all_test, window - 1)
+
+
+def _active_series(run: Path, cfg: dict, strategy: str) -> pd.Series | None:
+    pooled_path = run / "pooled_returns.csv"
+    if not pooled_path.exists():
+        return None
+    pooled = pd.read_csv(pooled_path, index_col=0, parse_dates=True,
+                         float_precision="round_trip")
+    if strategy not in pooled.columns:
+        return None
+    if PRIOR in pooled.columns:
+        baseline = pooled[PRIOR]
+    elif "prior_feature" in (cfg.get("env") or {}):
+        baseline = rule_prior(run, cfg)
+    else:
+        return None
+    common = pooled.index.intersection(baseline.index)
+    return (pooled.loc[common, strategy] - baseline.loc[common]).dropna()
+
+
+def _absolute_variances(root: Path, strategy: str) -> dict[str, float]:
+    """Per run, the cross-trial variance ``recompute_dsr`` uses for its ``strategy`` row."""
+    table = recompute_dsr(root)
+    if table.empty:
+        return {}
+    rows = table[table["strategy"] == strategy]
+    return {row.run: float(row.sr_variance) for row in rows.itertuples()}
 
 
 def _bars_per_year(index: pd.DatetimeIndex) -> float:
