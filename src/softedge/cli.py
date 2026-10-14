@@ -8,14 +8,20 @@ import json
 import sys
 from pathlib import Path
 
+# Every name ``softedge.pipeline.load_frames`` accepts; a test keeps this in sync with it.
+DOWNLOAD_UNIVERSES = (
+    "crypto_perp", "crypto_spot", "crypto_basis", "hl_basis", "perp_spread", "delivery_basis",
+    "pegs", "fx", "fx_em", "macro", "kalshi", "polymarket",
+    "synthetic", "synthetic_null", "synthetic_hard",
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="softedge")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     dl = sub.add_parser("download", help="fill the data cache for a universe")
-    dl.add_argument("universe", choices=["crypto_perp", "crypto_spot", "crypto_basis", "fx", "macro",
-                                         "polymarket", "kalshi"])
+    dl.add_argument("universe", choices=DOWNLOAD_UNIVERSES)
     dl.add_argument("--start", default="2020-01")
     dl.add_argument("--end", default="2026-09")
     dl.add_argument("--symbols", nargs="*")
