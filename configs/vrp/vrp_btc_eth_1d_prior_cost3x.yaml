@@ -3,7 +3,8 @@ universe: vrp
 data: {end: 2026-09, start: 2021-03}
 # Cost sensitivity: the prior config with fee and spread at three times the base level, 33 bp per
 # unit of exposure change. The base 11 bp is a spot-trading assumption, not an option quote.
-costs: {fee_bps: 30.0, half_spread_bps: 3.0, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0}
+# cash financing on exposure above 1x, assumed 5%/yr
+costs: {fee_bps: 30.0, half_spread_bps: 3.0, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0, financing_apr: 0.05}
 walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2023-01-01', fold_steps: 15000, test: 365D,
   val: 180D, warm_start: true}
 # prior_gain 6.25 = 1 / 0.4^2: the annualized variance premium scaled by a 40% volatility, then clipped.

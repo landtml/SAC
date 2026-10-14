@@ -2,7 +2,8 @@ name: vrp_btc_eth_1d_prior
 universe: vrp
 data: {end: 2026-09, start: 2021-03}
 # Variance carry on a spot-kind frame: fee and spread per unit of exposure change, no borrow.
-costs: {fee_bps: 10.0, half_spread_bps: 1.0, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0}
+# cash financing on exposure above 1x, assumed 5%/yr
+costs: {fee_bps: 10.0, half_spread_bps: 1.0, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0, financing_apr: 0.05}
 walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2023-01-01', fold_steps: 15000, test: 365D,
   val: 180D, warm_start: true}
 # prior_gain 6.25 = 1 / 0.4^2: the annualized variance premium scaled by a 40% volatility, then clipped.
