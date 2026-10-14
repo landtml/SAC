@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="404" viewBox="0 0 760 404" role="img" aria-labelledby="t d">
 <title id="t">Most add-ons do not beat the base agent</title>
-<desc id="d">Forest plot: change in ensemble Sharpe for each ablation against its base.</desc>
+<desc id="d">Forest plot: change in Sharpe (banded policy) for each ablation against its base.</desc>
 <rect x="0.5" y="0.5" width="759" height="403" rx="8" fill="#fcfcfb" stroke="#e1e0d9"/>
 <text x="24.0" y="34.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="18" text-anchor="start" fill="#0b0b0b" font-weight="600">Most add-ons do not beat the base agent</text>
-<text x="24.0" y="56.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#52514e">Change in ensemble Sharpe from one change to the base agent, with 95% CI and the verdict for each change.</text>
+<text x="24.0" y="56.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" text-anchor="start" fill="#52514e">Change in Sharpe (banded policy) from one change to the base agent, with 95% CI and the verdict for each change.</text>
 <line x1="300.0" y1="105.0" x2="300.0" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
 <line x1="333.3" y1="105.0" x2="333.3" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
 <line x1="366.7" y1="105.0" x2="366.7" y2="356.0" stroke="#e1e0d9" stroke-width="1" stroke-linecap="round"/>
@@ -87,5 +87,5 @@
 <text x="433.3" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">0</text>
 <text x="466.7" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">2</text>
 <text x="500.0" y="371.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" text-anchor="middle" fill="#898781">4</text>
-<text x="400.0" y="390.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="middle" fill="#52514e">Change in ensemble Sharpe vs base, 95% CI. Left: worse. Right: better.</text>
+<text x="400.0" y="390.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" text-anchor="middle" fill="#52514e">Change in Sharpe (banded policy) vs base, 95% CI. Left: worse. Right: better.</text>
 </svg>

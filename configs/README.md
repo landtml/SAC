@@ -114,8 +114,8 @@ G10 pairs (seven dollar pairs) from 2000, and emerging-market dollar pairs.
 | File | What it tests | Results |
 | --- | --- | --- |
 | `fx/fx.yaml` | G10 forex, daily, up to 3x leverage, swap rates. One split: train to 2016, validation 2016-2019, test from 2019. | No |
-| `fx/fx_wf.yaml` | G10 forex, daily walk-forward from 2014 with 730-day validation and test windows. No prior. | Yes |
-| `fx/fx_v2.yaml` | As `fx_wf.yaml` with smaller networks (hidden 64, actor 32) and 256-bar episodes. | No |
+| `fx/fx_wf.yaml` | G10 forex, daily walk-forward from 2014 with 730-day validation and test windows. No prior. | No |
+| `fx/fx_v2.yaml` | As `fx_wf.yaml` with smaller networks (hidden 64, actor 32) and 256-bar episodes. | Yes |
 | `fx/fx_carry.yaml` | As `fx_wf.yaml` with a rate-differential prior (gain 2) and volatility target 0.1. | Yes |
 | `fx/fx_em_vt.yaml` | Emerging-market dollar pairs, walk-forward from 2010, 4 bp half-spread, 1% swap rates, volatility target 0.1. | No |
 | `fx/fx_em_carry.yaml` | As `fx_em_vt.yaml` with the rate-differential prior (gain 2). | No |
