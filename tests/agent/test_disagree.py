@@ -183,7 +183,9 @@ def _test_runs_inputs():
     return cfg, parts, ts.feature_names
 
 
-def test_switch_off_leaves_the_base_ensemble_runs_bit_identical():
+def test_switch_absent_and_switch_off_give_bit_identical_runs():
+    # Both calls run the same code. The check is that the off switch adds no run and changes no
+    # output. Equality with code that has no switch is not tested here.
     cfg, parts, names = _test_runs_inputs()
     agents = _agents(TapeSet(parts["test"], window=4, feature_names=names).obs_dim, seeds=(0, 1))
     base, _ = _test_runs(cfg, agents, [0, 1], parts, 4, names)
