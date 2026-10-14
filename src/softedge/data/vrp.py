@@ -12,14 +12,15 @@ ending on day ``t``. As for every spot frame, a position decided at row ``t`` ea
 from its close to the next close.
 
 With ``prior=True`` the frame also carries ``vrp_prior = iv_t - rv_t``, zeroed while the SPXVRP
-index (this strategy's cumulative P&L) is below its trailing 63-bar high, a drawdown gate, and
-during the 21-day warm-up. A positive ``prior_gain`` in a config (the shipped configs use 50)
+index is below its trailing 63-bar high and during the 21-day warm-up. The index is the premium
+itself: the P&L of an always-on short-variance position, with no policy in it. The gate is a
+drawdown gate on that premium, not on the strategy's P&L. A positive ``prior_gain`` in a config (the shipped configs use 50)
 sets the position to clip(c * vrp_prior, -1, 1). Positive exposure holds the index long, which
 is short variance, so the position is long when implied exceeds realized.
 
 FRED's ``SP500`` series starts in October 2016, so the sample is about ten years. The payoff
 is a proxy built from VIX and trailing 21-day realized variance, not from variance-swap quotes.
-Costs come from each config. Roll is not modelled. The 21-day window smooths crash days and the
+Costs come from each config and are placeholders (see configs/README.md). Roll is not modelled. The 21-day window smooths crash days and the
 daily close-to-close variance understates intraday variance, so tail losses are understated.
 """
 
