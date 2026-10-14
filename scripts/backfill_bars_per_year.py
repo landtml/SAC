@@ -6,6 +6,8 @@ result.json.bak and add the key. Nothing else in the file changes.
 
 Runs are never downloaded from. Network calls are refused while the script runs; a run that
 reaches for the network, for example because its data is not cached, is skipped and listed.
+Cached data is read whatever its age: the cache is what the run read, so a stale file is not
+refetched.
 Runs whose result.json was written less than ``--min-age`` seconds ago are skipped, since a
 run that is still being written may be incomplete.
 """
@@ -27,6 +29,7 @@ from pathlib import Path
 import numpy as np
 
 from softedge.cpcv_experiment import _utc
+from softedge.data import fomc, fred_markets, fx, rates, vol_indices
 from softedge.experiment import build_all_tapes, load_config, make_splits
 from softedge.pipeline import split_tapes, window_tapes
 
@@ -68,6 +71,27 @@ def no_network() -> Iterator[None]:
             setattr(owner, name, original)
 
 
+# Cache-age limits of the loaders that keep downloads on disk: a cached file older than its limit
+# is refetched. Every age check in src/softedge/data reads one of these.
+CACHE_AGE_LIMITS = [
+    (rates, "MAX_CACHE_AGE_S"), (fx, "MAX_CACHE_AGE_S"), (vol_indices, "MAX_CACHE_AGE_S"),
+    (fred_markets, "MAX_CACHE_AGE_S"), (fomc, "CURRENT_MAX_AGE_S"),
+]
+
+
+@contextlib.contextmanager
+def fresh_caches() -> Iterator[None]:
+    """Treat every cached file as fresh, whatever its age, and restore the limits afterwards."""
+    saved = [(owner, name, getattr(owner, name)) for owner, name in CACHE_AGE_LIMITS]
+    try:
+        for owner, name, _ in saved:
+            setattr(owner, name, float("inf"))
+        yield
+    finally:
+        for owner, name, original in saved:
+            setattr(owner, name, original)
+
+
 def run_bars_per_year(cfg: dict) -> float:
     """Bar rate a run annualises with: the median over the tapes it tests.
 
@@ -92,12 +116,17 @@ def run_bars_per_year(cfg: dict) -> float:
 def backfill_run(path: Path, min_age: float) -> tuple[str, float | None, str]:
     """Process one result.json; returns (run, bars per year, status)."""
     run = path.parent.name
+    raw = path.read_text()
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        result = None  # possibly a run still being written; the age check below decides
+    if result is not None and "bars_per_year" in result:
+        return run, float(result["bars_per_year"]), "already set"
     if time.time() - path.stat().st_mtime < min_age:
         return run, None, f"skipped: result.json younger than {min_age:.0f} s"
-    raw = path.read_text()
-    result = json.loads(raw)
-    if "bars_per_year" in result:
-        return run, float(result["bars_per_year"]), "already set"
+    if result is None:
+        return run, None, "skipped: result.json is not valid JSON"
     if json.dumps(result, indent=2, default=str) != raw:
         return run, None, "skipped: result.json not in the writer's format"
     if not (path.parent / "config.yaml").exists():
@@ -130,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     rows = []
-    with no_network():
+    with no_network(), fresh_caches():
         for path in sorted(Path(args.runs).glob("*/result.json")):
             rows.append(backfill_run(path, args.min_age))
 
