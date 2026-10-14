@@ -65,6 +65,11 @@ def _random_closes(n: int, seed: int) -> np.ndarray:
     return 100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, n)))
 
 
+def _flagged_days(frame) -> list[date]:
+    days = pd.DatetimeIndex(frame.index).normalize().date
+    return [d for d, f in zip(days, frame["fomc_next"].to_numpy(), strict=True) if f == 1.0]
+
+
 def test_historical_page_reads_scheduled_meetings_on_their_last_day():
     assert fomc.parse_calendar(HISTORICAL_HTML) == [
         date(2005, 2, 2), date(2005, 3, 22), date(2006, 2, 1)]
@@ -96,6 +101,20 @@ def test_flag_marks_the_bar_before_the_announcement_session():
     np.testing.assert_array_equal(flags, [0, 1, 0, 0, 0])
 
 
+def test_tokyo_bar_closing_before_the_release_flags_the_session_after_it():
+    # The 14:00 ET statement on Wednesday comes after the Tokyo close that day (about 02:00 ET),
+    # so the reaction sits in Thursday's Tokyo session. Row t flags the session t + 1.
+    index = pd.bdate_range("2024-01-29", "2024-02-02", tz="UTC")  # Mon to Fri
+    flags = fomc.fomc_next_flags(index, [date(2024, 1, 31)], closes_before_release=True)
+    np.testing.assert_array_equal(flags, [0, 0, 1, 0, 0])
+
+
+def test_us_bar_closing_after_the_release_flags_the_announcement_session():
+    index = pd.bdate_range("2024-01-29", "2024-02-02", tz="UTC")  # Mon to Fri
+    flags = fomc.fomc_next_flags(index, [date(2024, 1, 31)])
+    np.testing.assert_array_equal(flags, [0, 1, 0, 0, 0])
+
+
 def test_announcement_on_a_day_without_a_bar_is_taken_by_the_next_bar():
     # Monday 15 January 2024 is a market holiday: its announcement falls in Tuesday's session.
     index = pd.DatetimeIndex(["2024-01-12", "2024-01-16", "2024-01-17"], tz="UTC")
@@ -115,6 +134,20 @@ def test_flag_depends_on_the_calendar_and_not_on_prices():
     assert before["fomc_next"].iloc[k] == 1.0
     # Guards against a vacuous pass: the price features after row k must actually change.
     assert not np.allclose(before["ret_h1"].iloc[k + 1:], after["ret_h1"].iloc[k + 1:])
+
+
+def test_flag_on_a_row_without_an_announcement_ignores_the_next_close():
+    # A flag built from the next close would give row k a value only when k + 1 holds the
+    # reaction. Truncating after row k removes that close, so the flag on row k must not change.
+    days = pd.bdate_range("2020-01-01", periods=400, tz="UTC")
+    frame = _spot_frame(days, _random_closes(400, seed=5))
+    announcements = [date(2020, 1, 29), date(2020, 6, 10)]
+    full = compute_features(fomc.attach_fomc(frame, announcements))
+    for k in (150, 200, 250, 300, 350):
+        assert full["fomc_next"].iloc[k] == 0.0  # the cut row carries no announcement
+        head = compute_features(fomc.attach_fomc(frame.iloc[: k + 1], announcements))
+        np.testing.assert_allclose(head.to_numpy(), full.iloc[: k + 1].to_numpy(),
+                                   atol=1e-6, equal_nan=True)
 
 
 def test_feature_is_a_column_only_when_the_frame_carries_it():
@@ -154,6 +187,12 @@ def test_macro_fomc_universe_is_the_equity_indices_with_the_calendar_flag(monkey
     for frame in frames:
         validate_frame(frame)
         assert frame["fomc_next"].sum() == 2
+    # The S&P bar dated 31 January closes after the 14:00 ET release, so the flag sits on the 30th.
+    # The Tokyo bar dated 31 January closes before it, so the reaction is in the 1 February bar and
+    # the flag sits on the 31st.
+    flagged = {f.attrs["symbol"]: _flagged_days(f) for f in frames}
+    assert date(2024, 1, 30) in flagged["SPX"] and date(2024, 1, 31) not in flagged["SPX"]
+    assert date(2024, 1, 31) in flagged["NKY"] and date(2024, 1, 30) not in flagged["NKY"]
     plain = load_frames("macro", "2024-01", "2024-03", symbols=["SPX"])
     assert "fomc_next" not in plain[0].columns
 

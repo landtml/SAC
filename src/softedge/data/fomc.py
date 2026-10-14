@@ -6,9 +6,19 @@ meetings are read. Notation votes and the conference calls of the historical pag
 listed as meetings, so an unscheduled meeting never sets the flag.
 
 A meeting is announced on its last day: the second day of a two-day meeting, or the only day
-of a one-day meeting. ``fomc_next_flags`` marks row ``t`` with 1 when the bar after it (the
-session ``t + 1``, which runs from the close of ``t`` to the close of ``t + 1``) contains an
-announcement. The flag reads the calendar and the bar dates only, never prices.
+of a one-day meeting. The statement is released at 14:00 ET on that day. The calendar is the final
+revised schedule from the historical and current pages, not the schedule as first published, so a
+meeting that was rescheduled is dated the day it was held.
+
+``fomc_next_flags`` marks row ``t`` with 1 when the bar after it (the session ``t + 1``, which
+runs from the close of ``t`` to the close of ``t + 1``) holds the reaction to an announcement.
+A US bar closes after 14:00 ET on the announcement day, so the reaction is in the bar dated
+that day. A Tokyo bar closes about 02:00 ET, before the release, so the reaction is in the bar
+dated the next day; ``EARLY_CLOSE_SYMBOLS`` lists the symbols that close early. The flag marks
+the whole announcement session, a daily bar that contains the release. It is not a pre-announcement
+window. The pre-FOMC drift in the literature (Lucca and Moench, 2015) is a 2pm-to-2pm window that
+spans two sessions, and this flag does not measure that window. The flag reads the calendar and
+the bar dates only, never prices.
 """
 
 from __future__ import annotations
@@ -29,6 +39,9 @@ CURRENT_URL = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
 LAST_HISTORICAL_YEAR = 2020
 # The current page is refreshed once a day, since it adds the next year's dates over time.
 CURRENT_MAX_AGE_S = 86400
+
+# Symbols whose daily bar closes before the 14:00 ET release on an announcement day (Tokyo).
+EARLY_CLOSE_SYMBOLS = frozenset({"NKY"})
 
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August",
           "September", "October", "November", "December")
@@ -149,11 +162,15 @@ def announcement_dates(start_year: int, end_year: int) -> list[date]:
     return sorted(dates)
 
 
-def fomc_next_flags(index: pd.DatetimeIndex, announcements: Iterable[date]) -> np.ndarray:
-    """Flag per bar: 1.0 where the next bar's session contains a scheduled announcement.
+def fomc_next_flags(index: pd.DatetimeIndex, announcements: Iterable[date], *,
+                    closes_before_release: bool = False) -> np.ndarray:
+    """Flag per bar: 1.0 where the next bar's session holds a scheduled announcement's reaction.
 
     Session ``t + 1`` covers the calendar days after the bar date of row ``t`` up to and including
-    the bar date of row ``t + 1``. The last row has no next session and is 0.
+    the bar date of row ``t + 1``. An announcement on day ``D`` falls in that session when the bar
+    dated ``D`` closes after the 14:00 ET release (the default, a US close). With
+    ``closes_before_release`` the bar dated ``D`` closes first, so the session must be dated after
+    ``D``. The last row has no next session and is 0.
     """
     days = pd.DatetimeIndex(index)
     if days.tz is not None:
@@ -164,7 +181,10 @@ def fomc_next_flags(index: pd.DatetimeIndex, announcements: Iterable[date]) -> n
     if len(days) < 2 or len(ann) == 0:
         return flags
     prev, nxt = days[:-1], days[1:]
-    inside = np.searchsorted(ann, nxt, side="right") - np.searchsorted(ann, prev, side="right")
+    # Count announcements in (prev, nxt] for a bar that closes after the release, and in
+    # [prev, nxt) for one that closes before it.
+    side = "left" if closes_before_release else "right"
+    inside = np.searchsorted(ann, nxt, side=side) - np.searchsorted(ann, prev, side=side)
     flags[:-1] = (inside > 0).astype(np.float64)
     return flags
 
@@ -172,12 +192,14 @@ def fomc_next_flags(index: pd.DatetimeIndex, announcements: Iterable[date]) -> n
 def attach_fomc(frame: pd.DataFrame, announcements: Iterable[date] | None = None) -> pd.DataFrame:
     """Copy of a daily bar frame with the column ``fomc_next`` (see ``fomc_next_flags``).
 
-    ``announcements`` defaults to the scheduled calendar for the years the frame spans.
+    ``announcements`` defaults to the scheduled calendar for the years the frame spans. The bar
+    close is taken from ``frame.attrs["symbol"]`` and ``EARLY_CLOSE_SYMBOLS``.
     """
     if announcements is None:
         years = pd.DatetimeIndex(frame.index).year
         announcements = announcement_dates(int(years.min()), int(years.max()))
+    early = frame.attrs.get("symbol") in EARLY_CLOSE_SYMBOLS
     out = frame.copy()
-    out["fomc_next"] = fomc_next_flags(frame.index, announcements)
+    out["fomc_next"] = fomc_next_flags(frame.index, announcements, closes_before_release=early)
     out.attrs = dict(frame.attrs)
     return out
