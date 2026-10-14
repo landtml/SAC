@@ -43,7 +43,7 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 min_volume: float = 1e6, implied_vol: bool = False,
                 premium: bool = False) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
-    ``polymarket``, ``kalshi`` or ``synthetic``.
+    ``polymarket``, ``kalshi``, ``pegs`` or ``synthetic``.
 
     ``fx_em`` holds emerging-market dollar pairs with their short-rate differentials, where the
     carry premium is larger than among G10 pairs. ``crypto_basis`` is the cash-and-carry spread of each symbol (long spot, short perp), a
@@ -116,6 +116,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         return [basis_frame(binance.load_spot(s, "1h", start, end),
                             _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
                 for s in (symbols or CRYPTO_SYMBOLS)]
+    if universe == "pegs":
+        from softedge.data.pegs import load_peg_frames
+
+        return load_peg_frames(start, end, symbols)
     if universe == "macro":
         from softedge.data.fred_markets import load_fred_market
 

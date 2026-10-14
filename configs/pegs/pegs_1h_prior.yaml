@@ -1,0 +1,27 @@
+# As pegs_1h.yaml with a peg prior. prior_feature peg_dev is log(price / peg), so a 10 bp
+# deviation is 0.001. prior_gain -1000 maps that to a full-size unit against the deviation:
+# a pair above its peg is shorted, one below is bought. The negative sign leans against the
+# deviation; a real depeg does not revert, so read the worst drawdown in the results.
+# Costs and data as in pegs_1h.yaml.
+name: pegs_1h_prior
+universe: pegs
+data: {start: "2020-01", end: "2026-09"}
+costs: {fee_bps: 10.0, half_spread_bps: 1.0, borrow_apr: 0.05, max_leverage: 1.0, maint_margin: 0.05}
+walk_forward:
+  first_test: "2024-01-01"
+  end: "2026-09-01"
+  test: "365D"
+  val: "180D"
+  embargo: "5D"
+  warm_start: true
+  fold_steps: 40000
+env: {window: 8, episode_len: 2048, n_envs: 16, cost_mult_low: 0.5, cost_mult_high: 2.0,
+  prior_feature: peg_dev, prior_gain: -1000.0}
+sac: {hidden: 128, critic_blocks: 1, actor_hidden: 64, gamma: 0.99, risk: mean,
+      target_entropy_scale: 0.5, smooth_coef: 0.2}
+train: {total_steps: 120000, warmup_steps: 10000, utd: 0.25, relabel_frac: 0.5, eval_every: 2500,
+        threads: 2, target_entropy_end_scale: 2.0}
+trend: {lookback: 30, target_vol: 0.4, vol_span: 7}
+deploy: {gate_psr: 0.8, gate: dsr}
+seeds: [0, 1]
+reference: buy_and_hold

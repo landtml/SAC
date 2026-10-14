@@ -153,6 +153,12 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         # 5% differential maps to 1.0, the carry signal behind forex carry trades.
         cols["rate_diff"] = frame["rate_diff"].astype("float64").fillna(0.0) * 20.0
 
+    if "peg" in frame.attrs:
+        # Deviation of a pegged pair's price from its peg, a log price gap (data.pegs).
+        from softedge.data.pegs import peg_deviation
+
+        cols["peg_dev"] = peg_deviation(frame)
+
     if "signal" in frame.columns:
         cols["signal"] = frame["signal"].astype("float64")
 

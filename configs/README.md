@@ -92,6 +92,19 @@ funding priors are a causal average of recent funding, with gain -1.
 | `carry/hl_basis_wide_prior.yaml` | As `hl_basis_1d_prior_v2.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 | `carry/perp_spread_wide_prior.yaml` | As `perp_spread_1d_prior.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 
+## Pegs
+
+Spot pairs that should trade near a reference value. The stablecoin pairs (USDCUSDT, FDUSDUSDT,
+TUSDUSDT) have a peg of 1.0. The liquid-staking pairs (WBETHETH, BNSOLSOL) use the trailing 30-day
+median of their own price as the reference. The prior uses the deviation from that reference
+(`peg_dev`), with a negative gain, so it leans against a deviation. Hourly bars, normal spot fee,
+5% borrow rate. The files are in `pegs/`.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `pegs/pegs_1h.yaml` | Hourly spot pairs, walk-forward from 2024, no prior. The agent sees `peg_dev` as an input. | No |
+| `pegs/pegs_1h_prior.yaml` | As `pegs_1h.yaml` with the peg prior (gain -1000: a 10 bp deviation is a full unit). | No |
+
 ## Forex
 
 G10 pairs (seven dollar pairs) from 2000, and emerging-market dollar pairs.
