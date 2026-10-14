@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
 
     dsr = sub.add_parser("dsr", help="recompute deflated Sharpe ratios over all saved runs")
     dsr.add_argument("--runs", default="runs")
+    dsr.add_argument("--out", default=None, help="file to write (default: RUNS/dsr.md)")
 
     lb = sub.add_parser("leaderboard", help="rank every saved run by deflated Sharpe ratio")
     lb.add_argument("--runs", default="runs")
@@ -39,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sm = sub.add_parser("summary", help="SAC against the best baseline of every finished run")
     sm.add_argument("--runs", default="runs")
+    sm.add_argument("--out", default=None, help="file to write (default: RUNS/summary.md)")
 
     pbo = sub.add_parser("pbo", help="probability of backtest overfitting across a universe")
     pbo.add_argument("universe")
@@ -50,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         from softedge.eval.summary import run_summary
 
         text = to_markdown(run_summary(args.runs))
-        (__import__("pathlib").Path(args.runs) / "summary.md").write_text(text + "\n")
+        _write_report(args.out or Path(args.runs) / "summary.md", text)
         print(text)
         return 0
     if args.cmd == "pbo":
@@ -79,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         cols = ["run", "strategy", "sharpe", "psr", "n_trials", "sr0", "dsr", "min_trl_years",
                 "n_bars", "skew", "kurt"]
         text = to_markdown(table[cols])
-        (__import__("pathlib").Path(args.runs) / "dsr.md").write_text(text + "\n")
+        _write_report(args.out or Path(args.runs) / "dsr.md", text)
         print(text)
         return 0
     if args.cmd == "download":
@@ -99,6 +102,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result.get("summary", result.get("aggregate")), indent=2))
         return 0
     return 2
+
+
+def _write_report(path: str | Path, text: str) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text + "\n")
 
 
 if __name__ == "__main__":
