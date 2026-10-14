@@ -206,6 +206,50 @@ def test_guard_restores_after_a_non_finite_actor_weight():
     assert all(bool(torch.isfinite(p).all()) for p in agent.actor.parameters())
 
 
+def _poisoned_causal_update(poison) -> tuple[dict, TQCSAC]:
+    """Three updates where every one leaves ``poison(agent)`` behind; the losses stay finite."""
+    ts = TapeSet(_tapes(), WINDOW)
+    agent = _agent(ts.obs_dim)
+    _, info = online_rollout(ts, [agent], [1.0], every=10**9, steps=1, window=50,
+                             batch_size=32, relabel_frac=0.5)
+    snapshot = agent.state_dict()
+    real_update = agent.update
+
+    def poisoned(*args, **kwargs):
+        stats = real_update(*args, **kwargs)
+        with torch.no_grad():
+            poison(agent)
+        return stats
+
+    agent.update = poisoned
+    counts = causal_update(agent, info["replay"], ts, now=60,
+                           now_ns=int(ts.tapes[0].times[ts.first_row + 60]), reward_scale=1.0,
+                           window=50, steps=3, batch_size=32, relabel_frac=0.5,
+                           rng=np.random.default_rng(0), snapshot=snapshot)
+    return counts, agent
+
+
+def test_guard_restores_after_a_non_finite_critic_weight():
+    counts, agent = _poisoned_causal_update(lambda a: next(a.critic.parameters()).fill_(np.nan))
+    assert counts == {"updates": 3, "restores": 3}
+    assert all(bool(torch.isfinite(p).all()) for p in agent.critic.parameters())
+    assert np.isfinite(float(agent.log_alpha.detach()))
+
+
+def test_guard_restores_after_a_non_finite_log_alpha():
+    counts, agent = _poisoned_causal_update(lambda a: a.log_alpha.fill_(np.nan))
+    assert counts == {"updates": 3, "restores": 3}
+    assert np.isfinite(float(agent.log_alpha.detach()))
+    assert all(bool(torch.isfinite(p).all()) for p in agent.critic.parameters())
+
+
+def test_reward_scales_are_required_for_online_deployment():
+    ts = TapeSet(_tapes(), WINDOW)
+    with pytest.raises(ValueError, match="walk-forward"):
+        online.deploy_online([_agent(ts.obs_dim)], ts, None, [0], TrainConfig(online_every=10),
+                             0.0)
+
+
 def test_non_finite_exposure_restores_the_checkpoint(monkeypatch):
     ts = TapeSet(_tapes(), WINDOW)
     agent = _agent(ts.obs_dim)

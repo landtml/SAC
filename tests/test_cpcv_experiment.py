@@ -1,8 +1,10 @@
 import json
 
 import pandas as pd
+import pytest
 
-from softedge.cpcv_experiment import carve_validation
+from softedge import cpcv_experiment
+from softedge.cpcv_experiment import carve_validation, run_cpcv
 from softedge.experiment import run_experiment
 
 CFG = {
@@ -30,6 +32,16 @@ def test_carve_validation_leaves_purge_gap():
     assert wins[-1] == (t + d("40D"), t + d("71D"))
     _, none = carve_validation([(t, t + d("10D"))], d("7D"), d("2D"))
     assert none is None
+
+
+def test_cpcv_refuses_online_updates_before_any_training(tmp_path, monkeypatch):
+    def no_training(*args, **kwargs):
+        raise AssertionError("training started although online updates were requested")
+
+    monkeypatch.setattr(cpcv_experiment, "train", no_training)
+    cfg = {**CFG, "name": "cpcv_online", "train": {**CFG["train"], "online_every": 25}}
+    with pytest.raises(ValueError, match="online deployment updates are not supported under CPCV"):
+        run_cpcv(cfg, tmp_path)
 
 
 def test_cpcv_run_builds_paths_and_counts_trials(tmp_path):
