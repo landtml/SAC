@@ -98,6 +98,24 @@ interval includes zero, and **rejected** when the change scores below the base a
 
 The results page has no prediction-market results. The outcomes above come from the run records only.
 
+**2026-10-14, finished runs.** Each line gives the gated SAC Sharpe ratio, the buy-and-hold Sharpe ratio and,
+where the run reports one, the deflated Sharpe ratio (DSR). Figures are from each run's `result.json`.
+
+- `vrp_btc_eth_1d_plain`: SAC (gated) Sharpe -2.34, buy-and-hold 0.49, DSR 0.00. Verdict: failed.
+- `vrp_btc_eth_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: failed.
+- `vrp_spx_1d`: SAC (gated) Sharpe 4.80, buy-and-hold 1.59, DSR 0.00 under the current pooled-trial definition.
+  The paired gap interval runs from -0.93 to 4.35, so it includes zero. Verdict: no edge.
+- `vrp_spx_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: failed.
+- `fomc_1d_prior`: SAC Sharpe 0.14 against buy-and-hold 1.09. Verdict: failed.
+- `fomc_1d_vt`: SAC Sharpe 0.41 against buy-and-hold 1.09. Verdict: failed.
+- `delivery_basis_1d_prior`: SAC Sharpe 2.34 against buy-and-hold 2.57. Verdict: no edge.
+
+**Open item, trial pooling.** The DSR pools every SAC trial in a universe, including the prior-residual
+variant, which raises the benchmark Sharpe ratio that a run must beat. Excluding the prior family gives a
+DSR of 0.94 for `vrp_spx_1d` and 0.44 for `vrp_btc_eth_1d_plain`. `sac_banded` and `sac_gated` are identical
+in `vrp_spx_1d`, so that run counts them twice. The decision is pending. The published numbers use the
+existing definition. Buy-and-hold is a benchmark, not a trial, so its DSR is not a test.
+
 ## Agent and algorithm changes
 
 Each change is tested on the hidden-regime market unless the row says otherwise. The results page counts
@@ -178,6 +196,7 @@ These runs ended without a result. Their partial output is not an outcome.
   `crypto_basis_1d_prior_cpcv_restart_2347`, `crypto_basis_wide_prior_restart_0425`,
   `crypto_perp_1d_path_restart_2347`, `macro_1d_prior_restart_2347`, `perp_spread_wide_prior_restart_0425`.
   The result for each config is in the folder under its config name.
+- Not finished, no result file yet: `pegs_1h`, `pegs_1h_prior`, `delivery_basis_1d`.
 
 ## Ideas considered and not built
 
