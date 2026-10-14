@@ -44,6 +44,10 @@ All notable changes to this project are recorded here. The format follows
 
 - `softedge run` prints the aggregate of a CPCV run instead of failing on the missing
   walk-forward summary.
+- `softedge dsr` and the leaderboard annualise each run's Sharpe ratios with the run's own bars
+  per year, saved as `bars_per_year` in `result.json`. They had re-estimated it from the pooled
+  out-of-sample index, which misses the bars at fold boundaries, so recomputed Sharpe ratios
+  drifted low. Runs saved without the key use the old estimate and print a warning.
 
 ### Known limitations
 

@@ -176,7 +176,8 @@ def run_cpcv(cfg: dict, out_root: str | Path = "runs") -> dict:
     result = {
         "name": name, "mode": "cpcv", "minutes": round((time.time() - t0) / 60, 1),
         "n_splits": len(splits), "n_paths": n_paths(c["n_groups"], c["n_test"]),
-        "n_trials": n_trials, "pbo_strategy_choice": pbo, "splits": split_info,
+        "n_trials": n_trials, "bars_per_year": bpy, "pbo_strategy_choice": pbo,
+        "splits": split_info,
         "aggregate": json.loads(agg.set_index("strategy").to_json(orient="index")),
     }
     (out / "result.json").write_text(json.dumps(result, indent=2, default=str))

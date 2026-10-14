@@ -13,6 +13,7 @@ def _write_run(root, name, universe, series: dict[str, np.ndarray]):
     (d / "config.yaml").write_text(f"name: {name}\nuniverse: {universe}\n")
     index = pd.date_range("2021-01-01", periods=len(next(iter(series.values()))), freq="D")
     pd.DataFrame(series, index=index).to_csv(d / "pooled_returns.csv")
+    (d / "result.json").write_text(json.dumps({"bars_per_year": 365.0}))
     sr = {s: _per_bar_sharpe(pd.Series(v)) for s, v in series.items() if s.startswith("sac_")}
     with open(root / "trials.jsonl", "a") as f:
         f.write(json.dumps({"name": name, "universe": universe, "sac_sr_bar": sr}) + "\n")
