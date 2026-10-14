@@ -69,3 +69,10 @@ def test_panel_keeps_each_asset_history_without_filling(fred):
     assert np.isnan(panel.loc["2020-01-02", "NASDAQ"])
     assert panel.loc["2020-01-03", "NASDAQ"] == pytest.approx(101.0 / 100.0 - 1.0)
     assert costs["NASDAQ"] == 5.0
+
+
+def test_chf_and_cad_are_inverted_to_usd_terms(fred):
+    fred["DEXSZUS"] = _csv(["2020-01-01", "2020-01-02"], [0.9, 0.95])
+    fred["DEXCAUS"] = _csv(["2020-01-01", "2020-01-02"], [1.25, 1.2])
+    assert long_daily.asset_returns("CHF").iloc[0] == pytest.approx(0.9 / 0.95 - 1.0)
+    assert long_daily.asset_returns("CAD").iloc[0] == pytest.approx(1.25 / 1.2 - 1.0)

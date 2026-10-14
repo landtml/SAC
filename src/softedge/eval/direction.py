@@ -29,33 +29,38 @@ NW_LAGS = 5
 MIN_ASSETS = 30
 PASS_NW_T = 2.5
 PASS_DSR = 0.95
+Z_95 = float(stats.norm.ppf(0.975))
 
 
-def ex_ante_vol(returns: pd.DataFrame, window: int = VOL_WINDOW) -> pd.DataFrame:
+def ex_ante_vol(returns: pd.DataFrame, window: int = VOL_WINDOW,
+                bars_per_year: float = TRADING_DAYS) -> pd.DataFrame:
     """Trailing standard deviation over ``window`` days, annualised. NaN until a full window."""
-    return returns.rolling(window, min_periods=window).std(ddof=1) * np.sqrt(TRADING_DAYS)
+    return returns.rolling(window, min_periods=window).std(ddof=1) * np.sqrt(bars_per_year)
 
 
 def trailing_return(returns: pd.DataFrame, lookback: int) -> pd.DataFrame:
     """Compound return over the ``lookback`` days ending at t, NaN until the asset has that many returns.
 
-    A missing day adds no return, so the compound return covers the observed days only.
+    A missing day adds no return, so the compound return covers the observed days only. A day
+    with no print has no signal, so an asset that stops printing leaves the cross-section on
+    its first missing day.
     """
     growth = (1.0 + returns.fillna(0.0)).cumprod()
     past = growth / growth.shift(lookback) - 1.0
     observed = returns.notna().cumsum() > lookback
-    return past.where(observed)
+    return past.where(observed & returns.notna())
 
 
 def ts_momentum_weights(returns: pd.DataFrame, lookback: int, *,
-                        vol_window: int = VOL_WINDOW) -> pd.DataFrame:
+                        vol_window: int = VOL_WINDOW,
+                        bars_per_year: float = TRADING_DAYS) -> pd.DataFrame:
     """Time-series momentum: sign of the trailing return times a 10% vol target, capped at 2x.
 
     Each asset's exposure is ``sign * TARGET_VOL / ex-ante vol``. The weight is that exposure
     divided by the number of assets, so the panel holds equal risk per asset.
     """
     past = trailing_return(returns, lookback)
-    vol = ex_ante_vol(returns, vol_window)
+    vol = ex_ante_vol(returns, vol_window, bars_per_year)
     exposure = (np.sign(past) * TARGET_VOL / vol).clip(-MAX_EXPOSURE, MAX_EXPOSURE)
     return exposure.fillna(0.0) / returns.shape[1]
 
@@ -66,12 +71,21 @@ def combine_equal_weight(*weights: pd.DataFrame) -> pd.DataFrame:
     return stacked / len(weights)
 
 
+def hold_on_missing(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
+    """Keep each asset's previous weight on a day it has no return print.
+
+    A calendar gap, such as a holiday in one market, leaves that asset's position unchanged
+    and takes no new signal that day. Before the first print the weight is zero.
+    """
+    return weights.where(returns.notna()).ffill().fillna(0.0)
+
+
 def quintile_weights(signal: pd.DataFrame, *, min_assets: int = MIN_ASSETS) -> pd.DataFrame:
     """Dollar-neutral long-short on the top and bottom fifth of each day's cross-section.
 
     The top ``n // 5`` assets by ``signal`` get weight ``+1/k`` and the bottom ``k`` get
-    ``-1/k``, so each leg sums to one. A day with fewer than ``min_assets`` valid signals holds
-    no position. Ties resolve by column order.
+    ``-1/k``, so each leg sums to one. Assets with a missing signal are not ranked. A day with
+    fewer than ``min_assets`` valid signals holds no position. Ties resolve by column order.
     """
     values = signal.to_numpy(dtype=np.float64)
     out = np.zeros(values.shape)
@@ -135,10 +149,10 @@ def walk_forward_ridge(features: np.ndarray, target: pd.DataFrame | np.ndarray,
                        alpha: float = RIDGE_ALPHA) -> pd.DataFrame:
     """Expanding-window ridge predictions, refitted yearly after the burn-in.
 
-    Training at row ``d`` uses rows ``s < d``. The target at row ``s`` is the return of day
-    ``s + 1``, so every training target is known at the close of day ``d``. The intercept and
-    feature means come from the training rows and are not penalised. Rows before the first
-    refit are NaN.
+    A refit on day ``d`` trains on rows ``s`` whose target was realised before ``d``. The target
+    at row ``s`` is the return of day ``s + 1``, so the training rows are ``s <= d - 2``, which
+    is the slice ``[:d - 1]``. The intercept and feature means come from the training rows and
+    are not penalised. Rows before the first refit are NaN.
     """
     columns = target.columns if isinstance(target, pd.DataFrame) else None
     y_all = target.to_numpy(dtype=np.float64) if isinstance(target, pd.DataFrame) else target
@@ -147,8 +161,8 @@ def walk_forward_ridge(features: np.ndarray, target: pd.DataFrame | np.ndarray,
     refits = refit_positions(dates, burn_in_years)
     for j, d in enumerate(refits):
         end = refits[j + 1] if j + 1 < len(refits) else t_len
-        x_tr = features[:d].reshape(-1, n_feat)
-        y_tr = y_all[:d].reshape(-1)
+        x_tr = features[: d - 1].reshape(-1, n_feat)
+        y_tr = y_all[: d - 1].reshape(-1)
         ok = np.isfinite(x_tr).all(axis=1) & np.isfinite(y_tr)
         x_tr, y_tr = x_tr[ok], y_tr[ok]
         if y_tr.size <= n_feat:
@@ -161,14 +175,15 @@ def walk_forward_ridge(features: np.ndarray, target: pd.DataFrame | np.ndarray,
     return pd.DataFrame(pred, index=dates, columns=columns)
 
 
-def ridge_time_series_weights(returns: pd.DataFrame) -> pd.DataFrame:
+def ridge_time_series_weights(returns: pd.DataFrame, *,
+                              bars_per_year: float = TRADING_DAYS) -> pd.DataFrame:
     """H3a: ridge on vol-scaled next-day returns, sized by its prediction relative to its trailing std."""
     features = ridge_features(returns)
     target = vol_scaled_next_return(returns)
     pred = walk_forward_ridge(features, target, returns.index)
     scale = pred.expanding(min_periods=ZSCORE_MIN_PERIODS).std(ddof=1)
     signal = (pred / scale).clip(-MAX_EXPOSURE, MAX_EXPOSURE)
-    vol = ex_ante_vol(returns)
+    vol = ex_ante_vol(returns, bars_per_year=bars_per_year)
     exposure = (signal * TARGET_VOL / vol).fillna(0.0)
     return exposure / returns.shape[1]
 
@@ -226,43 +241,94 @@ def min_detectable_sharpe(n_days: int, *, bars_per_year: float = TRADING_DAYS,
     return float((stats.norm.ppf(1.0 - alpha / 2.0) + stats.norm.ppf(power)) / np.sqrt(years))
 
 
-def deflated_sharpe(returns, n_trials: int = N_TRIALS) -> float:
-    """Deflated Sharpe ratio from ``softedge.eval.stats`` with the null cross-trial variance."""
-    r = np.asarray(returns, dtype=np.float64)
-    return float(deflated_sharpe_ratio(r, n_trials, null_sr_variance(r.size)))
+def wilson_interval(successes: int, trials: int, z: float = Z_95) -> tuple[float, float]:
+    """Wilson score interval for a proportion. Used for the share of null panels that pass."""
+    if trials <= 0:
+        raise ValueError("trials must be positive")
+    p = successes / trials
+    denom = 1.0 + z * z / trials
+    centre = (p + z * z / (2.0 * trials)) / denom
+    half = z * np.sqrt(p * (1.0 - p) / trials + z * z / (4.0 * trials * trials)) / denom
+    lo = 0.0 if successes == 0 else max(0.0, float(centre - half))
+    hi = 1.0 if successes == trials else min(1.0, float(centre + half))
+    return lo, hi
 
 
-def evaluate(weights: pd.DataFrame, returns: pd.DataFrame, cost_bp: pd.Series, *,
-             delay: int = 0, n_trials: int = N_TRIALS) -> dict:
-    """Net-of-cost statistics over the sample from the first day a position earns.
+def observed_sr_variance(annual_sharpes, bars_per_year: float = TRADING_DAYS) -> float:
+    """Variance of per-bar Sharpe ratios across trials, from their annualised values."""
+    s = np.asarray(annual_sharpes, dtype=np.float64)
+    s = s[np.isfinite(s)]
+    if s.size < 2:
+        return float("nan")
+    return float(np.var(s, ddof=1) / bars_per_year)
 
-    Keys: ``sharpe`` (annualised), ``nw_t``, ``dsr``, ``sharpe_first_half``,
-    ``sharpe_second_half``, ``n_days``, ``min_detectable_sharpe``, ``start`` and ``passes``.
-    ``passes`` is True when NW t > 2.5, DSR > 0.95 and the Sharpe is positive in both halves.
+
+def deflated_sharpe(returns, n_trials: int = N_TRIALS, sr_variance: float | None = None) -> float:
+    """Deflated Sharpe ratio from ``softedge.eval.stats``.
+
+    ``sr_variance`` is the cross-trial variance of per-bar Sharpe ratios. It is floored at the
+    null variance, as in the repo's ``dsr_summary``. ``None`` uses the floor alone.
     """
+    r = np.asarray(returns, dtype=np.float64)
+    floor = null_sr_variance(r.size)
+    var = floor if sr_variance is None else max(float(sr_variance), floor)
+    return float(deflated_sharpe_ratio(r, n_trials, var))
+
+
+def pass_rule(*, nw_t: float, dsr: float, sharpe_first_half: float,
+              sharpe_second_half: float) -> bool:
+    """Registered pass rule: NW t above 2.5, DSR above 0.95, and Sharpe positive in both halves."""
+    return bool(nw_t > PASS_NW_T and dsr > PASS_DSR
+                and sharpe_first_half > 0.0 and sharpe_second_half > 0.0)
+
+
+def trial_returns(weights: pd.DataFrame, returns: pd.DataFrame, cost_bp: pd.Series, *,
+                  delay: int = 0) -> pd.Series:
+    """Net daily returns from the first day a position earns, to the end of the panel."""
     net = portfolio_returns(weights, returns, cost_bp, delay=delay)
     held = weights.shift(delay).fillna(0.0).shift(1).fillna(0.0)
     earning = (held != 0.0).any(axis=1)
     if not earning.any():
-        return {"sharpe": float("nan"), "nw_t": float("nan"), "dsr": float("nan"),
-                "sharpe_first_half": float("nan"), "sharpe_second_half": float("nan"),
-                "n_days": 0, "min_detectable_sharpe": float("nan"), "start": None,
-                "passes": False}
-    start = earning.idxmax()
-    r = net.loc[start:].to_numpy(dtype=np.float64)
+        return net.iloc[0:0]
+    return net.loc[earning.idxmax():]
+
+
+def summarize(net: pd.Series, *, n_trials: int = N_TRIALS,
+              bars_per_year: float = TRADING_DAYS) -> dict:
+    """Statistics for one net return series.
+
+    Keys: ``sharpe`` (annualised), ``nw_t``, ``dsr`` (registered: repo function at ``n_trials``
+    with the null variance), ``sharpe_first_half``, ``sharpe_second_half``, ``n_days``,
+    ``min_detectable_sharpe``, ``start`` and ``passes``.
+    """
+    r = net.to_numpy(dtype=np.float64)
+    if r.size == 0:
+        nan = float("nan")
+        return {"sharpe": nan, "nw_t": nan, "dsr": nan, "sharpe_first_half": nan,
+                "sharpe_second_half": nan, "n_days": 0, "min_detectable_sharpe": nan,
+                "start": None, "passes": False}
     half = r.size // 2
-    sr_all = float(sharpe(r, TRADING_DAYS))
-    sr1 = float(sharpe(r[:half], TRADING_DAYS))
-    sr2 = float(sharpe(r[half:], TRADING_DAYS))
+    sr_all = float(sharpe(r, bars_per_year))
+    sr1 = float(sharpe(r[:half], bars_per_year))
+    sr2 = float(sharpe(r[half:], bars_per_year))
     nw = newey_west_t(r)
-    dsr = float(deflated_sharpe_ratio(r, n_trials, null_sr_variance(r.size)))
-    passes = bool(nw > PASS_NW_T and dsr > PASS_DSR and sr1 > 0.0 and sr2 > 0.0)
+    dsr = deflated_sharpe(r, n_trials)
     return {
         "sharpe": sr_all, "nw_t": nw, "dsr": dsr,
         "sharpe_first_half": sr1, "sharpe_second_half": sr2,
-        "n_days": int(r.size), "min_detectable_sharpe": min_detectable_sharpe(r.size),
-        "start": str(start.date()), "passes": passes,
+        "n_days": int(r.size),
+        "min_detectable_sharpe": min_detectable_sharpe(r.size, bars_per_year=bars_per_year),
+        "start": str(net.index[0].date()),
+        "passes": pass_rule(nw_t=nw, dsr=dsr, sharpe_first_half=sr1, sharpe_second_half=sr2),
     }
+
+
+def evaluate(weights: pd.DataFrame, returns: pd.DataFrame, cost_bp: pd.Series, *,
+             delay: int = 0, n_trials: int = N_TRIALS,
+             bars_per_year: float = TRADING_DAYS) -> dict:
+    """``summarize`` of the net returns that ``weights`` earn on ``returns``."""
+    net = trial_returns(weights, returns, cost_bp, delay=delay)
+    return summarize(net, n_trials=n_trials, bars_per_year=bars_per_year)
 
 
 def null_random_walk_panels(returns: pd.DataFrame, n_panels: int = 5,
@@ -278,15 +344,23 @@ def null_random_walk_panels(returns: pd.DataFrame, n_panels: int = 5,
     return panels
 
 
-HYPOTHESES: dict[str, Callable[[pd.DataFrame], pd.DataFrame]] = {
-    "H1a": lambda r: ts_momentum_weights(r, 21),
-    "H1b": lambda r: ts_momentum_weights(r, 63),
-    "H1c": lambda r: ts_momentum_weights(r, 252),
-    "H1d": lambda r: combine_equal_weight(
-        ts_momentum_weights(r, 21), ts_momentum_weights(r, 63), ts_momentum_weights(r, 252)),
-    "H2a": lambda r: quintile_weights(-r, min_assets=MIN_ASSETS),
-    "H2b": lambda r: quintile_weights(trailing_return(r, 7), min_assets=MIN_ASSETS),
-    "H2c": lambda r: quintile_weights(trailing_return(r, 28), min_assets=MIN_ASSETS),
-    "H3a": ridge_time_series_weights,
-    "H3b": ridge_cross_section_weights,
+HYPOTHESES: dict[str, Callable[..., pd.DataFrame]] = {
+    "H1a": lambda r, bars_per_year=TRADING_DAYS: ts_momentum_weights(
+        r, 21, bars_per_year=bars_per_year),
+    "H1b": lambda r, bars_per_year=TRADING_DAYS: ts_momentum_weights(
+        r, 63, bars_per_year=bars_per_year),
+    "H1c": lambda r, bars_per_year=TRADING_DAYS: ts_momentum_weights(
+        r, 252, bars_per_year=bars_per_year),
+    "H1d": lambda r, bars_per_year=TRADING_DAYS: combine_equal_weight(
+        ts_momentum_weights(r, 21, bars_per_year=bars_per_year),
+        ts_momentum_weights(r, 63, bars_per_year=bars_per_year),
+        ts_momentum_weights(r, 252, bars_per_year=bars_per_year)),
+    "H2a": lambda r, bars_per_year=TRADING_DAYS: quintile_weights(-r, min_assets=MIN_ASSETS),
+    "H2b": lambda r, bars_per_year=TRADING_DAYS: quintile_weights(
+        trailing_return(r, 7), min_assets=MIN_ASSETS),
+    "H2c": lambda r, bars_per_year=TRADING_DAYS: quintile_weights(
+        trailing_return(r, 28), min_assets=MIN_ASSETS),
+    "H3a": lambda r, bars_per_year=TRADING_DAYS: ridge_time_series_weights(
+        r, bars_per_year=bars_per_year),
+    "H3b": lambda r, bars_per_year=TRADING_DAYS: ridge_cross_section_weights(r),
 }

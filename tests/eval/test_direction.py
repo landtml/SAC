@@ -195,3 +195,176 @@ def test_ridge_closed_form_recovers_a_linear_rule():
     y = f[:, 0, 0] * 0.5 - f[:, 0, 1] * 0.25
     pred = d.walk_forward_ridge(f, y[:, None], _dates(3000), burn_in_years=5, alpha=1e-6)
     assert np.allclose(pred.iloc[-1000:, 0].to_numpy(), y[-1000:], atol=1e-3)
+
+
+def test_ridge_prefix_is_unchanged_at_a_refit_row():
+    # Refit rows for this 3300-day calendar are 2610, 2870 and 3130. A cut on 3130 makes the
+    # refit on that day the one that would see a leaked target if the training slice were too long.
+    _assert_same_on_prefix(d.HYPOTHESES["H3a"], rng_seed=4, cut=3130)
+
+
+def test_ridge_refit_excludes_the_target_realised_on_the_refit_day():
+    rng = np.random.default_rng(12)
+    dates = _dates(3300)
+    features = rng.normal(size=(3300, 10, 3))
+    target = rng.normal(size=(3300, 10))
+    refit = d.refit_positions(dates)[-1]
+    assert refit == 3130
+    base = d.walk_forward_ridge(features, target, dates)
+    # The target at row refit - 1 is the return realised on the refit day. A refit on that day
+    # must not train on it, so predictions from the refit onward cannot move.
+    moved_target = target.copy()
+    moved_target[refit - 1] += 10.0
+    moved = d.walk_forward_ridge(features, moved_target, dates)
+    np.testing.assert_allclose(base.iloc[refit:].to_numpy(), moved.iloc[refit:].to_numpy(),
+                               rtol=0, atol=0)
+
+
+def test_delisted_asset_has_zero_weight_from_first_missing_day_and_pays_exit_cost():
+    rng = np.random.default_rng(3)
+    returns = rng.normal(0.0005, 0.01, (400, 40))
+    returns[290:298, 0] = -0.12
+    returns[300:, 0] = np.nan
+    panel = _frame(returns)
+    weights = d.HYPOTHESES["H2b"](panel)
+    assert weights["A0"].iloc[299] < 0.0
+    assert (weights["A0"].iloc[300:] == 0.0).all()
+    cost = pd.Series(5.0, index=panel.columns)
+    dear_cost = cost.copy()
+    dear_cost["A0"] = 105.0
+    cheap = d.portfolio_returns(weights, panel, cost)
+    dear = d.portfolio_returns(weights, panel, dear_cost)
+    # The exit trade at t=300 moves A0 from its weight on day 299 to zero. Its cost is charged
+    # on day 301, and only A0's cost changed between the two runs.
+    exit_turnover = abs(weights["A0"].iloc[300] - weights["A0"].iloc[299])
+    assert (cheap - dear).iloc[301] == pytest.approx(exit_turnover * 100.0 / 1e4)
+    assert exit_turnover > 0.0
+
+
+def test_missing_print_keeps_the_previous_weight_for_that_asset():
+    weights = _frame(np.arange(16, dtype=np.float64).reshape(8, 2) / 10.0, cols=["A", "B"])
+    returns = _frame(np.full((8, 2), 0.01), cols=["A", "B"])
+    returns.iloc[5, 0] = np.nan
+    held = d.hold_on_missing(weights, returns)
+    assert held.iloc[5, 0] == weights.iloc[4, 0]
+    assert held.iloc[5, 1] == weights.iloc[5, 1]
+    assert held.iloc[6, 0] == weights.iloc[6, 0]
+
+
+def test_quintile_excludes_nan_signals_rather_than_ranking_them_as_zero():
+    row = np.array([np.nan, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+    w = d.quintile_weights(_frame(row[None, :]), min_assets=5).iloc[0].to_numpy()
+    assert w[0] == 0.0
+    assert w[9] == pytest.approx(1.0)
+    assert w[1] == pytest.approx(-1.0)
+
+
+def test_h2a_goes_long_the_worst_performer_of_the_day():
+    returns = np.linspace(-0.10, 0.10, 30)
+    w = d.HYPOTHESES["H2a"](_frame(returns[None, :])).iloc[0].to_numpy()
+    assert w[0] > 0.0
+    assert w[29] < 0.0
+
+
+def test_target_is_the_next_day_return_scaled_by_daily_vol():
+    rng = np.random.default_rng(14)
+    returns = _frame(rng.normal(0.0, 0.01, (40, 3)))
+    target = d.vol_scaled_next_return(returns, window=5)
+    daily_vol = returns.rolling(5, min_periods=5).std(ddof=1)
+    assert target.iloc[10, 1] == pytest.approx(returns.iloc[11, 1] / daily_vol.iloc[10, 1])
+
+
+def test_next_day_rank_is_the_next_day_cross_sectional_rank():
+    returns = _frame([[0.9, 0.1, 0.5, 0.2], [0.0, 0.0, 0.0, 0.0],
+                      [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0],
+                      [0.1, 0.4, 0.2, 0.3]], cols=["A", "B", "C", "D"])
+    rank = d.next_day_rank(returns)
+    np.testing.assert_allclose(rank.iloc[3].to_numpy(), [-0.25, 0.5, 0.0, 0.25])
+
+
+def test_pass_rule_needs_nw_above_2_5_dsr_above_0_95_and_both_halves_positive():
+    assert d.pass_rule(nw_t=3.0, dsr=0.97, sharpe_first_half=0.4, sharpe_second_half=0.6)
+    assert not d.pass_rule(nw_t=3.0, dsr=0.97, sharpe_first_half=-0.5, sharpe_second_half=2.0)
+    assert not d.pass_rule(nw_t=2.2, dsr=0.97, sharpe_first_half=0.4, sharpe_second_half=0.6)
+    assert not d.pass_rule(nw_t=2.5, dsr=0.97, sharpe_first_half=0.4, sharpe_second_half=0.6)
+    assert not d.pass_rule(nw_t=3.0, dsr=0.90, sharpe_first_half=0.4, sharpe_second_half=0.6)
+
+
+def test_wilson_interval_matches_hand_calculation():
+    # 5 of 100 with z = 1.959964: centre (0.05 + z^2 / 200) / (1 + z^2 / 100) = 0.066647,
+    # half-width z * sqrt(0.05 * 0.95 / 100 + z^2 / 40000) / (1 + z^2 / 100) = 0.045103.
+    lo, hi = d.wilson_interval(5, 100)
+    assert lo == pytest.approx(0.021544, abs=1e-5)
+    assert hi == pytest.approx(0.111750, abs=1e-5)
+
+
+def test_annualisation_is_a_parameter():
+    rng = np.random.default_rng(15)
+    panel = _frame(rng.normal(0.0005, 0.01, (1200, 6)))
+    cost = pd.Series(5.0, index=panel.columns)
+    weights = d.HYPOTHESES["H1b"](panel)
+    a = d.evaluate(weights, panel, cost, bars_per_year=252)
+    b = d.evaluate(weights, panel, cost, bars_per_year=365)
+    assert b["sharpe"] == pytest.approx(a["sharpe"] * np.sqrt(365 / 252))
+    assert d.min_detectable_sharpe(2520, bars_per_year=365) == pytest.approx(
+        d.min_detectable_sharpe(2520) * np.sqrt(365 / 252))
+
+
+def test_deflated_sensitivity_uses_the_observed_trial_variance():
+    sharpes = np.array([0.1, 0.4, -0.2, 0.3, 0.5, 0.0, -0.1, 0.2, 0.6, 0.25, 0.35])
+    per_bar_var = np.var(sharpes, ddof=1) / 252
+    r = np.random.default_rng(16).normal(0.02, 1.0, 5000)
+    expected = deflated_sharpe_ratio(r, 11, max(per_bar_var, null_sr_variance(r.size)))
+    assert d.deflated_sharpe(r, 11, sr_variance=per_bar_var) == pytest.approx(expected)
+
+
+def _study_script():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "scripts" / "direction_study.py"
+    spec = importlib.util.spec_from_file_location("direction_study", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_runner_delay_check_applies_a_one_day_delay():
+    study = _study_script()
+    panel = _planted_momentum(seed=7, n_days=2000, n_assets=6)
+    costs = pd.Series(5.0, index=panel.columns)
+    result = study.run(panel, costs, ["H1b"], n_null=1, seed=0, panel_name="csv")
+    row = result["hypotheses"]["H1b"]
+    delayed = d.evaluate(d.HYPOTHESES["H1b"](panel), panel, costs, delay=1)
+    assert row["delay_1"]["sharpe"] == pytest.approx(delayed["sharpe"])
+    assert row["delay_1"]["sharpe"] != pytest.approx(row["sharpe"])
+
+
+def test_runner_default_null_panels_is_100_and_reports_a_95_percent_interval():
+    study = _study_script()
+    assert study.build_parser().parse_args(["--out", "x"]).n_null == 100
+    panel = _planted_momentum(seed=7, n_days=600, n_assets=4)
+    costs = pd.Series(5.0, index=panel.columns)
+    row = study.run(panel, costs, ["H1a"], n_null=3, seed=0, panel_name="csv")["hypotheses"]["H1a"]
+    lo, hi = row["null"]["pass_share_ci95"]
+    assert row["null"]["pass_count"] == round(row["null"]["pass_share"] * 3)
+    assert lo <= row["null"]["pass_share"] <= hi
+
+
+def test_runner_reports_dsr_sensitivity_from_observed_trial_variance():
+    study = _study_script()
+    panel = _planted_momentum(seed=8, n_days=800, n_assets=6)
+    costs = pd.Series(5.0, index=panel.columns)
+    result = study.run(panel, costs, ["H1a", "H1b", "H1c"], n_null=1, seed=0,
+                       panel_name="csv")
+    assert result["observed_trial_sr_variance"] > 0.0
+    for row in result["hypotheses"].values():
+        assert np.isfinite(row["dsr_sensitivity"])
+    row = result["hypotheses"]["H1b"]
+    assert row["dsr_sensitivity"] != pytest.approx(row["dsr"], abs=1e-9)
+
+
+def test_crypto_panel_names_the_loader_it_waits_for():
+    study = _study_script()
+    with pytest.raises(NotImplementedError, match="load_crypto_xs"):
+        study.main(["--out", "unused", "--panel", "crypto"])
