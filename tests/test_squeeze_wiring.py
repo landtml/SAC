@@ -69,7 +69,23 @@ def test_gated_config_differs_from_the_funding_prior_only_in_the_gate():
         return cfg
 
     assert without(gated) == without(base)
-    assert without(base) == without(prior)
+    # The baseline is the prior config with the same shorter history, so only the start differs there.
+    def without_start(cfg: dict) -> dict:
+        cfg = without(cfg)
+        cfg["data"] = {k: v for k, v in cfg["data"].items() if k != "start"}
+        return cfg
+
+    assert without_start(base) == without_start(prior)
+
+
+def test_both_configs_start_at_the_open_interest_archive():
+    # The gate needs 7 days of growth and 180 days of growth history inside the frame, so the
+    # first computable day is 2022-07-06 for a frame that starts 2022-01-01 and 2023-01-03 for
+    # one that starts 2022-07-01. Both configs start in 2022-01 so they trade the same days.
+    gated = _load("crypto_basis_1d_squeeze_gate.yaml")
+    base = _load("crypto_basis_1d_squeeze_base.yaml")
+    assert gated["data"]["start"] == "2022-01"
+    assert base["data"]["start"] == "2022-01"
 
 
 def test_daily_resample_keeps_the_23_55_snapshot_of_each_day(monkeypatch):

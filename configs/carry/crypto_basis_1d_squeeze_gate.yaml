@@ -1,6 +1,6 @@
 name: crypto_basis_1d_squeeze_gate
 universe: crypto_basis
-data: {end: 2026-09, resample: 1D, start: 2020-01, open_interest: true}
+data: {end: 2026-09, resample: 1D, start: 2022-01, open_interest: true}
 costs: {fee_bps: 10.0, half_spread_bps: 1.0, maint_margin: 0.05, max_leverage: 1.0, borrow_apr: 0.05}
 walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2023-01-01', fold_steps: 15000, test: 365D,
   val: 180D, warm_start: true}

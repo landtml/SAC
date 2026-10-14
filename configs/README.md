@@ -93,8 +93,8 @@ funding priors are a causal average of recent funding, with gain -1.
 | `carry/perp_spread_wide_prior.yaml` | As `perp_spread_1d_prior.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 | `carry/delivery_basis_1d.yaml` | Quarterly futures on Binance (dated contracts that expire and settle to spot): long spot, short the front quarterly, rolled 7 days before expiry. BTC and ETH, daily, walk-forward from 2023, no prior. | No |
 | `carry/delivery_basis_1d_prior.yaml` | As `delivery_basis_1d.yaml` with the annualized basis as the prior (`basis_ann`, gain 10, so a 10% annual basis maps to 1.0). | No |
-| `carry/crypto_basis_1d_squeeze_gate.yaml` | As `crypto_basis_1d_prior_v2.yaml` with the funding prior multiplied by an open-interest squeeze gate (`funding_ewm_gated`). The gate is 0 while the seven-day growth in Binance USD open interest is above the 80th percentile of the trailing 180 days. Open interest is read from the daily metrics archive from 2022-01, so the gate is 0 until about 2022-07. | No |
-| `carry/crypto_basis_1d_squeeze_base.yaml` | Ungated baseline for the squeeze gate: identical to `crypto_basis_1d_prior_v2.yaml` except for the name. | No |
+| `carry/crypto_basis_1d_squeeze_gate.yaml` | As `crypto_basis_1d_prior_v2.yaml` with the funding prior multiplied by an open-interest squeeze gate (`funding_ewm_gated`). The gate is 0 while the seven-day growth in Binance USD open interest is above the 80th percentile of the trailing 180 days. Open interest comes from the daily metrics archive, which starts in 2022-01, so the history starts 2022-01 (not 2020-01 as in `prior_v2`). The gate first computes on 2022-07-06 and is 0 before that, so the gated prior is zero through the first walk-forward training window. | No |
+| `carry/crypto_basis_1d_squeeze_base.yaml` | Ungated baseline for the squeeze gate: identical to `crypto_basis_1d_prior_v2.yaml` except for the name and the start, which is 2022-01 to match the gated config (`prior_v2` starts 2020-01). | No |
 
 ## Pegs
 
