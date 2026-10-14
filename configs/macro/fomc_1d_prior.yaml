@@ -2,6 +2,9 @@ name: fomc_1d_prior
 universe: macro_fomc
 symbols: [SPX, NDX, NKY]
 data: {end: 2026-09, resample: 1D, start: 2000-01}
+# Costs: borrow_apr 0 and max_leverage 4 on the index legs, as in macro_1d_*.yaml. The tape
+# charges borrow on spot shorts only and no financing on leveraged longs, and the spot legs ignore
+# futures roll. Both legs are therefore free, and absolute and short-leg results are optimistic.
 costs: {fee_bps: 1.0, half_spread_bps: 0.5, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0}
 walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2012-01-01', fold_steps: 15000, test: 730D,
   val: 365D, warm_start: true}
