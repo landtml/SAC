@@ -104,3 +104,13 @@ def test_basis_of_legs_cached_under_the_old_project_key(tmp_path, monkeypatch):
     (basis,) = load_frames("crypto_basis", "2024-01", "2024-02", symbols=["BTCUSDT"])
     assert basis.attrs["symbol"] == "BTCUSDT-BASIS"
     assert resample_frame(basis, "1D").attrs["bar"] == "1D"
+
+
+def test_cli_download_accepts_vrp(monkeypatch):
+    from softedge import pipeline
+    from softedge.cli import main
+
+    seen = []
+    monkeypatch.setattr(pipeline, "load_frames", lambda universe, *a, **k: seen.append(universe) or [])
+    assert main(["download", "vrp"]) == 0
+    assert seen == ["vrp"]

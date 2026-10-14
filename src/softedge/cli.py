@@ -14,7 +14,7 @@ def main(argv: list[str] | None = None) -> int:
 
     dl = sub.add_parser("download", help="fill the data cache for a universe")
     dl.add_argument("universe", choices=["crypto_perp", "crypto_spot", "crypto_basis", "fx", "macro",
-                                         "polymarket", "kalshi"])
+                                         "polymarket", "kalshi", "vrp"])
     dl.add_argument("--start", default="2020-01")
     dl.add_argument("--end", default="2026-09")
     dl.add_argument("--symbols", nargs="*")
