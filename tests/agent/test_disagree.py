@@ -11,6 +11,7 @@ from softedge.agent.disagree import (
     deployed_action,
     disagree_shrink_on,
     ensemble_stats,
+    exposure_matched_policy,
     shrink_multiplier,
     validation_tau,
 )
@@ -37,10 +38,10 @@ class _Fixed:
         return self.actions[: len(obs)].reshape(-1, 1)
 
 
-def _tapes():
-    spot = gbm(400, sigma=0.01, seed=1, symbol="S")
-    perp = with_funding(gbm(400, sigma=0.01, seed=2, symbol="P"), seed=3)
-    binary = binary_market(120, seed=4, symbol="B")
+def _tapes(shift=0):
+    spot = gbm(400, sigma=0.01, seed=1 + shift, symbol="S")
+    perp = with_funding(gbm(400, sigma=0.01, seed=2 + shift, symbol="P"), seed=3 + shift)
+    binary = binary_market(120, seed=4 + shift, symbol="B")
     return [build_tape(f, compute_features(f, FEATS)) for f in (spot, perp, binary)]
 
 
@@ -134,6 +135,17 @@ def test_tau_is_the_median_disagreement_over_validation_bars():
     assert validation_tau(agents, ts) == pytest.approx(np.median(np.concatenate(seen)))
 
 
+def test_matched_control_holds_the_shrink_mean_multiplier_over_validation():
+    ts = TapeSet(_tapes(), window=4)
+    agents = _agents(ts.obs_dim)
+    tau = validation_tau(agents, ts)
+    shrink = ShrinkPolicy(agents, tau=tau)
+    rollout(ts, shrink)
+    matched = exposure_matched_policy(agents, ts, tau)
+    assert matched.tau is None
+    assert matched.const == pytest.approx(shrink.mean_multiplier)
+
+
 def test_multiplier_at_bar_t_ignores_bars_after_t():
     ts = TapeSet(_tapes(), window=4)
     agents = _agents(ts.obs_dim)
@@ -199,6 +211,17 @@ def test_switch_on_adds_the_shrunk_run_and_the_matched_control():
     assert np.all(np.isfinite(shrunk))
     with pytest.raises(ValueError, match="two seeds"):
         _test_runs({**cfg, "deploy": {"disagree_shrink": 1.0}}, agents[:1], [0], parts, 4, names)
+
+
+def test_matched_constant_ignores_test_fold_tapes():
+    cfg, parts, names = _test_runs_inputs()
+    cfg = {**cfg, "deploy": {"disagree_shrink": 1.0}}
+    agents = _agents(TapeSet(parts["test"], window=4, feature_names=names).obs_dim, seeds=(0, 1))
+    _, a = _test_runs(cfg, agents, [0, 1], {**parts, "test": _tapes(10)}, 4, names)
+    _, b = _test_runs(cfg, agents, [0, 1], {**parts, "test": _tapes(20)}, 4, names)
+    # The test-fold multiplier moves with the test tapes, so the check is not vacuous.
+    assert a["disagree"]["test_mean_multiplier"] != pytest.approx(b["disagree"]["test_mean_multiplier"])
+    assert a["disagree"]["matched_const"] == b["disagree"]["matched_const"]
 
 
 def test_bench_switch_configs_differ_only_in_the_switch():

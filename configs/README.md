@@ -244,7 +244,8 @@ The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on
 test fold adds two runs, `sac_disagree_shrink` and `sac_exposure_matched`, and both count as trials.
 The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is the
 spread of the members' residuals and tau is the median spread over validation bars. The control
-holds the multiplier constant at its mean over the test fold. Both new runs use no no-trade band,
+holds the multiplier constant at its mean over the validation bars, on the same path that sets tau,
+so no test-fold bar sets it. Both new runs use no no-trade band,
 as does `sac_ensemble`. The file pair needs at least two seeds.
 
 | File | What it tests | Results |

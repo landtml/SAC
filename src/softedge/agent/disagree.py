@@ -65,6 +65,16 @@ def validation_tau(agents: list, val_ts) -> float:
     return tau
 
 
+def exposure_matched_policy(agents: list, val_ts, tau: float) -> ShrinkPolicy:
+    """Control that holds the multiplier at its mean over the validation bars.
+
+    The constant comes from the shrink's own path on validation, so no test-fold bar enters it.
+    """
+    shrink = ShrinkPolicy(agents, tau=tau)
+    rollout(val_ts, shrink)
+    return ShrinkPolicy(agents, const=shrink.mean_multiplier)
+
+
 class ShrinkPolicy:
     """Rollout policy for the deployed residual. Records the mean multiplier over all calls."""
 

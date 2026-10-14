@@ -21,7 +21,12 @@ import pandas as pd
 import torch
 import yaml
 
-from softedge.agent.disagree import ShrinkPolicy, disagree_shrink_on, validation_tau
+from softedge.agent.disagree import (
+    ShrinkPolicy,
+    disagree_shrink_on,
+    exposure_matched_policy,
+    validation_tau,
+)
 from softedge.agent.factory import agent_from_state
 from softedge.agent.sac import TQCSAC, SACConfig
 from softedge.env.vec_env import EnvConfig, TapeSet, rollout
@@ -165,6 +170,7 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
     val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    disagree: dict = {}
     if disagree_shrink_on(cfg.get("deploy", {})):
         # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.
         if len(agents) < 2:
@@ -172,8 +178,11 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         tau = validation_tau(agents, val_ts)
         shrunk = ShrinkPolicy(agents, tau=tau)
         runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
-        matched = ShrinkPolicy(agents, const=shrunk.mean_multiplier)
+        matched = exposure_matched_policy(agents, val_ts, tau)
         runs["sac_exposure_matched"] = rollout(test_ts, matched)
+        # The matched constant is fixed on validation; the test-fold mean is a diagnostic only.
+        disagree = {"tau": tau, "matched_const": matched.const,
+                    "test_mean_multiplier": shrunk.mean_multiplier}
     band, band_scores = choose_band(policy, val_ts)
     runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
@@ -210,9 +219,12 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]
-    return runs, {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
-                  "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
-                  "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    info = {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
+            "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
+            "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    if disagree:
+        info["disagree"] = disagree
+    return runs, info
 
 
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
