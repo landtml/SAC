@@ -84,7 +84,8 @@ def test_microsecond_rows_load_alongside_millisecond_rows(monkeypatch, tmp_path)
         f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": fixture_zip("spot_klines_2024-01.csv"),
         f"{SPOT_1H}/BTCUSDT-1h-2025-01.zip": fixture_zip("spot_klines_2025-01.csv"),
     })
-    df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2025-01")
+    with pytest.warns(UserWarning, match="gap"):  # the year between the two fixtures is missing
+        df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2025-01")
     assert list(df.index) == [
         pd.Timestamp(t, tz="UTC") for t in (
             "2024-01-01T00:00", "2024-01-01T01:00", "2024-01-01T02:00",
@@ -166,3 +167,58 @@ def test_live_btcusdt_perp_january_2024():
     per_day = funded.groupby(funded.index.date).size()
     assert len(per_day) == 31
     assert (per_day == 3).all()
+
+
+def _hourly_month(start: str, hours: int, seed: float) -> bytes:
+    """A spot kline zip of ``hours`` consecutive bars from ``start`` (UTC, ``YYYY-MM-DDTHH``)."""
+    rows = []
+    open_ms = int(pd.Timestamp(start, tz="UTC").value // 1_000_000)
+    for i in range(hours):
+        t = open_ms + i * 3_600_000
+        price = seed + i * 0.01
+        rows.append(f"{t},{price},{price + 1},{price - 1},{price + 0.5},1,{t + 3_599_999},"
+                    f"100,1,0.5,50,0")
+    return zip_bytes(("\n".join(rows) + "\n").encode(), "x.csv")
+
+
+def test_gap_of_missing_months_warns_and_names_the_gap(monkeypatch, tmp_path):
+    # January and March are in the archive, February is not: the bars bridge a 1,400-bar gap.
+    serve(monkeypatch, tmp_path, {
+        f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": _hourly_month("2024-01-01T00:00", 3, 100.0),
+        f"{SPOT_1H}/BTCUSDT-1h-2024-03.zip": _hourly_month("2024-03-01T00:00", 3, 200.0),
+    })
+    with pytest.warns(UserWarning, match="gap") as record:
+        df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2024-03")
+    message = str(record[0].message)
+    assert "2024-01-01 02:00" in message and "2024-03-01 00:00" in message
+    assert len(df) == 6  # the bridged frame is still returned, as the pegs loader expects
+
+
+def test_single_missing_bar_does_not_warn(monkeypatch, tmp_path):
+    import warnings
+
+    rows = [
+        "1704067200000,100,101,99,100.5,1,1704070799999,100,1,0.5,50,0",
+        # The 01:00 bar is missing: a 2-bar step, which is within tolerance.
+        "1704074400000,100,101,99,100.5,1,1704077999999,100,1,0.5,50,0",
+    ]
+    serve(monkeypatch, tmp_path, {
+        f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": zip_bytes(("\n".join(rows) + "\n").encode(), "x.csv"),
+    })
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2024-01")
+    assert len(df) == 2
+
+
+def test_contiguous_months_do_not_warn(monkeypatch, tmp_path):
+    import warnings
+
+    serve(monkeypatch, tmp_path, {
+        f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": _hourly_month("2024-01-31T22:00", 2, 100.0),
+        f"{SPOT_1H}/BTCUSDT-1h-2024-02.zip": _hourly_month("2024-02-01T00:00", 2, 100.0),
+    })
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2024-02")
+    assert len(df) == 4

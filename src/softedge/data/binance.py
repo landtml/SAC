@@ -1,7 +1,8 @@
 """Binance spot and USD-M perpetual klines, and perpetual funding, from the public archive.
 
 Source: monthly zips under https://data.binance.vision, each holding one CSV. A month the
-archive answers with 404 is skipped. ``start`` and ``end`` are inclusive ``YYYY-MM`` months.
+archive answers with 404 is skipped, and a gap of more than two bars it leaves in a series
+raises a ``UserWarning``. ``start`` and ``end`` are inclusive ``YYYY-MM`` months.
 
 ``load_spot`` and ``load_perp`` return bar frames (see ``softedge.data.schema``) with the
 extra float64 columns ``quote_volume``, ``trades`` and ``taker_buy_base``. Bars are indexed by
@@ -16,6 +17,7 @@ under ``$SOFTEDGE_DATA/binance/frames``. Raw zips are cached by ``fetch_bytes``.
 from __future__ import annotations
 
 import io
+import warnings
 import zipfile
 from pathlib import Path
 
@@ -37,6 +39,8 @@ MICROSECOND_FLOOR = 10**14
 # pandas rejects "1m" and deprecates "1d", so bars carry the pandas spelling of Binance's
 # fixed-length intervals.
 _PANDAS_UNITS = {"s": "s", "m": "min", "h": "h", "d": "D"}
+# A step between consecutive klines up to this many bars long is treated as contiguous.
+_GAP_BARS = 2
 
 
 def load_spot(symbol: str, interval: str = "1h", start: str = "2020-01",
@@ -81,7 +85,27 @@ def _klines(market: str, symbol: str, interval: str, start: str, end: str) -> pd
             parts.append(_parse_klines(_read_zip(body)))
     if not parts:
         raise ValueError(f"no {market} klines for {symbol} {interval} in {start}..{end}")
-    return _clean(pd.concat(parts))
+    bars = pd.concat(parts).sort_index()
+    _warn_gaps(bars, symbol, interval)
+    return _clean(bars)
+
+
+def _warn_gaps(bars: pd.DataFrame, symbol: str, interval: str) -> None:
+    """Warn when consecutive bars sit more than two bars apart: an archive month is missing,
+    and the return across it is one bar long. The bridged frame is still returned, since
+    ``softedge.data.pegs`` cuts its history at these gaps."""
+    step = pd.Timedelta(_bar_alias(interval))
+    steps = bars.index.to_series().diff()
+    gaps = steps[steps > _GAP_BARS * step]
+    if gaps.empty:
+        return
+    first_end = gaps.index[0]
+    text = (
+        f"{symbol} {interval} klines have {len(gaps)} gap(s) longer than {_GAP_BARS} bars; "
+        f"the first runs from {first_end - gaps.iloc[0]} to {first_end}. "
+        "Returns across a gap span missing archive months."
+    )
+    warnings.warn(text, UserWarning, stacklevel=3)
 
 
 def _funding_events(symbol: str, start: str, end: str) -> pd.Series:
