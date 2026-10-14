@@ -147,7 +147,7 @@ The payoff is a proxy. VIX stands in for implied variance and trailing 21-day re
 
 The SPXVRP index is always on. It is the P&L of a short-variance position held at every bar, so it is the premium itself, with no policy in it. The drawdown gate in the prior file reads that premium. It does not read the strategy's P&L.
 
-Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The borrow rate is a template charge, not a measured cost of a variance position. Replicating short variance carries roll and financing costs, and neither is modelled. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Exposure above 1x is not charged financing in this commit, because the spot branch of `tape.py` charges carry on the short side only. A cash financing charge (`financing_apr` 0.05) is being added and is not in this commit. A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
+Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The borrow rate is a template charge, not a measured cost of a variance position. Replicating short variance carries roll and financing costs, and neither is modelled. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Long exposure above 1x pays cash financing at 5% a year (`costs.financing_apr: 0.05`). A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
 
 Warm-up. The realized window needs 21 returns, so the first 20 bars after the first row move by zero and carry no P&L. No bar after that is zero-filled, and a missing input after warm-up raises. Measured on 2016-10-13 to 2026-09-30: 20 zero-move rows, none after row 20.
 
@@ -188,10 +188,9 @@ times the base level. Neither bounds the real cost.
 
 Borrow, funding and roll are 0 by design. The payoff is a swap on DVOL, so no spot is borrowed to
 short it. Funding is defined for perpetual frames only. Each day rolls a fresh one-day swap, so no roll
-cost applies (`variance.py`). `max_leverage` is 4, against the spot default of 1. The repo does not
-record why 4 was chosen, so that choice is not verified. Exposure above 1x is not charged financing in
-this commit, for the same reason as the S&P 500 section. A cash financing charge (`financing_apr` 0.05)
-is being added and is not in this commit.
+cost applies (`variance.py`). `max_leverage` is 4, against the spot default of 1:
+the payoff index moves far less than a price, so a 0.1 volatility target needs leverage, and the cap
+of 4 limits it. Long exposure above 1x pays cash financing at 5% a year (`costs.financing_apr: 0.05`).
 
 The two main configs are two trials. The gross and 3x configs are sensitivity runs on the prior
 config. Count all four when judging the Variance results.
