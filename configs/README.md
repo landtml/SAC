@@ -126,6 +126,8 @@ volatility. The plain config has no prior and runs the same settings otherwise.
 | --- | --- | --- |
 | `vrp/vrp_btc_eth_1d_plain.yaml` | Two coins, daily, walk-forward from 2023, volatility target 0.1, up to 4x leverage, no prior. | No |
 | `vrp/vrp_btc_eth_1d_prior.yaml` | As `vrp_btc_eth_1d_plain.yaml` with the variance premium prior (gain 6.25). | No |
+| `vrp/vrp_btc_eth_1d_prior_gross.yaml` | As `vrp_btc_eth_1d_prior.yaml` with fee and spread set to zero: the payoff before costs. | No |
+| `vrp/vrp_btc_eth_1d_prior_cost3x.yaml` | As `vrp_btc_eth_1d_prior.yaml` with fee and spread at 33 bp per unit of exposure change, three times the base level. | No |
 
 ## Prediction markets
 
