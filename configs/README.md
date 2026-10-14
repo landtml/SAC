@@ -127,6 +127,8 @@ log-odds with gain 2, which tilts toward the favourite.
 | `prediction/polymarket.yaml` | Up to 300 resolved Polymarket markets with at least 1,000,000 traded volume. Train to 2024-07, test from 2025-01. | No |
 | `prediction/polymarket_v2.yaml` | As `polymarket.yaml` with a later split: train to 2025-07, test from 2026-01. | No |
 | `prediction/polymarket_prior.yaml` | As `polymarket_v2.yaml` with the log-odds prior. | No |
+| `prediction/kalshi_calib.yaml` | As `kalshi_prior.yaml`, with the calibration edge as the prior instead of the log-odds: the YES rate that resolved markets at a similar price earned, minus the price. Fitted only on markets resolved before each bar. | No |
+| `prediction/polymarket_calib.yaml` | As `polymarket_prior.yaml`, with the calibration edge as the prior. | No |
 
 ## Pooled
 
