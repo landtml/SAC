@@ -6,6 +6,9 @@ result.json.bak and add the key. Nothing else in the file changes.
 
 Runs are never downloaded from. Network calls are refused while the script runs; a run that
 reaches for the network, for example because its data is not cached, is skipped and listed.
+``--allow-network RUN ...`` lifts the block for the named runs only, for runs whose data is not
+cached and may be fetched. The rate comes from the bar timestamps alone (estimate_bars_per_year
+in softedge.tape), so refetched prices do not change it.
 Cached data is read whatever its age: the cache is what the run read, so a stale file is not
 refetched.
 Runs whose result.json was written less than ``--min-age`` seconds ago are skipped, since a
@@ -156,12 +159,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--runs", default="runs", help="runs directory")
     ap.add_argument("--min-age", type=float, default=600.0,
                     help="skip runs whose result.json is younger than this many seconds")
+    ap.add_argument("--allow-network", nargs="+", default=[], metavar="RUN",
+                    help="runs allowed to fetch their data; every other run is blocked")
     args = ap.parse_args(argv)
 
     rows = []
-    with no_network(), fresh_caches():
+    with fresh_caches():
         for path in sorted(Path(args.runs).glob("*/result.json")):
-            rows.append(backfill_run(path, args.min_age))
+            allowed = path.parent.name in args.allow_network
+            guard = contextlib.nullcontext() if allowed else no_network()
+            with guard:
+                rows.append(backfill_run(path, args.min_age))
 
     width = max((len(r[0]) for r in rows), default=3)
     print(f"{'run':<{width}}  {'bars_per_year':>14}  status")
