@@ -94,8 +94,10 @@ def test_gated_prior_ignores_oi_after_bar_t():
     rng = np.random.default_rng(3)
     base = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.03, 400)))
     t = 300
+    # A level shift from bar t+1 on: a leak through the next day's open interest would move
+    # the growth at bar t above its limit and close the gate there.
     alt = base.copy()
-    alt[t + 1:] = base[t + 1:] * np.exp(rng.normal(0.0, 1.0, base.size - t - 1))
+    alt[t + 1:] = base[t + 1:] * 1.5
     a = compute_features(perp_daily(base))["funding_ewm_gated"].to_numpy()
     b = compute_features(perp_daily(alt))["funding_ewm_gated"].to_numpy()
     assert np.array_equal(a[: t + 1], b[: t + 1])
