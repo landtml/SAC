@@ -1,14 +1,15 @@
 """Ensemble-disagreement shrinkage of the deployed residual.
 
-Each member of a seed ensemble gives a residual ``r_k`` for the bar. Where the members disagree,
-their mean mostly reflects noise in the targets they were all fitted to, so the deployed residual
-is shrunk by the disagreement:
+Each member of a seed ensemble gives a residual ``r_k`` for the bar. Hypothesis, not tested here:
+where the members disagree, their mean carries more of the noise in the targets they were all
+fitted to. The deployed residual is shrunk by the disagreement:
 
     rbar = mean_k r_k,   sigma = std_k r_k (population),
     m    = 1 / (1 + (sigma / tau)^2),    deployed = rbar * m.
 
 ``tau`` is the median of ``sigma`` over the validation bars of the ensemble's own path, fixed
-before the test fold. ``m`` depends only on the observation at its bar, which is causal. This is
+before the test fold. The exposure-matched control uses the mean of ``m`` over the same bars.
+``m`` depends only on the observation at its bar, which is causal. This is
 deployment-only: no loss or gradient involves it, and no weight is changed.
 """
 
