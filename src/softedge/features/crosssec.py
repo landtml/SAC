@@ -9,9 +9,13 @@ two columns on its own index:
     (MAD), clipped to ``[-clip, clip]``. A coin one MAD above the median reads 1.0.
 
 ``funding_topk``
-    1.0 for the ``topk`` coins with the highest trailing income at the bar, 0.0 otherwise. A tie
-    at the cut takes the average rank, so tied coins are both in or both out and the column order
-    of the frames does not matter.
+    The share of the ``topk`` places a coin holds at the bar, from 0.0 to 1.0. A coin with
+    ``above`` eligible coins strictly ahead of it and ``tied`` eligible coins at its income
+    (itself included) gets ``(topk - above) / tied``, clipped to [0, 1]. Coins above the cut get
+    1.0, coins below it get 0.0, and tied coins at the cut split the places left for them: three
+    coins tied for places 4 to 6 of a top-five cut get 2/3 each. On a bar with at least ``topk``
+    eligible coins the flags sum to ``topk``. With fewer, every eligible coin gets 1.0. The flags
+    do not depend on the column order of the frames.
 
 Income is ``-funding_rate``. A carry frame writes its funding in carry sign (see
 ``softedge.data.basis``), so the income of a short perpetual leg is positive when the perpetual
@@ -61,9 +65,13 @@ def xs_funding_features(frames: list[pd.DataFrame], window: int = 7, topk: int =
 
     z = trail.sub(med, axis=0).div(mad, axis=0).clip(-clip, clip).to_numpy()
     z = np.where(member, z, 0.0)
-    # Tied coins share their average rank, so a tie at the cut is in or out for both or neither.
-    rank = trail.rank(axis=1, ascending=False, method="average").to_numpy()
-    top = np.where(member & (rank <= topk), 1.0, 0.0)
+    # A coin's ``above`` is its lowest rank minus one, and its ``tied`` is its highest rank minus its
+    # lowest plus one. The share of the places left at the cut is clipped to [0, 1].
+    eligible = trail.where(member)
+    rank_lo = eligible.rank(axis=1, ascending=False, method="min").to_numpy()
+    rank_hi = eligible.rank(axis=1, ascending=False, method="max").to_numpy()
+    share = np.clip((topk - (rank_lo - 1.0)) / (rank_hi - rank_lo + 1.0), 0.0, 1.0)
+    top = np.where(member, share, 0.0)
 
     out = []
     for j, fr in enumerate(frames):
