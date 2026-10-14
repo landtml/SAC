@@ -14,6 +14,7 @@ import copy
 import hashlib
 import json
 import time
+import warnings
 from dataclasses import fields, replace
 from pathlib import Path
 
@@ -324,6 +325,7 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
         "name": name,
         "minutes": round((time.time() - t0) / 60, 1),
         "n_trials": n_trials,
+        "bars_per_year": bpy,
         "n_folds": len(fold_table),
         "folds": folds,
         "summary": json.loads(summary.set_index("strategy").to_json(orient="index")),
@@ -413,6 +415,15 @@ def _saved_returns(run_dir: Path) -> tuple[str, list[pd.DataFrame]] | None:
     return None
 
 
+def _saved_bars_per_year(run_dir: Path) -> float | None:
+    """Bar rate the run annualised its Sharpe ratios with; None when its result.json lacks it."""
+    path = run_dir / "result.json"
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text()).get("bars_per_year")
+    return None if value is None else float(value)
+
+
 def _run_series_keys(run_dir: Path) -> dict[str, str]:
     """Series key of each SAC strategy saved in ``run_dir``; empty when the run saved no returns."""
     saved = _saved_returns(run_dir)
@@ -425,6 +436,10 @@ def _run_series_keys(run_dir: Path) -> dict[str, str]:
 
 def recompute_dsr(root: str | Path) -> pd.DataFrame:
     """DSR table for every saved run under ``root``, deflated by the current trial count.
+
+    Sharpe ratios are annualised with the run's ``bars_per_year`` from its ``result.json``, so
+    they match the run's own summary. A run without that key falls back to the bar rate of its
+    pooled index and emits a warning naming the run.
 
     Walk-forward and single-split runs (``pooled_returns.csv``) give one row per strategy. CPCV
     runs (``path{j}_returns.csv``) give one row per strategy with the mean over paths of Sharpe,
@@ -439,21 +454,26 @@ def recompute_dsr(root: str | Path) -> pd.DataFrame:
     for d in sorted(p for p in root.iterdir() if p.is_dir() and (p / "config.yaml").exists()):
         saved = _saved_returns(d)
         if saved is not None:
-            runs.append((d.name, load_config(d / "config.yaml"), *saved))
+            runs.append((d.name, load_config(d / "config.yaml"), *saved, _saved_bars_per_year(d)))
     by_universe: dict[str, list[tuple[float, str]]] = {}
-    for _, cfg, _, frames in runs:
+    for _, cfg, _, frames, _ in runs:
         for col in frames[0].columns:
             if col.startswith("sac_"):
                 sr = np.mean([_per_bar_sharpe(f[col].dropna()) for f in frames])
                 key = _series_key([f[col].dropna().to_numpy() for f in frames])
                 by_universe.setdefault(cfg["universe"], []).append((float(sr), key))
     rows = []
-    for name, cfg, mode, frames in runs:
+    for name, cfg, mode, frames, bpy in runs:
         srs = _unique_sharpes(by_universe.get(cfg["universe"], []))
         var = float(np.var(srs, ddof=1)) if len(srs) > 1 else None
         n = max(len(srs), 1)
+        if bpy is None:
+            warnings.warn(f"run {name!r} has no bars_per_year in result.json; annualising its "
+                          "Sharpe ratios with the bar rate of its pooled index", UserWarning,
+                          stacklevel=2)
         for col in frames[0].columns:
-            ds = [dsr_summary(f[col].dropna().to_numpy(), _bars_per_year(f.index), n, var)
+            ds = [dsr_summary(f[col].dropna().to_numpy(),
+                              bpy if bpy is not None else _bars_per_year(f.index), n, var)
                   for f in frames]
             row = {k: float(np.mean([d[k] for d in ds])) for k in ds[0]}
             row.update(run=name, universe=cfg["universe"], mode=mode, strategy=col,
