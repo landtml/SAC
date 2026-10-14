@@ -41,7 +41,8 @@ class SplitSpec:
 def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6, implied_vol: bool = False,
-                premium: bool = False) -> list[pd.DataFrame]:
+                premium: bool = False, roll_days: int | None = None,
+                roll_cost: float | None = None) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi``, ``pegs`` or ``synthetic``.
 
@@ -50,7 +51,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     carry trade whose return is mostly funding. ``hl_basis`` is the same trade against
     Hyperliquid's perp (long Binance spot, short Hyperliquid perp) and ``perp_spread`` the
     cross-venue funding spread (long Binance perp, short Hyperliquid perp), both daily from
-    mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
+    mid-2023. ``delivery_basis`` is long spot against the front quarterly future of Binance
+    (BTC and ETH), daily from 2021 (see ``softedge.data.delivery``). ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
     FRED. ``implied_vol`` joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
     premium index, which leads the next funding payment, onto Binance perp legs.
@@ -120,6 +122,16 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         from softedge.data.pegs import load_peg_frames
 
         return load_peg_frames(start, end, symbols)
+    if universe == "delivery_basis":
+        from softedge.data.delivery import DELIVERY_SYMBOLS, load_delivery_basis
+
+        # Unset roll settings keep the loader's defaults.
+        rolls = {}
+        if roll_days is not None:
+            rolls["roll_days"] = roll_days
+        if roll_cost is not None:
+            rolls["roll_cost"] = roll_cost
+        return load_delivery_basis(symbols or DELIVERY_SYMBOLS, start, end, **rolls)
     if universe == "macro":
         from softedge.data.fred_markets import load_fred_market
 

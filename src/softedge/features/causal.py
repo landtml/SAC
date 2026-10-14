@@ -149,6 +149,10 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         cols["premium_bps"] = prem_bps
         cols["premium_ewm"] = prem_bps.ewm(span=_PREMIUM_EWM_SPAN, adjust=False).mean()
 
+    if "basis_ann" in frame.columns:
+        # Annualized basis of a dated future over spot, known at the close (data.delivery).
+        cols["basis_ann"] = frame["basis_ann"].astype("float64")
+
     if "rate_diff" in frame.columns:
         # 5% differential maps to 1.0, the carry signal behind forex carry trades.
         cols["rate_diff"] = frame["rate_diff"].astype("float64").fillna(0.0) * 20.0

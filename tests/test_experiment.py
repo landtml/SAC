@@ -103,6 +103,23 @@ def test_sources_concatenate_universes_with_their_own_costs():
     assert tapes[0].cost_long[0] < tapes[2].cost_long[0]
 
 
+def test_build_all_tapes_forwards_roll_settings_from_the_data_block(monkeypatch):
+    import softedge.experiment as experiment
+
+    seen = []
+
+    def fake_load_frames(universe, start, end, **kwargs):
+        seen.append(kwargs)
+        return []
+
+    monkeypatch.setattr(experiment, "load_frames", fake_load_frames)
+    experiment.build_all_tapes({"universe": "delivery_basis",
+                                "data": {"roll_days": 14, "roll_cost": 0.002}})
+    experiment.build_all_tapes({"universe": "delivery_basis"})
+    assert seen[0]["roll_days"] == 14 and seen[0]["roll_cost"] == 0.002
+    assert seen[1]["roll_days"] is None and seen[1]["roll_cost"] is None
+
+
 def test_deflated_gate_is_stricter_than_plain_psr(tmp_path):
     res = run_experiment({**CFG, "name": "gate_dsr", "seeds": [0],
                           "deploy": {"gate": "dsr", "gate_psr": 0.8}}, tmp_path)
