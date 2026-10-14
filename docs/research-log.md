@@ -227,7 +227,7 @@ Dates are commit dates on main, except where a check date is given.
 - **2026-10-14, Binance archive gaps.** A missing archive month leaves one return spanning the gap. Such
   gaps now log a warning that names the first gap, and the frame is still returned.
 - **2026-10-14, pegs split at archive gaps.** Each pegged pair is cut at every gap longer than two bars.
-  Pieces shorter than 30 days are dropped. The pegs configs have not run.
+  Pieces shorter than 30 days are dropped. The pegs configs are running; their results are not yet analysed.
 - **2026-10-14, roll cost on both sides.** The roll cost is charged to long and short carry on the roll
   bar, and a roll on the last bar is not charged. Delivery frames carry the roll cost as a column.
 - **2026-10-14, financing above 1x.** A leveraged spot long pays cash financing on exposure above 1x,
