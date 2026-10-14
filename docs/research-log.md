@@ -98,6 +98,24 @@ interval includes zero, and **rejected** when the change scores below the base a
 
 The results page has no prediction-market results. The outcomes above come from the run records only.
 
+**2026-10-14, finished runs.** Each line gives the gated SAC Sharpe ratio, the buy-and-hold Sharpe ratio and,
+where the run reports one, the deflated Sharpe ratio (DSR). Figures are from each run's `result.json`.
+
+- `vrp_btc_eth_1d_plain`: SAC (gated) Sharpe -2.34, buy-and-hold 0.49, DSR 0.00. Verdict: does not beat the benchmark.
+- `vrp_btc_eth_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: does not beat the benchmark.
+- `vrp_spx_1d`: SAC Sharpe ranges from 3.61 to 4.91 across the two seeds (gated 4.80), against buy-and-hold 1.59.
+  DSR 0.00 under the current pooled-trial definition. The paired gap interval runs from -0.93 to 4.35, so it
+  includes zero. Verdict: no edge. The SAC runs have annualized volatility of about 0.1% and CAGR of 0.43% to
+  0.49% per seed (0.55% gated), so the high Sharpe ratio reflects a very small exposure, not a large edge.
+- `vrp_spx_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: does not beat the benchmark.
+- `fomc_1d_prior`: SAC Sharpe 0.14 against buy-and-hold 1.09. Verdict: does not beat the benchmark.
+- `fomc_1d_vt`: SAC Sharpe 0.41 against buy-and-hold 1.09. Verdict: does not beat the benchmark.
+- `delivery_basis_1d_prior`: SAC Sharpe 2.34 against buy-and-hold 2.57. Verdict: no edge.
+
+**Decided, trial pooling.** Kept pooled trials per universe; identical per-bar return series now count
+once. Published DSRs were recomputed with this rule.
+Buy-and-hold is a benchmark, not a trial, so its DSR is not a test.
+
 ## Agent and algorithm changes
 
 Each change is tested on the hidden-regime market unless the row says otherwise. The results page counts
@@ -134,6 +152,62 @@ are read from the run named in the row.
 Benchmark rule: each algorithm comparison uses a `seed_offset` that no earlier comparison used, and
 reports the share of the sign oracle's Sharpe ratio that the agent captures. Offsets 1000, 2000, 3000,
 3100 and 3200 are in use, so the next comparison needs a new offset.
+
+## 2026-10-14: merges, results and decisions
+
+**Merged to main.**
+
+- Ensemble-disagreement shrink is merged behind a deploy switch.
+- Causal online deployment updates are merged behind a train switch. The switch is refused under
+  combinatorial purged cross-validation (CPCV). A look-ahead across offset tapes was found in review
+  and removed before the merge.
+- Drawdown-hinged reward is merged behind a switch.
+- Trial dedupe is merged. Identical per-bar return series count once.
+- Bars per year are stored in every result and backfilled for old runs. Before this change, Sharpe
+  ratios recomputed for old runs were about 0.5% low.
+- The command-line interface reports the active-over-rule DSR.
+- The Kalshi fix drops candles that end after the market close, which were kept before. All 98 cached
+  markets closed off the hour, so Kalshi runs made before this change are invalid and were rerun.
+- A two-leg cash-and-carry cost config is merged.
+- TIPS breakeven carry is merged.
+- The open-interest squeeze gate is merged.
+- The cross-sectional funding rank is merged.
+- The daily Binance spot cross-section now includes delisted coins.
+- Cross-section membership is now decided from history up to each bar. Published runs predate this.
+- The experiment queue logs a failed run as FAILED.
+
+**Results.** Figures are from the run records.
+
+- Active-over-rule DSR: cash-and-carry scores 0.10 counting all runs and 0.84 excluding the
+  superseded run. Cross-exchange spread scores 0.997 and 1.00. Hyperliquid scores 0.59.
+- Basis costs are charged per unit of spread. Doubling the costs widens SAC's lead over its rule.
+- Critic dropout hurt in a confirmation run. Observation noise is inconclusive. The confirmation set
+  overlapped the original on 6 of 12 markets, because `synthetic_hard` ignores `seed_offset`.
+- The dated-futures basis plain run shows no edge.
+
+**Directional prediction study.**
+
+- Registered in `docs/preregistration-direction.md`, amended before any run.
+- A first run used data from before the registered 1971 start. It is kept as a disclosed deviation.
+- The registered run was invalidated by a bug found in review. The 63-day volatility became undefined
+  whenever any print was missing in the window, which switched positions off on most days.
+- The correction and rerun are pending. No result is claimed.
+
+**Built and not merged.**
+
+- SAC residual on the momentum signal (H4a).
+- Regime context with an auxiliary volatility head. The smoke run's auxiliary R-squared was negative.
+- Crypto wiring of the directional study runner.
+
+**Paused.** The experiment queue's pending list is saved and not running. It holds TIPS, squeeze,
+cross-sectional funding, benchmark pairs for the algorithm switches, the two-leg cost run, and earlier
+failed configs.
+
+**Ideas dropped.**
+
+- **Treasury premium in FOMC weeks.** The project has no point-in-time meeting calendar.
+- **Funding gap between coin- and dollar-margined perpetuals.** The gap is under 1 bp.
+- **FX value from CPI.** The series is too short.
 
 ## Known data and accounting fixes
 
@@ -179,6 +253,7 @@ These runs ended without a result. Their partial output is not an outcome.
   `crypto_basis_1d_prior_cpcv_restart_2347`, `crypto_basis_wide_prior_restart_0425`,
   `crypto_perp_1d_path_restart_2347`, `macro_1d_prior_restart_2347`, `perp_spread_wide_prior_restart_0425`.
   The result for each config is in the folder under its config name.
+- Not finished, no result file yet: `pegs_1h`, `pegs_1h_prior`, `delivery_basis_1d`.
 
 ## Ideas considered and not built
 
