@@ -1,13 +1,23 @@
-"""Variance risk premium on BTC and ETH as a daily bar frame: a short 30-day variance position.
+"""Variance risk premium on BTC and ETH as a daily bar frame: a short variance carry rolled daily.
 
-Holding one unit of a frame over day t earns the daily variance-swap carry proxy
+Holding one unit of a frame over day t earns the one-day variance-swap carry proxy
 
     x_t = DVOL_t^2 / 365 - r_t^2
 
 per unit of equity. DVOL_t is the Deribit DVOL candle that ended at or before the open of day t,
-annualized. r_t is the log return of day t, from its open to the next day's open. The proxy
-omits gamma path, hedging, and option bid and ask, so only differences between strategies on
-these frames mean anything.
+annualized, and no more than one day before it. DVOL is a 30-day implied volatility index, so
+the daily swap is priced from the 30-day rate. r_t is the log return of day t, from its open to
+the next day's open. Each day rolls a fresh one-day swap; no 30-day position is held. The proxy
+omits gamma path, hedging, option bid and ask, and vega. A short 30-day variance book loses when
+implied vol rises, and this proxy charges none of that loss, so results on these frames overstate
+a real 30-day position in volatility spikes. Only differences between strategies on these frames
+mean anything.
+
+Timing exception: row t is stamped at the open of day t, not at its bar close as
+``softedge.data.schema`` requires. Its close is the index value at that open, and its open is the
+previous row's close, so the bar spans the open of day t-1 to the open of day t. Code that gates
+by bar close, such as ``deribit.attach_implied_vol`` and ``premium.attach_premium``, is one day
+off on this frame and must not be applied to it.
 
 The frame's close on day t is 100 times the product of (1 + x_k) for k before t, so it is known
 at the open of day t. Row t also carries ``dvol_open`` (annualized DVOL at that open) and
