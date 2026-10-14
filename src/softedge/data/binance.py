@@ -1,7 +1,9 @@
 """Binance spot and USD-M perpetual klines, and perpetual funding, from the public archive.
 
 Source: monthly zips under https://data.binance.vision, each holding one CSV. A month the
-archive answers with 404 is skipped. ``start`` and ``end`` are inclusive ``YYYY-MM`` months.
+archive answers with 404 is skipped when it lies before the first or after the last listed
+month. A 404 between two listed months raises, since the bars would bridge the gap.
+``start`` and ``end`` are inclusive ``YYYY-MM`` months.
 
 ``load_spot`` and ``load_perp`` return bar frames (see ``softedge.data.schema``) with the
 extra float64 columns ``quote_volume``, ``trades`` and ``taker_buy_base``. Bars are indexed by
@@ -74,13 +76,22 @@ def load_funding(symbol: str, start: str = "2020-01", end: str = "2026-09") -> p
 def _klines(market: str, symbol: str, interval: str, start: str, end: str) -> pd.DataFrame:
     _bar_alias(interval)
     rel_dir = f"{market}/monthly/klines/{symbol}/{interval}"
-    parts = []
-    for month in _months(start, end):
+    months = _months(start, end)
+    parts, listed = [], []
+    for month in months:
         body = _fetch_zip(rel_dir, f"{symbol}-{interval}-{month}.zip")
         if body is not None:
             parts.append(_parse_klines(_read_zip(body)))
+            listed.append(month)
     if not parts:
         raise ValueError(f"no {market} klines for {symbol} {interval} in {start}..{end}")
+    # Months outside the first and last listing are before the listing or after the data ends.
+    # A month missing between two listed months would make the bars jump across it.
+    present = set(listed)
+    gap = [m for m in months if listed[0] < m < listed[-1] and m not in present]
+    if gap:
+        raise ValueError(f"no {market} klines archive for {symbol} {interval} in "
+                         f"{', '.join(gap)}; bars would bridge the gap")
     return _clean(pd.concat(parts))
 
 

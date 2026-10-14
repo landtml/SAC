@@ -80,16 +80,20 @@ def test_perp_skips_header_row_and_builds_valid_frame(monkeypatch, tmp_path):
 
 
 def test_microsecond_rows_load_alongside_millisecond_rows(monkeypatch, tmp_path):
-    archive = serve(monkeypatch, tmp_path, {
-        f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": fixture_zip("spot_klines_2024-01.csv"),
-        f"{SPOT_1H}/BTCUSDT-1h-2025-01.zip": fixture_zip("spot_klines_2025-01.csv"),
-    })
+    # Months between the two fixtures must be listed too, or the loader rejects the gap.
+    files = {f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": fixture_zip("spot_klines_2024-01.csv"),
+             f"{SPOT_1H}/BTCUSDT-1h-2025-01.zip": fixture_zip("spot_klines_2025-01.csv")}
+    for year, month in [(2024, m) for m in range(2, 13)]:
+        first = pd.Timestamp(year=year, month=month, day=1, tz="UTC")
+        files[f"{SPOT_1H}/BTCUSDT-1h-{year}-{month:02d}.zip"] = one_hour_month(
+            first.value // 1_000_000)
+    archive = serve(monkeypatch, tmp_path, files)
     df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2025-01")
-    assert list(df.index) == [
-        pd.Timestamp(t, tz="UTC") for t in (
-            "2024-01-01T00:00", "2024-01-01T01:00", "2024-01-01T02:00",
-            "2025-01-01T00:00", "2025-01-01T01:00",
-        )
+    assert list(df.index[:3]) == [
+        pd.Timestamp(t, tz="UTC") for t in ("2024-01-01T00:00", "2024-01-01T01:00", "2024-01-01T02:00")
+    ]
+    assert list(df.index[-2:]) == [
+        pd.Timestamp(t, tz="UTC") for t in ("2025-01-01T00:00", "2025-01-01T01:00")
     ]
     assert len(archive.requests) == 13  # every month from 2024-01 to 2025-01 was asked for
 
@@ -103,6 +107,37 @@ def test_month_answered_404_is_skipped(monkeypatch, tmp_path):
     assert archive.requests == [
         f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip",
         f"{SPOT_1H}/BTCUSDT-1h-2024-02.zip",
+    ]
+
+
+def one_hour_month(first_ms: int) -> bytes:
+    """A month archive holding the single hourly bar that opens at ``first_ms``."""
+    row = f"{first_ms},100,101,99,100.5,1,{first_ms + 3_599_999},100,1,0.5,50,0\n"
+    return zip_bytes(row.encode(), "x.csv")
+
+
+JAN_2024_MS, FEB_2024_MS, MAR_2024_MS = 1704067200000, 1706745600000, 1709251200000
+
+
+def test_missing_month_between_listed_months_raises(monkeypatch, tmp_path):
+    # 2024-02 is absent but 2024-01 and 2024-03 are listed, so the bars would bridge February.
+    serve(monkeypatch, tmp_path, {
+        f"{SPOT_1H}/BTCUSDT-1h-2024-01.zip": one_hour_month(JAN_2024_MS),
+        f"{SPOT_1H}/BTCUSDT-1h-2024-03.zip": one_hour_month(MAR_2024_MS),
+    })
+    with pytest.raises(ValueError, match="2024-02"):
+        binance.load_spot("BTCUSDT", "1h", "2024-01", "2024-03")
+
+
+def test_months_before_the_first_listed_month_are_skipped(monkeypatch, tmp_path):
+    # A symbol listed after the range start has no archive for its first months.
+    serve(monkeypatch, tmp_path, {
+        f"{SPOT_1H}/BTCUSDT-1h-2024-02.zip": one_hour_month(FEB_2024_MS),
+        f"{SPOT_1H}/BTCUSDT-1h-2024-03.zip": one_hour_month(MAR_2024_MS),
+    })
+    df = binance.load_spot("BTCUSDT", "1h", "2024-01", "2024-03")
+    assert df.index.tolist() == [
+        pd.Timestamp(FEB_2024_MS, unit="ms", tz="UTC"), pd.Timestamp(MAR_2024_MS, unit="ms", tz="UTC"),
     ]
 
 
