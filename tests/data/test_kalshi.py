@@ -234,7 +234,7 @@ def test_end_time_attribute_is_latest_expiration_not_actual_close(monkeypatch):
     assert frame.attrs["end_time"] != (T0 + 2 * DAY).isoformat()
 
 
-def test_candles_opening_at_or_after_close_time_are_dropped(monkeypatch):
+def test_candles_ending_after_close_time_are_dropped(monkeypatch):
     # The fake returns candles past the requested window, so only the module can drop them.
     close = T0 + 60 * HOUR
     fake = serve(monkeypatch, FakeKalshi(candles=hourly_candles(90), honor_window=False))
@@ -243,8 +243,36 @@ def test_candles_opening_at_or_after_close_time_are_dropped(monkeypatch):
 
     assert frame.index[-1] == close - HOUR
     assert len(frame) == 60
-    assert (frame.index < close).all()
+    assert (frame.index + HOUR <= close).all()
     assert len([u for u, _ in fake.calls if u.endswith("/candlesticks")]) == 1
+
+
+def test_candle_ending_after_a_mid_hour_close_is_dropped(monkeypatch):
+    # Closing at 15:30 leaves the candle opening 15:00 (ending 16:00) open at the close.
+    late_open = T0 + 3 * DAY + 15 * HOUR
+    close = late_open + pd.Timedelta(minutes=30)
+    candles = [candle(T0 + h * HOUR, last="0.9000" if T0 + h * HOUR == late_open else "0.5000")
+               for h in range(4 * 24)]
+    serve(monkeypatch, FakeKalshi(candles=candles))
+
+    frame = kalshi.load_candles(listing_row(end=close, scheduled_end=T0 + 10 * DAY))
+
+    # The last kept candle opens at 14:00 and ends at 15:00, the last one before the close.
+    assert frame.index[-1] == late_open - HOUR
+    assert late_open not in frame.index
+    assert frame["close"].max() == pytest.approx(0.5)
+
+
+def test_candle_ending_exactly_at_an_on_the_hour_close_is_kept(monkeypatch):
+    # A close at 15:00 keeps the candle ending at 15:00 and drops the one ending at 16:00.
+    close = T0 + 3 * DAY + 15 * HOUR
+    candles = [candle(T0 + h * HOUR, last="0.5000") for h in range(4 * 24)]
+    serve(monkeypatch, FakeKalshi(candles=candles))
+
+    frame = kalshi.load_candles(listing_row(end=close, scheduled_end=T0 + 10 * DAY))
+
+    assert frame.index[-1] == close - HOUR
+    assert frame.index[-1] + HOUR == close
 
 
 def test_listing_repeat_call_reads_the_cache(monkeypatch):
