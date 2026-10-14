@@ -19,6 +19,9 @@ Status values:
 
 - **built**: the config is on main and has not run.
 - **queued**: the config is in the run queue and has no result yet.
+- **paused**: the config is queued and not started, because the queue is paused.
+- **running**: the run is in progress and has no result file yet.
+- **finished**: the run completed and wrote its result file.
 - **run**: the run wrote a result.
 - **published**: the result appears on the [results page](results.md).
 - **stopped** or **failed**: the run ended without a result. See [unfinished runs](#unfinished-runs).
@@ -61,10 +64,10 @@ interval includes zero, and **rejected** when the change scores below the base a
 | Cross-venue funding spread, no prior | Binance perpetual against Hyperliquid perpetual, daily | `carry/perp_spread_1d.yaml` (run `perp_spread_1d`) | finished | not published; no edge against buy-and-hold | runs/perp_spread_1d |
 | Cross-venue funding spread, funding prior | 10 coins, daily, 1.6 years | `carry/perp_spread_1d_prior.yaml` (run `perp_spread_1d_prior`) | published | edge over the funding rule | results.md, Real markets, carry |
 | Cross-venue funding spread, wider list | 32 coins, daily | `carry/perp_spread_wide_prior.yaml` (run `perp_spread_wide_prior`) | published | edge | results.md, Robustness checks |
-| Dated futures basis, no prior | BTC and ETH quarterly futures against spot, daily | `carry/delivery_basis_1d.yaml` | finished | analysis pending | configs/README.md, Carry |
+| Dated futures basis, no prior | BTC and ETH quarterly futures against spot, daily | `carry/delivery_basis_1d.yaml` | finished | no demonstrated edge (banded SAC 2.81 vs buy-and-hold 2.57, paired interval crosses zero) | configs/README.md, Carry |
 | Dated futures basis, annualized basis prior | BTC and ETH quarterly futures against spot, daily | `carry/delivery_basis_1d_prior.yaml` | finished | no edge | configs/README.md, Carry |
-| Pegged pairs, no prior | Stablecoin and liquid-staking spot pairs, hourly | `pegs/pegs_1h.yaml` | built | pending | configs/README.md, Pegs |
-| Pegged pairs, peg prior | Stablecoin and liquid-staking spot pairs, hourly | `pegs/pegs_1h_prior.yaml` | built | pending | configs/README.md, Pegs |
+| Pegged pairs, no prior | Stablecoin and liquid-staking spot pairs, hourly | `pegs/pegs_1h.yaml` | running | pending | configs/README.md, Pegs |
+| Pegged pairs, peg prior | Stablecoin and liquid-staking spot pairs, hourly | `pegs/pegs_1h_prior.yaml` | running | pending | configs/README.md, Pegs |
 | G10 forex, plain | Seven dollar pairs, daily from 2014 | `fx/fx_wf.yaml` (stopped at fold 0); `fx/fx_v2.yaml` (run `fx_v2`) | published | no edge | results.md, Real markets, directional |
 | G10 forex, single split | Seven dollar pairs, daily | `fx/fx.yaml` | stopped | pending | runs/fx_v0_single_split_stopped |
 | G10 forex, rate-differential prior | Seven dollar pairs, daily from 2014 | `fx/fx_carry.yaml` (run `fx_carry`) | published | no edge | results.md, Real markets, directional |
@@ -138,7 +141,7 @@ results page depends on that count.
 | Trend prior `ret_h64`, volatility target 0.5, action penalty 0.05 | `ablation/prior.yaml` (run `abl_prior`) | Hidden-regime market | not published (runs/abl_prior) | yes |
 | Training windows drawn toward recent bars, warm-start shrink | `ablation/recency_shrink.yaml` (run `abl_recency_shrink`) | Hidden-regime market | not published (runs/abl_recency_shrink) | yes |
 | Penalty 0.2 on action change between states | `ablation/smooth.yaml` (run `abl_smooth`) | Hidden-regime market | not published (runs/abl_smooth) | yes |
-| Confirmation, base agent, three seeds | `ablation/confirm/base.yaml` | Twelve synthetic markets, H0 to H11 | analysis pending | no |
+| Confirmation, base agent, three seeds | `ablation/confirm/base.yaml` | Twelve synthetic markets, H0 to H11 | baseline for the confirmation comparisons | no |
 | Confirmation, critic dropout 0.1 | `ablation/confirm/dropout.yaml` | Twelve synthetic markets, H0 to H11 | hurt in a confirmation run | no |
 | Confirmation, observation noise 0.1 | `ablation/confirm/obsnoise.yaml` | Twelve synthetic markets, H0 to H11 | inconclusive | no |
 | Premium-index feature on crypto cash-and-carry | `carry/crypto_basis_1d_prior_prem.yaml` (run `crypto_basis_1d_prior_prem`) | Crypto cash-and-carry, 10 coins | no gain (results.md, Ablations) | not stated in results.md |
@@ -253,7 +256,7 @@ These runs ended without a result. Their partial output is not an outcome.
   `crypto_basis_1d_prior_cpcv_restart_2347`, `crypto_basis_wide_prior_restart_0425`,
   `crypto_perp_1d_path_restart_2347`, `macro_1d_prior_restart_2347`, `perp_spread_wide_prior_restart_0425`.
   The result for each config is in the folder under its config name.
-- Not finished, no result file yet: `pegs_1h`, `pegs_1h_prior`, `delivery_basis_1d`.
+- Not finished, no result file yet: `pegs_1h`, `pegs_1h_prior`.
 
 ## Ideas considered and not built
 
