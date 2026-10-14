@@ -23,8 +23,9 @@ The bill financing of the two legs cancels. The long nominal is financed at the 
 the short TIPS earns the same rebate, so the frame needs no bill rate. The frame omits the
 shortfall of the TIPS rebate below the bill rate, a charge on the short TIPS leg. A long spread
 holds that leg, so the omission flatters a long spread by the shortfall per year. A short spread
-owes no TIPS borrow, so it is not affected. The shortfall is not sourced, and the frame has no
-borrow term that a caller could set.
+owes no TIPS borrow. It sells the nominal leg short, and the frame charges no specialness or
+repo cost on that leg; that cost is not sourced. The TIPS shortfall is not sourced either, and
+the frame has no borrow term that a caller could set.
 
 The breakeven is the nominal yield minus the real yield. Its expected inflation part is priced
 at ``prior``: the breakeven in percentage points minus the trailing 12-month CPI inflation in
@@ -38,10 +39,11 @@ month's CPI forward, so its accrual is zero. Whether BLS published that month is
 here.
 
 The high and low columns are synthetic: the max and min of open and close, not intrabar
-prices. The tape's worst-case returns, which liquidation reads, therefore equal the close-to-close
-move. At 4x leverage and a 5 percent maintenance margin, liquidation needs a one-day move of about
-20 percent, more than 60 daily standard deviations of these spreads, so the synthetic range does
-not bind at the measured volatilities.
+prices. The tape's worst-case return for a long spread is the smaller of zero and its
+close-to-close move, so it equals the move on a down day and is zero on an up day. Liquidation
+reads it. At 4x leverage and a 5 percent maintenance margin, liquidation needs a one-day move of
+about 20 percent, more than 60 daily standard deviations of these spreads, so the synthetic range
+does not bind at the measured volatilities.
 
 Approximations: one duration and convexity per tenor (a par bond at a 3 percent yield,
 computed for this module, not sourced), constant-maturity yields in place of a bond's own
@@ -124,7 +126,7 @@ def breakeven_frame(nominal: pd.Series, real: pd.Series, breakeven: pd.Series, c
 
 
 def reference_cpi(cpi: pd.Series, dates: pd.DatetimeIndex) -> np.ndarray:
-    """TIPS reference CPI on each date: CPI of month K-3 at day 1, linear toward K-2 at month end."""
+    """TIPS reference CPI per date: CPI of month K-3 at day 1, linear toward K-2 at month end."""
     table = _cpi_table(cpi)
     serial = _serial(dates)
     lag3 = _lookup(table, serial - 3)

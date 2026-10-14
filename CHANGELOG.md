@@ -11,8 +11,9 @@ All notable changes to this project are recorded here. The format follows
 - Markets: long nominal Treasury against short TIPS at the 5- and 10-year tenors, daily from 2003,
   with a breakeven prior (breakeven minus trailing 12-month CPI inflation, from CPI released by each
   bar's close). Known limitations: the frame omits the TIPS borrow shortfall, which is not sourced and
-  flatters a long spread; the per-unit cost of 4 bp is a placeholder, with a cost sensitivity; no roll
-  cost is modelled; the spread carries no margin or repo haircut; the high and low columns are synthetic;
+  flatters a long spread; a short spread's nominal leg carries no specialness or repo cost, also not
+  sourced; the per-unit cost of 4 bp is a placeholder, and its gross and 3x cost sensitivity configs exist
+  but have not been run; no roll cost is modelled; the spread carries no margin or repo haircut; the high and low columns are synthetic;
   and FRED has no October 2025 CPI value, which carries September forward.
 
 ## [0.2.0] - 2026-10-13

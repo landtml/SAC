@@ -145,28 +145,31 @@ Long nominal Treasury against short TIPS of the same tenor, at 5 and 10 years, d
 The spread earns the breakeven inflation rate less realized inflation. The prior is the breakeven minus the trailing
 12-month CPI inflation, both in percentage points, using only CPI released by each bar's close; each month's CPI is
 taken as released on the 16th of the following month. The TIPS accrual uses CPI lagged three months. October 2025 has
-no CPI print in the FRED series, so that month carries September's value forward. Each leg's duration and convexity
-are fixed per tenor, and the spread carries no margin or repo haircut.
+no CPI print in the FRED series, so that month carries September's value forward. Every read of October 2025 CPI gets
+September's value, so the December 2025 and January 2026 accruals omit part of October's CPI change, as does any prior
+that reads it. Each leg's duration and convexity are fixed per tenor, and the spread carries no margin or repo haircut.
 
 Borrow. The frame has no borrow charge. The shortfall of the TIPS rebate below the bill rate is not sourced, so it is
-omitted. The omission flatters a long spread by that shortfall per year; a short spread owes no TIPS borrow and is not
-affected.
+omitted. The omission flatters a long spread by that shortfall per year. A short spread owes no TIPS borrow, but it
+sells the nominal leg short, and the frame charges no specialness or repo cost on that leg. That cost is not sourced.
 
 Costs. A unit of spread turnover trades two bonds. The configs charge 2 bp fee and 2 bp half spread per unit, which is
-1 bp fee and 1 bp half spread per bond, doubled. Those per-bond figures are placeholders, not sourced. TIPS are less
-liquid than nominals, so the real charge may be higher. `tips/tips_breakeven_1d_gross.yaml` gives the payoff before
+1 bp fee and 1 bp half spread per bond, doubled. Those per-bond figures are placeholders, not sourced. TIPS liquidity is
+not verified here, so the real charge may be higher. `tips/tips_breakeven_1d_gross.yaml` gives the payoff before
 costs, and `tips/tips_breakeven_1d_cost3x.yaml` runs at three times the base charge, 6 bp fee and 6 bp half spread per
 unit. No run has used either file yet, so no cost sensitivity is reported.
 
 Roll. The constant-maturity yields are synthetic, and the configs charge no roll cost. A real position in futures or
 on-the-run issues rolls, and each roll has a cost that this spread does not model.
 
-The prior's scale. The configs set gain 0.5 per point, so a prior of 2 points or more saturates the clip at 1. Measured
-over 2003-01-02 to 2026-09-30 on the cached FRED series (checked 2026-10-14, a shared 4-vCPU machine), that is 14.2
-percent of 5-year bars and 13.8 percent of 10-year bars. The prior's correlation with the next-day spread return is
--0.023 (5 years) and -0.027 (10 years), so a higher prior came before lower next-day returns. A one-point prior is one
-percent a year, about 0.003 percent a day, against a daily standard deviation of 0.23 percent (5 years) and 0.29
-percent (10 years). The daily signal is weak, so the comparison with the plain baseline decides whether the prior helps.
+The prior's scale. The configs set gain 0.5 per point, so a prior of 2 points or more in absolute value saturates the
+clip at 1. Measured over 2003-01-02 to 2026-09-30 on the cached FRED series (checked 2026-10-14, a shared 4-vCPU
+machine), that share is 14.2 percent of 5-year bars and 13.8 percent of 10-year bars. The prior's correlation with the
+next-day spread return is -0.023 (5 years) and -0.027 (10 years). The gain is positive, so the config goes long on a
+high prior. The sample's sign is the opposite: a high prior came before lower next-day returns. A one-point prior is one
+percent a year, about 0.004 percent per business-day bar, against a standard deviation per bar of 0.23 percent (5 years)
+and 0.29 percent (10 years). The correlation is weak, so the decision test is the prior config against the plain
+baseline: `tips_breakeven_1d_prior.yaml` against `tips_breakeven_1d.yaml`.
 
 Measured on the same cache with no borrow charge, the annualized volatility is 3.7 percent (5 years) and 4.6 percent
 (10 years), and the annualized log return is -0.9 and -0.8 percent. Breakeven running below realized inflation on
