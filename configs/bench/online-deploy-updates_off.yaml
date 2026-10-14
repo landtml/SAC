@@ -1,0 +1,54 @@
+universe: synthetic_bench
+symbols:
+- B0
+- B1
+- B2
+- B3
+- B4
+- B5
+- B6
+- B7
+data:
+  start: 2021-01
+  end: 2023-01
+  family: all
+  seed_offset: 3000
+costs:
+  fee_bps: 2.0
+  half_spread_bps: 0.5
+  borrow_apr: 0.0
+  max_leverage: 1.0
+walk_forward:
+  first_test: '2022-01-01'
+  end: '2023-01-01'
+  test: 120D
+  val: 60D
+  embargo: 2D
+  warm_start: true
+  fold_steps: 15000
+env:
+  window: 4
+  episode_len: 512
+  n_envs: 16
+sac:
+  hidden: 128
+  critic_blocks: 1
+  actor_hidden: 64
+  gamma: 0.99
+train:
+  total_steps: 40000
+  warmup_steps: 5000
+  utd: 0.25
+  relabel_frac: 0.5
+  online_every: 0
+  online_steps: 16
+  online_window: 5000
+  eval_every: 1000
+  threads: 1
+deploy:
+  gate_psr: 0.8
+seeds:
+- 0
+- 1
+reference: buy_and_hold
+name: bench_online_off

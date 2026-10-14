@@ -41,6 +41,12 @@ class TrainConfig:
     warm_shrink: float | None = None
     # Gradient updates between ReDo resets of dormant units (Sokar et al., 2023); None disables.
     redo_every: int | None = None
+    # Causal online updates while deployed (agent/online.py): before every ``online_every``-th test
+    # bar the deployed agents take ``online_steps`` gradient steps on transitions realized in the
+    # last ``online_window`` bars. 0 keeps the frozen deployment of the walk-forward fold.
+    online_every: int = 0
+    online_steps: int = 16
+    online_window: int = 5000
     seed: int = 0
     threads: int = 4
     env: EnvConfig = field(default_factory=EnvConfig)
