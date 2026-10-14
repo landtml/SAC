@@ -14,6 +14,14 @@ All notable changes to this project are recorded here. The format follows
   and a fraction for coins tied at the cut, so the flags sum to five. Enabled by `xs_funding` in a
   config's `data` block; it cannot be combined with `sources`. Configs
   `carry/crypto_basis_xsfund_*.yaml`.
+- Markets: long nominal Treasury against short TIPS at the 5- and 10-year tenors, daily from 2003,
+  with a breakeven prior (breakeven minus trailing 12-month CPI inflation, from CPI released by each
+  bar's close). Known limitations: the frame omits the TIPS borrow shortfall, which is not sourced and
+  flatters a long spread; a short spread's nominal leg carries no specialness or repo cost, also not
+  sourced; the per-unit cost of 4 bp is a placeholder, and its gross and 3x cost sensitivity configs
+  exist but have not been run; no roll cost is modelled; the spread carries no margin or repo haircut;
+  the high and low columns are synthetic; and FRED has no October 2025 CPI value, which carries
+  September forward.
 - Training: optional causal online updates during deployment (`train.online_every`, with
   `online_steps` and `online_window`). The deployed agents keep learning from transitions whose
   reward and next exposure are realized by the current bar in calendar time, also across tapes
