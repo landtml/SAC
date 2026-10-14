@@ -76,3 +76,32 @@ def test_chf_and_cad_are_inverted_to_usd_terms(fred):
     fred["DEXCAUS"] = _csv(["2020-01-01", "2020-01-02"], [1.25, 1.2])
     assert long_daily.asset_returns("CHF").iloc[0] == pytest.approx(0.9 / 0.95 - 1.0)
     assert long_daily.asset_returns("CAD").iloc[0] == pytest.approx(1.25 / 1.2 - 1.0)
+
+
+def test_default_start_is_the_registered_1971_date(fred):
+    fred["NIKKEI225"] = _csv(["1969-12-30", "1969-12-31", "1971-01-01", "1971-01-04"],
+                             [100.0, 101.0, 110.0, 121.0])
+    fred["DGS10"] = _csv(["1961-12-29", "1962-01-02", "1971-01-01", "1971-01-04"],
+                         [4.0, 4.2, 5.0, 5.1])
+    panel, _ = long_daily.load_daily_panel()
+    assert (panel.index >= pd.Timestamp("1971-01-01", tz="UTC")).all()
+    assert panel["NIKKEI"].first_valid_index() == pd.Timestamp("1971-01-04", tz="UTC")
+    assert panel.loc["1971-01-04", "NIKKEI"] == pytest.approx(121.0 / 110.0 - 1.0)
+    assert panel["UST10"].first_valid_index() == pd.Timestamp("1971-01-04", tz="UTC")
+
+
+def test_first_trailing_window_uses_only_1971_levels(fred):
+    # The 1970 print must not form a return dated 1971-01-01: the start trims levels before returns.
+    fred["NASDAQCOM"] = _csv(["1970-12-31", "1971-01-01", "1971-01-04"], [90.0, 100.0, 101.0])
+    r = long_daily.asset_returns("NASDAQ")
+    assert r.index[0] == pd.Timestamp("1971-01-04", tz="UTC")
+    assert r.iloc[0] == pytest.approx(0.01)
+
+
+def test_explicit_later_start_trims_further(fred):
+    fred["DEXUSUK"] = _csv(["1971-01-04", "1971-01-05", "1971-06-01", "1971-06-02"],
+                           [1.0, 1.1, 1.2, 1.26])
+    panel, _ = long_daily.load_daily_panel(start="1971-06-01")
+    assert panel.index.min() >= pd.Timestamp("1971-06-01", tz="UTC")
+    assert panel["GBP"].first_valid_index() == pd.Timestamp("1971-06-02", tz="UTC")
+    assert panel.loc["1971-06-02", "GBP"] == pytest.approx(1.26 / 1.2 - 1.0)

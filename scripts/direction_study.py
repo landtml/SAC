@@ -46,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="annualisation; defaults to 252 for fred and csv, 365 for crypto")
     parser.add_argument("--hypotheses", default=",".join(ALL_HYPOTHESES),
                         help="comma-separated subset of " + ", ".join(ALL_HYPOTHESES))
+    parser.add_argument("--start", default="1971-01-01",
+                        help="FRED panel only: first date kept for every series (registered 1971-01-01)")
     parser.add_argument("--n-null", type=int, default=DEFAULT_N_NULL)
     parser.add_argument("--seed", type=int, default=0)
     return parser
@@ -58,7 +60,7 @@ def _load(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.Series]:
     if args.panel == "fred":
         from softedge.data.long_daily import load_daily_panel
 
-        return load_daily_panel()
+        return load_daily_panel(start=args.start)
     if not args.csv or not args.costs_json:
         raise SystemExit("--panel csv needs --csv and --costs-json")
     returns = pd.read_csv(args.csv, index_col=0, parse_dates=True)
