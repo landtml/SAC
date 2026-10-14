@@ -141,15 +141,17 @@ reference is price-only too.
 
 ## Variance risk premium
 
-A short-variance index on the S&P 500, daily, from FRED. The SP500 series starts in October 2016 (2016-10-14 in the cached file), so the sample is about ten years. Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
+A short-variance index on the S&P 500, daily, from FRED. The SP500 series starts on 2016-10-13, so the sample is about ten years. Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. The 252 is a scaling convention: the index is a return series, not a traded instrument. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
 
 The payoff is a proxy. VIX stands in for implied variance and trailing 21-day realized variance is the other leg; no variance-swap quotes are used. The 21-day window smooths crash days, so tail losses are understated.
 
 The SPXVRP index is always on. It is the P&L of a short-variance position held at every bar, so it is the premium itself, with no policy in it. The drawdown gate in the prior file reads that premium. It does not read the strategy's P&L.
 
-Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The template does not fit a variance index. The borrow lands on negative exposure, which is long variance, and long variance carries no borrow in practice. The short-variance side, where the premium is earned, carries no carry cost. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Roll cost is not modelled. A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
+Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The borrow rate is a template charge, not a measured cost of a variance position. Replicating short variance carries roll and financing costs, and neither is modelled. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Exposure above 1x is not charged financing in this commit, because the spot branch of `tape.py` charges carry on the short side only. A cash financing charge (`financing_apr` 0.05) is being added and is not in this commit. A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
 
-Scale. The prior is `vrp_prior = iv - rv`, an annualized variance difference, and `ActionMap` clips `gain * vrp_prior` to [-1, 1]. With gain 50 the clip binds at a gap of 0.02, since 50 x 0.02 = 1. For example, VIX 20 gives implied variance 0.04, and realized volatility of about 14.1% gives 0.02. The 63-bar gate window is 252 / 4, one quarter of trading days. The repo does not record whether gain 50 or the 63-bar window was fixed before the first run. Both count as trials until a run records otherwise.
+Warm-up. The realized window needs 21 returns, so the first 20 bars after the first row move by zero and carry no P&L. No bar after that is zero-filled, and a missing input after warm-up raises. Measured on 2016-10-13 to 2026-09-30: 20 zero-move rows, none after row 20.
+
+Scale. The prior is `vrp_prior = iv - rv`, an annualized variance difference, and `ActionMap` clips `gain * vrp_prior` to [-1, 1]. With gain 50 the clip binds at a gap of 0.02, since 50 x 0.02 = 1. For example, VIX 20 gives implied variance 0.04, and realized volatility of about 14.1% gives 0.02. Measured on the gated `vrp_prior` column after warm-up, |vrp_prior| exceeds 0.02 on 19% of bars (2,483 bars in the window; 27% before the gate). The 63-bar gate window is 252 / 4, one quarter of trading days. The repo does not record whether gain 50 or the 63-bar window was fixed before the first run. Both count as trials until a run records otherwise.
 
 | File | What it tests | Results |
 | --- | --- | --- |
@@ -172,11 +174,24 @@ BTC and ETH are the two largest coins today. The choice uses that ranking, so th
 selection hindsight.
 
 Costs: the configs charge 11 bp per unit of exposure change, a fee of 10 bp and a half spread of
-1 bp. This replaces the spot default in the tape (7.5 bp fee, 1 bp half spread). The level is a
-spot-trading assumption, and option bid and ask are not in the data, so the cost of the instrument
-is unknown. For scale, DVOL at 55% and 30-day realized volatility at 47% give a daily payoff of
-about 2.2 bp per unit before costs. If the exposure is re-entered each day, the 11 bp charge is
-about five times that payoff. The gross and 3x configs bracket the level.
+1 bp. This replaces the spot default in the tape (7.5 bp fee, 1 bp half spread). The 11 bp level is
+an assumption, not a quote: option bid and ask are not in the data, so the cost of the instrument is
+unknown.
+
+Scale, measured on the cached data from 2021-03-25 to 2026-09-30 (1h DVOL and 1h spot for BTC and ETH,
+2,016 daily rows per coin). Median DVOL is 55.4% for BTC and 69.3% for ETH. Median trailing 30-day
+realized volatility is 48.0% and 65.6%. The mean daily payoff before costs is 2.5 bp per unit for BTC,
+1.1 bp for ETH and 1.8 bp pooled. With one unit of exposure change per day (full daily re-entry), a
+cost of 2.5 bp per unit on BTC, or 1.8 bp pooled, takes the carry to zero. The 11 bp level is about
+four times the BTC payoff. The gross config is the payoff before costs and the 3x config is three
+times the base level. Neither bounds the real cost.
+
+Borrow, funding and roll are 0 by design. The payoff is a swap on DVOL, so no spot is borrowed to
+short it. Funding is defined for perpetual frames only. Each day rolls a fresh one-day swap, so no roll
+cost applies (`variance.py`). `max_leverage` is 4, against the spot default of 1. The repo does not
+record why 4 was chosen, so that choice is not verified. Exposure above 1x is not charged financing in
+this commit, for the same reason as the S&P 500 section. A cash financing charge (`financing_apr` 0.05)
+is being added and is not in this commit.
 
 The two main configs are two trials. The gross and 3x configs are sensitivity runs on the prior
 config. Count all four when judging the Variance results.
