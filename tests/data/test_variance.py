@@ -158,3 +158,18 @@ def test_vrp_frames_drop_runs_shorter_than_three_days(monkeypatch):
     frames = _spot_with_gap_and_dvol(monkeypatch, slice(2, 57))
     assert [len(fr) for fr in frames] == [3]
     assert frames[0].attrs["symbol"] == "BTC-VRP"
+
+
+def test_dvol_older_than_one_day_counts_as_missing():
+    opens, dvol = _market(n=40)
+    stale = dvol[(dvol.index < opens.index[10]) | (dvol.index >= opens.index[20])]
+    with pytest.raises(ValueError, match="DVOL is missing"):
+        variance_frame(opens, stale, "BTC")
+
+
+def test_dvol_exactly_one_day_old_still_counts():
+    days = _days(3)
+    opens = pd.Series([1.0, 1.1, 1.2], index=days)
+    dvol = pd.Series([0.40, 0.50], index=pd.DatetimeIndex([days[0], days[1]], tz="UTC"))
+    fr = variance_frame(opens, dvol, "BTC")
+    np.testing.assert_array_equal(fr["dvol_open"].to_numpy(), [0.40, 0.50, 0.50])

@@ -38,7 +38,7 @@ def variance_frame(opens: pd.Series, dvol: pd.Series, symbol: str) -> pd.DataFra
     ``opens`` holds the underlying's daily open prices indexed by UTC day open, on consecutive
     days; ``vrp_frames`` splits at gaps first. ``dvol`` holds DVOL closes in annualized decimal
     indexed by candle end time. Days before the first DVOL candle are dropped, since their payoff
-    is undefined. Raises ``ValueError`` when the days are not consecutive, when fewer than three
+    is undefined. A candle that ended more than one day before an open counts as missing. Raises ``ValueError`` when the days are not consecutive, when fewer than three
     daily opens are given, or when DVOL is missing on a day that needs it.
     """
     days = opens.index
@@ -106,8 +106,14 @@ def _consecutive_runs(opens: pd.Series) -> list[pd.Series]:
 
 
 def _dvol_at(dvol: pd.Series, days: pd.DatetimeIndex) -> np.ndarray:
-    """DVOL of the last candle that ended at or before each time; NaN before the first candle."""
+    """DVOL of the last candle that ended at or before each time, NaN when that candle is more
+    than one day old or when none exists."""
     ends = dvol.index.as_unit("ns").asi8
-    pos = np.searchsorted(ends, days.as_unit("ns").asi8, side="right") - 1
+    times = days.as_unit("ns").asi8
+    if len(ends) == 0:
+        return np.full(len(times), np.nan)
+    pos = np.searchsorted(ends, times, side="right") - 1
     padded = np.concatenate(([np.nan], dvol.to_numpy(dtype=np.float64)))
-    return padded[pos + 1]
+    value = padded[pos + 1]
+    age = times - ends[np.clip(pos, 0, None)]
+    return np.where((pos < 0) | (age > DAY_NS), np.nan, value)
