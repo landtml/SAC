@@ -1,5 +1,7 @@
 import json
+import os
 import socket
+import time
 
 import numpy as np
 import pandas as pd
@@ -148,3 +150,65 @@ def test_backfill_refuses_network_calls_and_restores_them(tmp_path):
         with pytest.raises(backfill.NetworkBlocked):
             urllib.request.urlopen("https://example.com")
     assert urllib.request.urlopen is original
+
+
+MACRO = {
+    "name": "macro", "seeds": [0], "universe": "macro", "symbols": ["SPX"],
+    "data": {"start": "2019-01", "end": "2021-06"},
+    "walk_forward": {"first_test": "2020-09-01", "end": "2021-06-01", "test": "120D",
+                     "val": "120D", "embargo": "1D"},
+}
+
+
+def _macro_run(root, cache_root, cache_age_days):
+    """A run on SPX without bars_per_year, reading a FRED file in the cache that is this old."""
+    fred = cache_root / "fred"
+    fred.mkdir(parents=True)
+    dates = pd.bdate_range("2019-01-01", "2021-06-30")
+    csv = fred / "SP500.csv"
+    pd.DataFrame({"observation_date": dates.strftime("%Y-%m-%d"),
+                  "SP500": 100 + 0.1 * np.arange(len(dates))}).to_csv(csv, index=False)
+    old = time.time() - cache_age_days * 86400
+    os.utime(csv, (old, old))
+    run = root / "macro"
+    run.mkdir(parents=True)
+    (run / "config.yaml").write_text(json.dumps(MACRO))
+    _write(root, "macro", {"name": "macro", "summary": {}})
+    os.utime(_result_path(root, "macro"), (old, old))
+
+
+def test_backfill_fills_a_run_whose_cached_file_is_older_than_the_limit(tmp_path, monkeypatch,
+                                                                      capsys):
+    from softedge.data import fred_markets
+
+    def no_download(*args, **kwargs):
+        raise AssertionError("the backfill downloaded a file")
+
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path / "data"))
+    monkeypatch.setattr(fred_markets, "http_get", no_download)
+    _macro_run(tmp_path / "runs", tmp_path / "data", cache_age_days=30)
+
+    assert _backfill_module().main(["--runs", str(tmp_path / "runs")]) == 0
+
+    assert _load(tmp_path / "runs", "macro")["bars_per_year"] > 0
+    out = capsys.readouterr().out
+    assert "macro" in out and "filled" in out
+
+
+def test_backfill_reports_a_run_that_already_has_the_key_as_already_set(tmp_path):
+    (tmp_path / "done").mkdir()
+    _write(tmp_path, "done", {"summary": {}, "bars_per_year": 252.0})
+
+    run, bpy, status = _backfill_module().backfill_run(_result_path(tmp_path, "done"), 600.0)
+
+    assert (run, bpy, status) == ("done", 252.0, "already set")
+
+
+def test_backfill_skips_a_young_run_without_the_key_even_if_it_is_truncated(tmp_path):
+    path = tmp_path / "young" / "result.json"
+    path.parent.mkdir()
+    path.write_text('{"summary": ')
+
+    _, _, status = _backfill_module().backfill_run(path, 600.0)
+
+    assert status == "skipped: result.json younger than 600 s"
