@@ -103,6 +103,32 @@ def test_to_tapes_adds_the_funding_rank_only_on_request():
     assert all("funding_xs" not in tp.feature_names for tp in plain)
 
 
+def test_to_tapes_funding_rank_reads_no_funding_after_t():
+    rng = np.random.default_rng(3)
+    n, t = 320, 280  # the cut must fall after the warm-up rows that to_tapes drops from the start
+    incomes = {s: rng.normal(1.0, 1.0, n) for s in "ABCD"}
+
+    def tapes_with_income_after_t(redraw):
+        # Independent draws per coin: a common shift would leave the cross-sectional z-scores unchanged.
+        frames = []
+        for i, s in enumerate("ABCD"):
+            v = incomes[s].copy()
+            if redraw:
+                v[t + 1:] = rng.normal(50.0, 10.0, n - t - 1)
+            frames.append(carry_frame(s, v, seed=i))
+        return to_tapes(frames, xs_funding={"window": 7, "topk": 2})
+
+    ref = tapes_with_income_after_t(redraw=False)
+    moved = tapes_with_income_after_t(redraw=True)
+    # Tapes drop leading warm-up rows, so rows are matched by timestamp, not by position.
+    cut = (START + pd.Timedelta(days=t)).value
+    for a, b in zip(ref, moved, strict=True):
+        upto = a.times <= cut
+        assert upto.any() and not upto.all()
+        np.testing.assert_array_equal(a.features[upto], b.features[upto])
+        assert not np.array_equal(a.features[~upto], b.features[~upto])
+
+
 def test_build_all_tapes_passes_the_xs_funding_block(monkeypatch):
     frames = [carry_frame(s, np.linspace(0.5, 2.0, 320), seed=i) for i, s in enumerate("ABCD")]
     monkeypatch.setattr(experiment, "load_frames", lambda *a, **k: frames)
