@@ -1,10 +1,16 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 
 from softedge.data import fred_markets, tips
 from softedge.data.schema import validate_frame
 from softedge.features.causal import compute_features
+from softedge.tape import CostSpec, build_tape
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class FakeResponse:
@@ -71,9 +77,9 @@ def test_accrual_does_not_read_the_current_month_cpi():
     assert not np.allclose(tips.reference_cpi(lagged, dates), base)
 
 
-def test_accrual_waits_for_each_months_release():
+def test_accrual_does_not_read_the_previous_months_cpi():
     cpi = monthly_cpi()
-    # Days 3 to 14 of May 2010 come before April's CPI is released on 16 May.
+    # May reads February and March only, so April's print cannot reach the accrual on any day.
     dates = pd.bdate_range("2010-05-03", "2010-05-14", tz="UTC")
     base = tips.reference_cpi(cpi, dates)
     april = cpi.copy()
@@ -151,16 +157,26 @@ def test_spread_return_is_carry_minus_accrual_with_no_yield_change():
     np.testing.assert_allclose(df["close"].iloc[2] / df["close"].iloc[1] - 1, 0.02 * 1 * dt)
 
 
-def test_borrow_charge_on_the_short_tips_leg_reduces_the_return():
-    days = pd.DatetimeIndex([utc("2010-01-04"), utc("2010-01-05")])
-    flat = pd.Series([4.0, 4.0], index=days)
-    cpi = pd.Series(100.0, index=pd.date_range("2008-01-01", "2010-12-01", freq="MS", tz="UTC"))
-    free = tips.breakeven_frame(flat, flat - 2.0, flat - 2.0, cpi, duration=8.6, convexity=84.6,
-                                symbol="BE10")
-    charged = tips.breakeven_frame(flat, flat - 2.0, flat - 2.0, cpi, duration=8.6,
-                                   convexity=84.6, borrow_apr=0.01, symbol="BE10")
-    np.testing.assert_allclose(free["close"].iloc[1] - charged["close"].iloc[1],
-                               100 * 0.01 / 365, rtol=1e-9)
+def test_short_spread_pays_the_carry_and_no_borrow_is_credited(monkeypatch):
+    # Constant yields and CPI: the long spread earns 4% nominal less 2% real per year, and nothing
+    # else. A short spread holds the negative of that return, so its tape pays the carry with
+    # no borrow credit. The tape uses config costs: borrow_apr 0 on the spot branch.
+    days = pd.bdate_range("2003-01-02", "2010-06-30")
+    cpi_idx = pd.date_range("2001-01-01", "2010-06-01", freq="MS")
+    serve(monkeypatch, {
+        "DGS10": fred_csv("DGS10", days, np.full(len(days), 4.0)),
+        "DFII10": fred_csv("DFII10", days, np.full(len(days), 2.0)),
+        "T10YIE": fred_csv("T10YIE", days, np.full(len(days), 2.0)),
+        "CPIAUCNS": fred_csv("CPIAUCNS", cpi_idx, np.full(len(cpi_idx), 100.0)),
+    })
+    df = tips.load_tips_breakeven("10", start="2008-01", end="2008-12")
+    dt = df.index.to_series().diff().dt.total_seconds().to_numpy()[1:] / (365 * 86400)
+    costs = CostSpec(fee_bps=2.0, half_spread_bps=2.0, borrow_apr=0.0, max_leverage=4.0)
+    tape = build_tape(df, pd.DataFrame({"x": 0.0}, index=df.index), costs)
+    n = len(dt)
+    np.testing.assert_allclose(tape.long_ret[:n], 0.02 * dt, rtol=1e-9)
+    np.testing.assert_allclose(tape.short_ret[:n], -0.02 * dt, rtol=1e-9)
+    np.testing.assert_array_equal(tape.carry_short[:n], 0.0)
 
 
 def test_breakeven_change_costs_about_the_duration_per_point():
@@ -231,3 +247,12 @@ def test_loader_reads_the_four_fred_series(monkeypatch):
 def test_unknown_tenor_is_rejected():
     with pytest.raises(ValueError):
         tips.load_tips_breakeven("7")
+
+
+@pytest.mark.parametrize("name", ["tips_breakeven_1d", "tips_breakeven_1d_prior"])
+def test_config_charges_each_unit_two_legs_at_one_bp_fee_and_half_spread(name):
+    with open(ROOT / "configs" / "tips" / f"{name}.yaml") as f:
+        costs = yaml.safe_load(f)["costs"]
+    # The tape charges one fee and one half spread per unit of spread turnover. A unit trades
+    # two bonds, each at 1 bp fee plus 1 bp half spread, so the per-unit charge is 4 bp.
+    assert costs["fee_bps"] + costs["half_spread_bps"] == pytest.approx(4.0)

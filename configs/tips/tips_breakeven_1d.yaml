@@ -1,7 +1,8 @@
 name: tips_breakeven_1d
 universe: tips_breakeven
 data: {end: 2026-09, resample: 1D, start: 2003-01}
-costs: {fee_bps: 1.0, half_spread_bps: 1.0, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0}
+# Two bonds per unit of spread turnover, each at 1 bp fee and 1 bp half spread: 2 bp fee and 2 bp half spread.
+costs: {fee_bps: 2.0, half_spread_bps: 2.0, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0}
 walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2012-01-01', fold_steps: 15000, test: 730D,
   val: 365D, warm_start: true}
 env: {cost_mult_high: 2.0, cost_mult_low: 0.5, episode_len: 256, n_envs: 16, window: 4, vol_target: 0.05}

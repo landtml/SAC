@@ -5,7 +5,7 @@ the frame is long one unit of the constant-maturity nominal Treasury and short o
 TIPS of the same tenor (the constant-maturity real yield). The close starts at 100 on the first
 bar and compounds the daily spread return
 
-    r_t = R_nom_t - R_tips_t - borrow_apr * dt
+    r_t = R_nom_t - R_tips_t
 
 where each leg's total return follows the yield-to-return approximation of ``fred_markets``
 with one modified duration D and convexity C per tenor:
@@ -20,10 +20,11 @@ the month). The accrual therefore uses CPI that is at least a month old: no day 
 of its own month.
 
 The bill financing of the two legs cancels. The long nominal is financed at the bill rate, and
-the short TIPS earns the same rebate, so the frame needs no bill rate. ``borrow_apr`` is the
-shortfall of the TIPS rebate below the bill rate. It is an assumed charge, not a sourced one.
-The frame charges it to the long spread, so a short spread is credited with it. That credit is
-wrong by ``borrow_apr`` per year, since a short spread owes no TIPS borrow.
+the short TIPS earns the same rebate, so the frame needs no bill rate. The frame omits the
+shortfall of the TIPS rebate below the bill rate, a charge on the short TIPS leg. A long spread
+holds that leg, so the omission flatters a long spread by the shortfall per year. A short spread
+owes no TIPS borrow, so it is not affected. The shortfall is not sourced, and the frame has no
+borrow term that a caller could set.
 
 The breakeven is the nominal yield minus the real yield. Its expected inflation part is priced
 at ``prior``: the breakeven in percentage points minus the trailing 12-month CPI inflation in
@@ -36,9 +37,16 @@ A month missing from the FRED CPI series (FRED has no October 2025 value) carrie
 month's CPI forward, so its accrual is zero. Whether BLS published that month is not verified
 here.
 
+The high and low columns are synthetic: the max and min of open and close, not intrabar
+prices. The tape's worst-case returns, which liquidation reads, therefore equal the close-to-close
+move. At 4x leverage and a 5 percent maintenance margin, liquidation needs a one-day move of about
+20 percent, more than 60 daily standard deviations of these spreads, so the synthetic range does
+not bind at the measured volatilities.
+
 Approximations: one duration and convexity per tenor (a par bond at a 3 percent yield,
 computed for this module, not sourced), constant-maturity yields in place of a bond's own
-cash flows, and no margin or repo haircut on the spread. The FRED CPI series is the current
+cash flows, no roll cost (a position in futures or on-the-run issues rolls, and this frame does
+not), and no margin or repo haircut on the spread. The FRED CPI series is the current
 vintage; no release vintages are loaded.
 """
 
@@ -53,8 +61,6 @@ from softedge.data.schema import make_frame
 CPI_SERIES = "CPIAUCNS"
 # CPI of month M is stamped on this day of month M+1. Fixed, not the BLS calendar.
 CPI_RELEASE_DAY = 16
-# Assumed shortfall of the short TIPS rebate below the bill rate, per year.
-DEFAULT_BORROW_APR = 0.005
 
 # Modified duration and convexity of a par bond at a 3 percent yield, semiannual coupons.
 TENORS: dict[str, dict] = {
@@ -65,8 +71,7 @@ TENORS: dict[str, dict] = {
 }
 
 
-def load_tips_breakeven(tenor: str, start: str = "2003-01", end: str = "2026-09",
-                        borrow_apr: float = DEFAULT_BORROW_APR) -> pd.DataFrame:
+def load_tips_breakeven(tenor: str, start: str = "2003-01", end: str = "2026-09") -> pd.DataFrame:
     """Daily bars of the nominal-minus-TIPS spread for ``tenor`` (``"5"`` or ``"10"``).
 
     The series are built on the full FRED history, so the first bar in the window opens at
@@ -78,8 +83,7 @@ def load_tips_breakeven(tenor: str, start: str = "2003-01", end: str = "2026-09"
     frame = breakeven_frame(
         _observations(spec["nominal"]), _observations(spec["real"]),
         _observations(spec["breakeven"]), _observations(CPI_SERIES),
-        duration=spec["duration"], convexity=spec["convexity"], borrow_apr=borrow_apr,
-        symbol=f"BE{tenor}",
+        duration=spec["duration"], convexity=spec["convexity"], symbol=f"BE{tenor}",
     )
     keep = (frame.index >= pd.Timestamp(start, tz="UTC")) & (frame.index <= _window_end(end))
     out = frame.loc[keep].copy()
@@ -88,8 +92,7 @@ def load_tips_breakeven(tenor: str, start: str = "2003-01", end: str = "2026-09"
 
 
 def breakeven_frame(nominal: pd.Series, real: pd.Series, breakeven: pd.Series, cpi: pd.Series,
-                    *, duration: float, convexity: float, borrow_apr: float = 0.0,
-                    symbol: str) -> pd.DataFrame:
+                    *, duration: float, convexity: float, symbol: str) -> pd.DataFrame:
     """Spread bars from yields in percent (indexed by UTC date) and CPI (by UTC month start).
 
     Only dates where all three yield series have a value are kept. Raises ``ValueError`` when
@@ -107,7 +110,7 @@ def breakeven_frame(nominal: pd.Series, real: pd.Series, breakeven: pd.Series, c
     accrual = ref[1:] / ref[:-1] - 1.0
     nominal_ret = yn[:-1] * dt - duration * dyn + 0.5 * convexity * dyn**2
     tips_ret = yr[:-1] * dt + accrual - duration * dyr + 0.5 * convexity * dyr**2
-    ret = nominal_ret - tips_ret - borrow_apr * dt
+    ret = nominal_ret - tips_ret
 
     close = 100.0 * np.concatenate(([1.0], np.cumprod(1.0 + ret)))
     open_ = np.concatenate(([close[0]], close[:-1]))
