@@ -4,6 +4,15 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Cross-sectional funding rank for crypto cash-and-carry: `softedge.features.crosssec` gives each
+  coin its trailing 7-day funding income relative to the other coins listed at the same bar
+  (`funding_xs`), and a top-five indicator (`funding_topk`). Enabled by `xs_funding` in a config's
+  `data` block. Configs `carry/crypto_basis_xsfund_*.yaml`.
+
 ## [0.2.0] - 2026-10-13
 
 ### Changed

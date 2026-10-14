@@ -224,12 +224,13 @@ def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
              feature_cfg: FeatureConfig | None = None, cross: bool = False,
              regime: bool = False, calib: CalibConfig | None = None,
-             premia: bool = False) -> list[MarketTape]:
+             premia: bool = False, xs_funding: dict | None = None) -> list[MarketTape]:
     """Tapes from frames. ``cross`` adds cross-asset context (``features.cross``) to every
     non-binary frame when there are at least three of them; ``regime`` adds the regime
     indicators of ``features.regime`` to every frame; ``calib`` adds the ``calib_edge`` column
     of ``features.calibration`` to every binary frame; ``premia`` adds the premium features of
-    ``features.premia`` to every non-binary frame."""
+    ``features.premia`` to every non-binary frame; ``xs_funding`` (keyword arguments of
+    ``features.crosssec.xs_funding_features``) adds the cross-sectional funding rank to every frame."""
     kept, tables = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
@@ -247,6 +248,11 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
 
             table = pd.concat([table, premia_features(fr)], axis=1)
         tables.append(table)
+    if xs_funding is not None:
+        from softedge.features.crosssec import xs_funding_features
+
+        extra = xs_funding_features(kept, **xs_funding)
+        tables = [pd.concat([t, e], axis=1) for t, e in zip(tables, extra, strict=True)]
     if calib is not None:
         binary = [i for i, fr in enumerate(kept) if fr.attrs["kind"] == "binary"]
         for i, edge in zip(binary, calib_edge([kept[i] for i in binary], calib), strict=True):
