@@ -79,6 +79,15 @@ def test_schema_rejects_bad_frames():
         _frame([100, 101], kind="perp")
 
 
+def test_roll_cost_column_charges_long_and_short_exposure_on_the_roll_bar():
+    fr = _frame([100, 100, 100, 100, 100], kind="perp", funding=np.zeros(5))
+    fr["roll_cost"] = [0.0, 0.0, 0.001, 0.0, 0.001]
+    tape = build_tape(fr, _features(fr, warmup=0), bars_per_year=8760)
+    # Row 4 is the last bar: a roll there has no next step to be charged on.
+    np.testing.assert_allclose(tape.carry_long, [0.0, 0.0, 0.001, 0.0, 0.0])
+    np.testing.assert_allclose(tape.carry_short, [0.0, 0.0, 0.001, 0.0, 0.0])
+
+
 def test_fx_rate_diff_pays_longs_and_charges_shorts():
     fr = _frame([1.10, 1.10, 1.10, 1.10], kind="fx")
     fr["rate_diff"] = 0.02

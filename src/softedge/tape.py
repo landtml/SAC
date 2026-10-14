@@ -20,7 +20,7 @@ All per-step arrays have length ``T`` and describe the interval ``(t, t + 1]``:
 * ``long_worst[t]`` / ``short_worst[t]`` worst intra-bar return of each side,
   used for liquidation checks
 * ``carry_long[t]`` / ``carry_short[t]`` holding cost rate per unit of exposure
-  (funding, swap, borrow). Positive means the position pays.
+  (funding, swap, borrow, roll). Positive means the position pays.
 * ``cost_long[t]`` / ``cost_short[t]`` proportional cost per unit of exposure
   traded at row ``t`` (fee plus half spread)
 
@@ -243,6 +243,12 @@ def build_tape(
         c = (costs.fee_bps + costs.half_spread_bps) * 1e-4
         cost_long = np.full(n, c)
         cost_short = np.full(n, c)
+
+    if "roll_cost" in frame.columns:
+        # The roll trades at close[t], so its cost is carried over (t, t + 1] on both sides.
+        roll = frame["roll_cost"].to_numpy(np.float64)
+        carry_long[cur] += roll[cur]
+        carry_short[cur] += roll[cur]
 
     rows = slice(first, n)
     # Diagnostic columns of synthetic markets (never features), aligned with the rows.
