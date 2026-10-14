@@ -8,6 +8,14 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- Markets: long nominal Treasury against short TIPS at the 5- and 10-year tenors, daily from 2003,
+  with a breakeven prior (breakeven minus trailing 12-month CPI inflation, from CPI released by each
+  bar's close). Known limitations: the frame omits the TIPS borrow shortfall, which is not sourced and
+  flatters a long spread; a short spread's nominal leg carries no specialness or repo cost, also not
+  sourced; the per-unit cost of 4 bp is a placeholder, and its gross and 3x cost sensitivity configs
+  exist but have not been run; no roll cost is modelled; the spread carries no margin or repo haircut;
+  the high and low columns are synthetic; and FRED has no October 2025 CPI value, which carries
+  September forward.
 - Training: optional causal online updates during deployment (`train.online_every`, with
   `online_steps` and `online_window`). The deployed agents keep learning from transitions whose
   reward and next exposure are realized by the current bar in calendar time, also across tapes
@@ -44,6 +52,10 @@ All notable changes to this project are recorded here. The format follows
 
 - `softedge run` prints the aggregate of a CPCV run instead of failing on the missing
   walk-forward summary.
+- `softedge dsr` and the leaderboard annualise each run's Sharpe ratios with the run's own bars
+  per year, saved as `bars_per_year` in `result.json`. They had re-estimated it from the pooled
+  out-of-sample index, which misses the bars at fold boundaries, so recomputed Sharpe ratios
+  drifted low. Runs saved without the key use the old estimate and print a warning.
 
 ### Known limitations
 
