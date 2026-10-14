@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from softedge.features.calibration import CalibConfig, calib_edge
 from softedge.features.causal import FeatureConfig, compute_features, warmup_bars
 from softedge.tape import DEFAULT_COSTS, CostSpec, MarketTape, build_tape
 
@@ -141,7 +142,7 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         frames = []
         for _, row in markets.iterrows():
             try:
-                frames.append(kalshi.load_market(row))
+                frames.append(_with_resolved_at(kalshi.load_market(row), row))
             except (ValueError, FileNotFoundError, RuntimeError):
                 continue  # too short or no candles
         return frames
@@ -152,11 +153,18 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         frames = []
         for _, row in markets.iterrows():
             try:
-                frames.append(polymarket.load_market(row))
+                frames.append(_with_resolved_at(polymarket.load_market(row), row))
             except (ValueError, FileNotFoundError, RuntimeError):
                 continue  # too short, no start date, or no price history
         return frames
     raise ValueError(f"unknown universe {universe!r}")
+
+
+def _with_resolved_at(frame: pd.DataFrame, row: pd.Series) -> pd.DataFrame:
+    # The actual close is when the outcome became public. Calibration may use it at later bars;
+    # features of the market itself never see it (the market is unresolved at its own bars).
+    frame.attrs["resolved_at"] = pd.Timestamp(row["end"]).isoformat()
+    return frame
 
 
 def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
@@ -167,10 +175,11 @@ def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
 
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
              feature_cfg: FeatureConfig | None = None, cross: bool = False,
-             regime: bool = False) -> list[MarketTape]:
+             regime: bool = False, calib: CalibConfig | None = None) -> list[MarketTape]:
     """Tapes from frames. ``cross`` adds cross-asset context (``features.cross``) to every
     non-binary frame when there are at least three of them; ``regime`` adds the regime
-    indicators of ``features.regime`` to every frame."""
+    indicators of ``features.regime`` to every frame; ``calib`` adds the ``calib_edge`` column
+    of ``features.calibration`` to every binary frame."""
     kept, tables = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
@@ -184,6 +193,10 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
 
             table = pd.concat([table, regime_features(fr)], axis=1)
         tables.append(table)
+    if calib is not None:
+        binary = [i for i, fr in enumerate(kept) if fr.attrs["kind"] == "binary"]
+        for i, edge in zip(binary, calib_edge([kept[i] for i in binary], calib), strict=True):
+            tables[i] = pd.concat([tables[i], edge], axis=1)
     linear = [i for i, fr in enumerate(kept) if fr.attrs["kind"] != "binary"]
     if cross and len(linear) >= 3:
         from softedge.features.cross import cross_features
