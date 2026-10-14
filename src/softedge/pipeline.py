@@ -42,7 +42,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6, implied_vol: bool = False,
                 premium: bool = False, roll_days: int | None = None,
-                roll_cost: float | None = None) -> list[pd.DataFrame]:
+                roll_cost: float | None = None,
+                open_interest: bool = False) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi``, ``pegs`` or ``synthetic``.
     ``polymarket``, ``kalshi``, ``vrp`` or ``synthetic``. ``vrp`` holds daily short-variance
@@ -64,6 +65,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
     premium index, which leads the next funding payment, onto Binance perp legs.
+    ``open_interest`` attaches Binance's USD open interest (``softedge.data.metrics``) to
+    ``crypto_basis`` frames, for the squeeze gate of ``softedge.features.squeeze``.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
     (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
@@ -123,9 +126,14 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         from softedge.data.basis import basis_frame
 
         perp = binance.load_perp
-        return [basis_frame(binance.load_spot(s, "1h", start, end),
-                            _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
-                for s in (symbols or CRYPTO_SYMBOLS)]
+        frames = []
+        for s in (symbols or CRYPTO_SYMBOLS):
+            perp_leg = perp(s, "1h", start, end)
+            basis = basis_frame(binance.load_spot(s, "1h", start, end),
+                                _with_premium(perp_leg) if premium else perp_leg)
+            # Open interest is attached hourly, so a daily resample keeps the last 23:55 sample.
+            frames.append(_with_open_interest(basis, s) if open_interest else basis)
+        return frames
     if universe == "pegs":
         from softedge.data.pegs import load_peg_frames
 
@@ -209,6 +217,12 @@ def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
     from softedge.data.premium import attach_premium
 
     return attach_premium(frame)
+
+
+def _with_open_interest(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    from softedge.data.metrics import attach_open_interest
+
+    return attach_open_interest(frame, symbol)
 
 
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
