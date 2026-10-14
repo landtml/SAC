@@ -39,6 +39,7 @@ from softedge.eval.stats import (
     null_sr_variance,
     probabilistic_sharpe_ratio,
 )
+from softedge.features.calibration import CalibConfig
 from softedge.pipeline import (
     Period,
     SplitSpec,
@@ -97,8 +98,9 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     def costs(frame):
         return replace(DEFAULT_COSTS[frame.attrs["kind"]], **overrides)
 
+    calib = CalibConfig(**data["calib"]) if data.get("calib") else None
     return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)),
-                    regime=bool(data.get("regime_features", False)))
+                    regime=bool(data.get("regime_features", False)), calib=calib)
 
 
 def make_splits(cfg: dict) -> list[SplitSpec]:
