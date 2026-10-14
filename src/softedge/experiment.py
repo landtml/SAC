@@ -180,9 +180,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
         matched = multiplier_matched_policy(agents, val_ts, tau)
         runs["sac_multiplier_matched"] = rollout(test_ts, matched)
-        # The matched constant is fixed on validation; the test-fold mean is a diagnostic only.
-        disagree = {"tau": tau, "matched_const": matched.const,
-                    "test_mean_multiplier": shrunk.mean_multiplier}
+        # Both tau and the matched constant are fixed on validation bars.
+        disagree = {"tau": tau, "matched_const": matched.const}
     band, band_scores = choose_band(policy, val_ts)
     runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled

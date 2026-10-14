@@ -219,10 +219,12 @@ def test_matched_constant_ignores_test_fold_tapes():
     cfg, parts, names = _test_runs_inputs()
     cfg = {**cfg, "deploy": {"disagree_shrink": 1.0}}
     agents = _agents(TapeSet(parts["test"], window=4, feature_names=names).obs_dim, seeds=(0, 1))
-    _, a = _test_runs(cfg, agents, [0, 1], {**parts, "test": _tapes(10)}, 4, names)
-    _, b = _test_runs(cfg, agents, [0, 1], {**parts, "test": _tapes(20)}, 4, names)
-    # The test-fold multiplier moves with the test tapes, so the check is not vacuous.
-    assert a["disagree"]["test_mean_multiplier"] != pytest.approx(b["disagree"]["test_mean_multiplier"])
+    runs_a, a = _test_runs(cfg, agents, [0, 1], {**parts, "test": _tapes(10)}, 4, names)
+    runs_b, b = _test_runs(cfg, agents, [0, 1], {**parts, "test": _tapes(20)}, 4, names)
+    # The shrunk targets move with the test tapes, so the check is not vacuous.
+    shrunk_a = np.concatenate([r["target"] for r in runs_a["sac_disagree_shrink"]])
+    shrunk_b = np.concatenate([r["target"] for r in runs_b["sac_disagree_shrink"]])
+    assert not np.allclose(shrunk_a, shrunk_b)
     assert a["disagree"]["matched_const"] == b["disagree"]["matched_const"]
 
 
