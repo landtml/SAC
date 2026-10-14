@@ -63,3 +63,44 @@ def test_regime_features_are_added_on_request():
     plain, with_regime = to_tapes(frames), to_tapes(frames, regime=True)
     assert "vr_16" in with_regime[0].feature_names and "vr_16" not in plain[0].feature_names
     assert len(with_regime[0]) <= len(plain[0])
+
+
+def _write_legacy_cache(frame, path) -> None:
+    """Write a bar frame the way releases before the rename did: attrs under the old key."""
+    import json
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = pa.Table.from_pandas(frame)
+    table = table.replace_schema_metadata({**(table.schema.metadata or {}),
+                                           b"sactrader": json.dumps(frame.attrs).encode()})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(table, path)
+
+
+def test_resampling_a_perp_cached_under_the_old_project_key(tmp_path, monkeypatch):
+    from softedge.data.binance import _frame_path
+    from softedge.data.synthetic import gbm, with_funding
+    from softedge.pipeline import load_frames, resample_frame
+
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
+    perp = with_funding(gbm(24 * 40, seed=1, symbol="BTCUSDT", start="2024-01-01"), seed=1)
+    _write_legacy_cache(perp, _frame_path("perp", "BTCUSDT", "1h", "2024-01", "2024-02"))
+    (frame,) = load_frames("crypto_perp", "2024-01", "2024-02", symbols=["BTCUSDT"])
+    assert resample_frame(frame, "1D").attrs["kind"] == "perp"
+
+
+def test_basis_of_legs_cached_under_the_old_project_key(tmp_path, monkeypatch):
+    from softedge.data.binance import _frame_path
+    from softedge.data.synthetic import gbm, with_funding
+    from softedge.pipeline import load_frames, resample_frame
+
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path))
+    spot = gbm(24 * 40, seed=0, symbol="BTCUSDT", start="2024-01-01")
+    perp = with_funding(gbm(24 * 40, seed=1, symbol="BTCUSDT", start="2024-01-01"), seed=1)
+    _write_legacy_cache(spot, _frame_path("spot", "BTCUSDT", "1h", "2024-01", "2024-02"))
+    _write_legacy_cache(perp, _frame_path("perp", "BTCUSDT", "1h", "2024-01", "2024-02"))
+    (basis,) = load_frames("crypto_basis", "2024-01", "2024-02", symbols=["BTCUSDT"])
+    assert basis.attrs["symbol"] == "BTCUSDT-BASIS"
+    assert resample_frame(basis, "1D").attrs["bar"] == "1D"
