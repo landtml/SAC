@@ -126,13 +126,14 @@ results page depends on that count.
 | Premium-index feature on crypto cash-and-carry | `carry/crypto_basis_1d_prior_prem.yaml` (run `crypto_basis_1d_prior_prem`) | Crypto cash-and-carry, 10 coins | no gain (results.md, Ablations) | not stated in results.md |
 | Benchmark, base agent, seed offset 1000 | `bench/bench_base.yaml` | Synthetic benchmark, four failure families | pending | no |
 | Benchmark, prior feature, seed offset 2000 | `bench/bench_prior.yaml` | Synthetic benchmark, prior family | pending | no |
+| Drawdown-hinged log-growth reward, penalty 1.0 | `bench/drawdown-penalty_on.yaml` (against `_off`) | Synthetic benchmark, four failure families, seed offset 3200 | pending | no |
 
 Outcomes for the published rows follow the results page, Ablations section. Outcomes for the other rows
 are read from the run named in the row.
 
 Benchmark rule: each algorithm comparison uses a `seed_offset` that no earlier comparison used, and
-reports the share of the sign oracle's Sharpe ratio that the agent captures. Offsets 1000 and 2000 are
-in use, so the next comparison needs a new offset.
+reports the share of the sign oracle's Sharpe ratio that the agent captures. Offsets 1000, 2000, 3000,
+3100 and 3200 are in use, so the next comparison needs a new offset.
 
 ## Known data and accounting fixes
 

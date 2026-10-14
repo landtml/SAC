@@ -287,7 +287,7 @@ works as `prior_feature`.
 
 Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
 the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
-same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair).
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair), 3200 (the drawdown pair).
 
 The online pair differs only in `train.online_every`: the deployed agents take 16 gradient
 steps every 24 test bars on the transitions realized in the last 5000 bars (`agent/online.py`).
@@ -320,6 +320,23 @@ checkpoints and the no-trade band, so the shrink adds validation selection on to
 bar enters either value. Both new runs count as trials in `n_trials`, which deflates the reported
 DSR for them. `tau` is one fixed median and is not searched.
 
+The `drawdown-penalty` pair differs only in `reward.dd_penalty` and `obs.drawdown` (off: 0 and
+false; on: 1.0 and true). The reward is the per-bar log growth minus `dd_penalty` times the standard
+deviation of the buffer's base reward, times the log drawdown beyond `dd_tolerance` (0.05) after the
+step, capped at 1.0 log unit beyond the tolerance (`DD_EXCESS_CAP` in `agent/drawdown.py`). The
+drawdown is measured from the running equity peak of each training episode and each test tape.
+Limit: the peak resets at those starts, so a drawdown carried across a fold boundary is erased and
+the penalty does not charge it. The observation carries `log1p` of the drawdown, and the penalty
+requires that observation. The penalty is applied on the replayed transitions, and the drawdown
+observation is refused with online updates or the pathwise objective. Both runs count as trials in
+`n_trials`, which deflates the reported DSR for them.
+
+The pair's comparison must report, for the off and on runs: the mean max drawdown on vs off; the
+share of the sign oracle's Sharpe captured on vs off; and the mean absolute exposure by drawdown
+bucket on vs off, with the buckets u = 0, 0 < u <= `dd_tolerance`, and u > `dd_tolerance`. The
+switch-off equivalence is shown on one small config (the pinned digest and absent-equals-off tests
+in `tests/agent/test_drawdown.py`), not on the bench.
+
 | File | What it tests | Results |
 | --- | --- | --- |
 | `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
@@ -328,3 +345,5 @@ DSR for them. `tau` is one fixed median and is not searched.
 | `bench/disagree-shrink_on.yaml` | As `disagree-shrink_off.yaml`, with the disagreement shrink on. | No |
 | `bench/online-deploy-updates_off.yaml` | All four families, seed offset 3100, online updates off (the base of the pair). | No |
 | `bench/online-deploy-updates_on.yaml` | As the off config with `online_every: 24`: causal online updates during deployment. | No |
+| `bench/drawdown-penalty_off.yaml` | All four families, eight markets, seed offset 3200, the drawdown penalty and drawdown observation off. | No |
+| `bench/drawdown-penalty_on.yaml` | As `drawdown-penalty_off.yaml` with `dd_penalty` 1.0, `dd_tolerance` 0.05 and the drawdown observation on. | No |

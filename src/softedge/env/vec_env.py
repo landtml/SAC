@@ -7,7 +7,9 @@ replay buffer stores them instead of observation vectors, and counterfactual rep
 
 Observation layout: ``[feature window (window x F) | w / max_leverage | log cost long | log cost
 short | carry long bps | carry short bps | max_leverage / 5 | market-kind one-hot (4)]``, plus
-``[prior | scale / max_leverage]`` when an action map is set. The carry columns hold the carry
+``[prior | scale / max_leverage]`` when an action map is set, plus ``log1p(u)`` when the drawdown
+observation is on (``u`` is the log drawdown state, agent/drawdown.py; it is then an input of every
+call that builds observations). The carry columns hold the carry
 of the interval that just ended: the next interval's perp funding is not known at the close.
 Tapes may carry different feature columns; the observation uses the union of names and fills
 missing columns with zeros.
@@ -27,11 +29,13 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from softedge.agent.drawdown import next_drawdown
 from softedge.portfolio import log_reward, step_portfolio
 from softedge.tape import KIND_INDEX, SIGMA_SPAN, MarketTape
 
 N_CONTEXT = 6 + len(KIND_INDEX)
 N_MAP_CONTEXT = 2
+N_DRAWDOWN_CONTEXT = 1
 
 _STEP_FIELDS = (
     "long_ret", "short_ret", "short_growth", "long_worst", "short_worst",
@@ -59,6 +63,8 @@ class EnvConfig:
     # Several priors at once, feature -> gain, summed before clipping. A feature a tape lacks is
     # zero there, so one pooled agent can hold funding carry on crypto and rate carry on forex.
     prior_features: dict[str, float] | None = None
+    # Observe the log drawdown from the running peak (set from obs.drawdown; agent/drawdown.py).
+    drawdown_obs: bool = False
 
     @property
     def action_map(self) -> ActionMap | None:
@@ -94,11 +100,12 @@ class TapeSet:
     """Concatenated tapes with a shared feature space and vectorized lookups."""
 
     def __init__(self, tapes: list[MarketTape], window: int, feature_names: tuple[str, ...] | None = None,
-                 action_map: ActionMap | None = None):
+                 action_map: ActionMap | None = None, drawdown: bool = False):
         if not tapes:
             raise ValueError("need at least one tape")
         self.tapes = tapes
         self.window = window
+        self.drawdown = bool(drawdown)
         self.action_map = action_map if action_map is not None and action_map.active else None
         names = feature_names or _union_names(tapes)
         self.feature_names = tuple(names)
@@ -164,14 +171,20 @@ class TapeSet:
 
     @property
     def n_context(self) -> int:
-        return N_CONTEXT + (N_MAP_CONTEXT if self.action_map is not None else 0)
+        map_dim = N_MAP_CONTEXT if self.action_map is not None else 0
+        return N_CONTEXT + map_dim + (N_DRAWDOWN_CONTEXT if self.drawdown else 0)
 
     @property
     def obs_dim(self) -> int:
         return self.window * len(self.feature_names) + self.n_context
 
-    def observe(self, k: np.ndarray, t: np.ndarray, w: np.ndarray, cost_mult: np.ndarray) -> np.ndarray:
-        """Observation rows for arrays of (tape, row, exposure, cost multiplier)."""
+    def observe(self, k: np.ndarray, t: np.ndarray, w: np.ndarray, cost_mult: np.ndarray,
+                u: np.ndarray | None = None) -> np.ndarray:
+        """Observation rows for arrays of (tape, row, exposure, cost multiplier[, drawdown]).
+
+        ``u`` is the log drawdown from the running peak, required when the drawdown observation is
+        on and ignored otherwise.
+        """
         k = np.asarray(k, dtype=np.int64)
         t = np.asarray(t, dtype=np.int64)
         g = self.offsets[k] + t
@@ -191,6 +204,11 @@ class TapeSet:
         if self.action_map is not None:
             ctx[:, N_CONTEXT] = self.prior[g]
             ctx[:, N_CONTEXT + 1] = self.scale[g] / lev
+        if self.drawdown:
+            if u is None:
+                raise ValueError("the drawdown observation needs the drawdown state u")
+            # u is unbounded above; log1p keeps large drawdowns on the scale of the other inputs.
+            ctx[:, -1] = np.log1p(np.asarray(u, dtype=np.float64))
         return np.concatenate([win, ctx], axis=1).astype(np.float32)
 
     def targets(self, k: np.ndarray, t: np.ndarray, action: np.ndarray) -> np.ndarray:
@@ -250,6 +268,8 @@ class Batch:
     truncated: np.ndarray
     cost_mult: np.ndarray
     ret: np.ndarray
+    # Log drawdown before the step (drawdown observation only).
+    u: np.ndarray | None = None
 
 
 class VecTradingEnv:
@@ -272,6 +292,7 @@ class VecTradingEnv:
         self.end = np.zeros(n, dtype=np.int64)
         self.w = np.zeros(n)
         self.cost_mult = np.ones(n)
+        self.u = np.zeros(n)  # log drawdown from the episode's running peak
         self.ep_return = np.zeros(n)
         self.completed_returns: list[float] = []
         self._reset(np.arange(n))
@@ -304,9 +325,10 @@ class VecTradingEnv:
         c_lo, c_hi = self.cfg.cost_mult_low, self.cfg.cost_mult_high
         self.cost_mult[idx] = np.exp(self.rng.uniform(np.log(c_lo), np.log(c_hi), len(idx)))
         self.ep_return[idx] = 0.0
+        self.u[idx] = 0.0
 
     def observe(self) -> np.ndarray:
-        return self.ts.observe(self.k, self.t, self.w, self.cost_mult)
+        return self.ts.observe(self.k, self.t, self.w, self.cost_mult, self.u)
 
     def step(self, action: np.ndarray) -> Batch:
         action = np.asarray(action, dtype=np.float64).reshape(-1)
@@ -316,10 +338,11 @@ class VecTradingEnv:
         batch = Batch(
             k=self.k.copy(), t=self.t.copy(), w_prev=self.w.copy(), action=action.copy(),
             reward=reward, w_next=res.w_next, terminal=terminal, truncated=truncated,
-            cost_mult=self.cost_mult.copy(), ret=res.ret,
+            cost_mult=self.cost_mult.copy(), ret=res.ret, u=self.u.copy(),
         )
         self.ep_return += reward
         self.w = res.w_next
+        self.u = next_drawdown(self.u, reward)
         self.t = self.t + 1
         done = np.flatnonzero(terminal | truncated)
         self.completed_returns.extend(self.ep_return[done].tolist())
@@ -339,24 +362,26 @@ def rollout(tapes: TapeSet, act_fn, cost_mult: float = 1.0,
     k = np.arange(n)
     t = np.full(n, tapes.first_row, dtype=np.int64)
     w = np.zeros(n)
+    u = np.zeros(n)  # log drawdown from the running peak, from each tape's first row
     cm = np.full(n, cost_mult)
     steps = tapes.last_step_row - tapes.first_row + 1
     keys = ("ret", "target", "w_prev", "cost", "turnover")
     grid = {key: np.zeros((n, int(steps.max()))) for key in keys}
     for i in range(int(steps.max())):
         live = np.flatnonzero(i < steps)
-        obs = tapes.observe(k[live], t[live], w[live], cm[live])
+        obs = tapes.observe(k[live], t[live], w[live], cm[live], u[live])
         act = np.asarray(act_fn(obs), dtype=np.float64).reshape(-1)
         target = tapes.targets(k[live], t[live], act)
         if band > 0:
             hold = np.abs(target - w[live]) <= band * tapes.max_leverage[live]
             target = np.where(hold, w[live], target)
-        res, _, _ = tapes.transition_target(k[live], t[live], w[live], target, cm[live])
+        res, reward, _ = tapes.transition_target(k[live], t[live], w[live], target, cm[live])
         grid["ret"][live, i] = res.ret
         grid["target"][live, i] = target
         grid["w_prev"][live, i] = w[live]
         grid["cost"][live, i] = res.cost
         grid["turnover"][live, i] = res.turnover
         w[live] = res.w_next
+        u[live] = next_drawdown(u[live], reward)
         t[live] += 1
     return [{key: grid[key][j, : steps[j]] for key in keys} for j in range(n)]
