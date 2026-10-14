@@ -1,8 +1,10 @@
 import json
 
 import pandas as pd
+import pytest
 
-from softedge.cpcv_experiment import carve_validation
+from softedge import cpcv_experiment
+from softedge.cpcv_experiment import carve_validation, run_cpcv
 from softedge.experiment import run_experiment
 
 CFG = {
@@ -32,6 +34,16 @@ def test_carve_validation_leaves_purge_gap():
     assert none is None
 
 
+def test_cpcv_refuses_online_updates_before_any_training(tmp_path, monkeypatch):
+    def no_training(*args, **kwargs):
+        raise AssertionError("training started although online updates were requested")
+
+    monkeypatch.setattr(cpcv_experiment, "train", no_training)
+    cfg = {**CFG, "name": "cpcv_online", "train": {**CFG["train"], "online_every": 25}}
+    with pytest.raises(ValueError, match="online deployment updates are not supported under CPCV"):
+        run_cpcv(cfg, tmp_path)
+
+
 def test_cpcv_run_builds_paths_and_counts_trials(tmp_path):
     res = run_experiment(CFG, tmp_path)
     assert res["mode"] == "cpcv" and res["n_splits"] == 6 and res["n_paths"] == 3
@@ -44,4 +56,9 @@ def test_cpcv_run_builds_paths_and_counts_trials(tmp_path):
     # A path covers the whole CPCV span once: about 89 days of hourly bars minus window warm-up.
     assert p0.index.is_unique and len(p0) > 85 * 24
     rows = [json.loads(line) for line in open(tmp_path / "trials.jsonl")]
-    assert rows[-1]["mode"] == "cpcv" and res["n_trials"] == 3
+    assert rows[-1]["mode"] == "cpcv"
+    # banded and gated return the same series on every path, so with seed 0 they are one trial.
+    paths_ret = [pd.read_csv(tmp_path / "cpcv_tiny" / f"path{j}_returns.csv", index_col=0)
+                 for j in range(3)]
+    assert all(p["sac_banded"].equals(p["sac_gated"]) for p in paths_ret)
+    assert res["n_trials"] == 2

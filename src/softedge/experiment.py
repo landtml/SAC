@@ -11,6 +11,7 @@ ratio counts all configurations tried.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import time
 from dataclasses import fields, replace
@@ -21,7 +22,14 @@ import pandas as pd
 import torch
 import yaml
 
+from softedge.agent.disagree import (
+    ShrinkPolicy,
+    disagree_shrink_on,
+    multiplier_matched_policy,
+    validation_tau,
+)
 from softedge.agent.factory import agent_from_state
+from softedge.agent.online import deploy_online
 from softedge.agent.sac import TQCSAC, SACConfig
 from softedge.env.vec_env import EnvConfig, TapeSet, rollout
 from softedge.eval import baselines
@@ -152,10 +160,12 @@ def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
 
 
 def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, window: int,
-               feature_names: tuple[str, ...], n_val_evals: int = 1) -> tuple[dict, dict]:
+               feature_names: tuple[str, ...], n_val_evals: int = 1,
+               reward_scales: dict[int, float] | None = None) -> tuple[dict, dict]:
     start_row = window - 1
     test = parts["test"]
-    action_map = build_train_config(cfg, seeds[0]).env.action_map
+    tc = build_train_config(cfg, seeds[0])
+    action_map = tc.env.action_map
     test_ts = TapeSet(test, window, feature_names, action_map)
     runs = {}
     for seed, agent in zip(seeds, agents, strict=True):
@@ -164,8 +174,25 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
     val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    disagree: dict = {}
+    if disagree_shrink_on(cfg.get("deploy", {})):
+        # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.
+        if len(agents) < 2:
+            raise ValueError("deploy.disagree_shrink needs at least two seeds")
+        tau = validation_tau(agents, val_ts)
+        shrunk = ShrinkPolicy(agents, tau=tau)
+        runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
+        matched = multiplier_matched_policy(agents, val_ts, tau)
+        runs["sac_multiplier_matched"] = rollout(test_ts, matched)
+        # Both tau and the matched constant are fixed on validation bars.
+        disagree = {"tau": tau, "matched_const": matched.const}
     band, band_scores = choose_band(policy, val_ts)
-    runs["sac_banded"] = rollout(test_ts, policy, band=band)
+    online_info = None
+    if tc.online_every > 0:
+        runs["sac_banded"], online_info = deploy_online(agents, test_ts, reward_scales, seeds, tc,
+                                                        band)
+    else:
+        runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
     # validation record. Below the gate the strategy stays flat for this fold. The same validation
     # record picked the checkpoints and the band, so gate "dsr" deflates it by that search:
@@ -200,9 +227,14 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]
-    return runs, {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
-                  "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
-                  "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    info = {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
+            "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
+            "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    if online_info is not None:
+        info["online"] = online_info
+    if disagree:
+        info["disagree"] = disagree
+    return runs, info
 
 
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
@@ -254,7 +286,8 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
             seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale,
                                "n_val_evals": len(res.history)}
         runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names,
-                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()))
+                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()),
+                                reward_scales={s: reward_scales[s] for s in seeds})
         test = parts["test"]
         fold_sharpe = {}
         for strat, run in runs.items():
@@ -274,8 +307,10 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     pooled = {strat: pooled_returns(run, all_tapes, start_row) for strat, run in all_runs.items()}
     bpy = float(np.median([tp.bars_per_year for tp in all_tapes]))
     reference = cfg.get("reference", "buy_and_hold")
-    sac_sr = {s: _per_bar_sharpe(series) for s, series in pooled.items() if s.startswith("sac_")}
-    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()))
+    sac_series = {s: series for s, series in pooled.items() if s.startswith("sac_")}
+    sac_sr = {s: _per_bar_sharpe(series) for s, series in sac_series.items()}
+    keys = [_series_key([series.dropna().to_numpy()]) for series in sac_series.values()]
+    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()), keys)
     summary = summary_from_pooled(pooled, bpy, reference, n_trials=n_trials, sr_variance=sr_var)
     fold_table = pd.DataFrame([{"fold": f["fold"], **f["pooled_sharpe"]} for f in folds
                                if "pooled_sharpe" in f])
@@ -307,23 +342,79 @@ def _per_bar_sharpe(series: pd.Series) -> float:
     return float(r.mean() / sd) if sd > 0 else 0.0
 
 
-def trial_stats(root: Path, universe: str, current: list[float]) -> tuple[int, float | None]:
+def trial_stats(root: Path, universe: str, current: list[float],
+                current_keys: list[str | None] | None = None) -> tuple[int, float | None]:
     """Trial count and cross-trial Sharpe variance for the deflated Sharpe ratio.
 
     Every SAC variant reported on ``universe`` counts as one trial: each seed, the ensemble and
     the banded and gated versions, across all earlier experiments in ``root`` plus ``current``.
-    The variance is that of their per-bar Sharpe ratios (None below two trials, which leaves the
-    zero-skill floor).
+    A trial whose per-bar return series equals an earlier trial's counts once, so the banded and
+    gated versions of a run that never leaves the band are one trial. ``current_keys`` holds the
+    series key of each entry of ``current`` (see ``_series_key``); the ledger's keys come from
+    the saved returns of each run. Trials without a key are never merged. The ledger keeps every
+    row. The variance is that of the Sharpe ratios of the unique series (None below two, which
+    leaves the zero-skill floor).
     """
-    srs = list(current)
+    keys = [None] * len(current) if current_keys is None else current_keys
+    trials = list(zip(current, keys, strict=True))
     path = root / "trials.jsonl"
     if path.exists():
         for line in open(path):
             row = json.loads(line)
             if row.get("universe") == universe:
-                srs.extend(row.get("sac_sr_bar", {}).values())
+                keys = _run_series_keys(root / row["name"])
+                trials.extend((sr, keys.get(s)) for s, sr in row.get("sac_sr_bar", {}).items())
+    srs = _unique_sharpes(trials)
     n = max(len(srs), 1)
     return n, (float(np.var(srs, ddof=1)) if len(srs) > 1 else None)
+
+
+def _series_key(parts: list[np.ndarray]) -> str:
+    """Exact identity of a trial's per-bar returns: a SHA-256 of their float64 bytes, one part per path."""
+    h = hashlib.sha256()
+    for part in parts:
+        b = np.ascontiguousarray(part, dtype=np.float64).tobytes()
+        h.update(len(b).to_bytes(8, "little"))
+        h.update(b)
+    return h.hexdigest()
+
+
+def _unique_sharpes(trials: list[tuple[float, str | None]]) -> list[float]:
+    """Sharpe ratio of each trial, keeping the first of trials that share a series key."""
+    seen: set[str] = set()
+    srs = []
+    for sr, key in trials:
+        if key is not None:
+            if key in seen:
+                continue
+            seen.add(key)
+        srs.append(sr)
+    return srs
+
+
+def _saved_returns(run_dir: Path) -> tuple[str, list[pd.DataFrame]] | None:
+    """Mode and per-bar returns of a saved run: one frame for walk-forward, one per CPCV path."""
+    # round_trip parsing restores the exact float64 values the run wrote. The default parser
+    # changes the last digits of some values, so identical series would get different keys.
+    def read(p: Path) -> pd.DataFrame:
+        return pd.read_csv(p, index_col=0, parse_dates=True, float_precision="round_trip")
+
+    if (run_dir / "pooled_returns.csv").exists():
+        return "walk_forward", [read(run_dir / "pooled_returns.csv")]
+    paths = sorted(run_dir.glob("path*_returns.csv"), key=lambda p: int(p.stem[4:-8]))
+    if paths:
+        return "cpcv", [read(p) for p in paths]
+    return None
+
+
+def _run_series_keys(run_dir: Path) -> dict[str, str]:
+    """Series key of each SAC strategy saved in ``run_dir``; empty when the run saved no returns."""
+    saved = _saved_returns(run_dir)
+    if saved is None:
+        return {}
+    frames = saved[1]
+    return {col: _series_key([f[col].dropna().to_numpy() for f in frames])
+            for col in frames[0].columns if col.startswith("sac_")}
 
 
 def recompute_dsr(root: str | Path) -> pd.DataFrame:
@@ -332,31 +423,27 @@ def recompute_dsr(root: str | Path) -> pd.DataFrame:
     Walk-forward and single-split runs (``pooled_returns.csv``) give one row per strategy. CPCV
     runs (``path{j}_returns.csv``) give one row per strategy with the mean over paths of Sharpe,
     PSR and DSR, plus ``dsr_min`` and ``n_paths``. Every SAC strategy of every run is one trial of
-    its universe (a CPCV strategy counts once, at its mean per-bar Sharpe across paths); the
-    cross-trial variance is that of those per-bar Sharpe ratios. Directories without
+    its universe (a CPCV strategy counts once, at its mean per-bar Sharpe across paths), and a
+    trial whose return series equals another's in the universe counts once. The cross-trial
+    variance is that of the Sharpe ratios of the unique series. Directories without
     ``config.yaml`` are skipped.
     """
     root = Path(root)
     runs = []
     for d in sorted(p for p in root.iterdir() if p.is_dir() and (p / "config.yaml").exists()):
-        cfg = load_config(d / "config.yaml")
-        if (d / "pooled_returns.csv").exists():
-            pooled = pd.read_csv(d / "pooled_returns.csv", index_col=0, parse_dates=True)
-            runs.append((d.name, cfg, "walk_forward", [pooled]))
-        else:
-            paths = sorted(d.glob("path*_returns.csv"), key=lambda p: int(p.stem[4:-8]))
-            if paths:
-                frames = [pd.read_csv(p, index_col=0, parse_dates=True) for p in paths]
-                runs.append((d.name, cfg, "cpcv", frames))
-    by_universe: dict[str, list[float]] = {}
+        saved = _saved_returns(d)
+        if saved is not None:
+            runs.append((d.name, load_config(d / "config.yaml"), *saved))
+    by_universe: dict[str, list[tuple[float, str]]] = {}
     for _, cfg, _, frames in runs:
         for col in frames[0].columns:
             if col.startswith("sac_"):
                 sr = np.mean([_per_bar_sharpe(f[col].dropna()) for f in frames])
-                by_universe.setdefault(cfg["universe"], []).append(float(sr))
+                key = _series_key([f[col].dropna().to_numpy() for f in frames])
+                by_universe.setdefault(cfg["universe"], []).append((float(sr), key))
     rows = []
     for name, cfg, mode, frames in runs:
-        srs = by_universe.get(cfg["universe"], [])
+        srs = _unique_sharpes(by_universe.get(cfg["universe"], []))
         var = float(np.var(srs, ddof=1)) if len(srs) > 1 else None
         n = max(len(srs), 1)
         for col in frames[0].columns:
