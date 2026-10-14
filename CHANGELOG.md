@@ -12,6 +12,45 @@ All notable changes to this project are recorded here. The format follows
   `online_steps` and `online_window`). The deployed agents keep learning from transitions whose
   reward and next exposure are realized by the current bar in calendar time, also across tapes
   that start on different dates. Off by default; the frozen deployment is unchanged.
+- Costs: `costs.financing_apr` charges cash financing on long spot exposure above 1x. Zero by default.
+- Markets: `delivery_basis` holds long spot against the front quarterly future on BTC and ETH. It
+  rolls to the next contract before expiry; `data.roll_days` and `data.roll_cost` set the roll.
+- Markets: `pegs` holds stablecoin and liquid-staking spot pairs, with the `peg_dev` feature. Series
+  are cut at archive gaps, and each piece is named `<SYMBOL>-<n>`.
+- Markets: `vrp` holds daily variance carry on BTC and ETH, and `vrp_spx` an S&P 500 variance risk
+  premium index.
+- Markets: `macro_fomc` holds equity indices with `fomc_next`, a flag for the scheduled FOMC
+  announcement session.
+- Synthetic: `synthetic_bench` is a benchmark universe of markets in four failure-mode families,
+  chosen with `data.family`.
+- Features: `premia_features` adds time-series momentum, trend-confirmed carry and the Treasury
+  curve slope to linear markets.
+- Features: `data.calib` adds a calibration-edge feature to binary markets, using only markets
+  resolved before each bar.
+- Agent: `deploy.disagree_shrink: 1` shrinks the deployed residual where ensemble seeds disagree.
+  Off by default.
+- Command-line: `softedge dsr --out` and `softedge summary --out` write the report to a chosen file.
+- Command-line: `softedge download` accepts every universe that `load_frames` loads.
+
+### Changed
+
+- Configs are grouped in folders under `configs/`, such as `configs/carry/` and
+  `configs/prediction/`. Update paths that name the flat config files of 0.2.0.
+- Binance klines: a series with a gap in its bars emits a `UserWarning` that names the first gap.
+- Binance klines: a missing archive month between two listed months raises an error instead of
+  being skipped. Frames already in the cache are not rechecked.
+
+### Fixed
+
+- `softedge run` prints the aggregate of a CPCV run instead of failing on the missing
+  walk-forward summary.
+
+### Known limitations
+
+- Online deployment updates (`train.online_every`) are refused under CPCV, so they run only in
+  walk-forward experiments.
+- The `vrp` and `vrp_spx` frames are proxies. They omit gamma, hedging, option spreads and vega,
+  and `vrp_spx` does not model roll.
 
 ## [0.2.0] - 2026-10-13
 
