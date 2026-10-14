@@ -15,9 +15,8 @@ runs from the close of ``t`` to the close of ``t + 1``) holds the reaction to an
 A US bar closes after 14:00 ET on the announcement day, so the reaction is in the bar dated
 that day. A Tokyo bar closes about 02:00 ET, before the release, so the reaction is in the bar
 dated the next day; ``EARLY_CLOSE_SYMBOLS`` lists the symbols that close early. The flag marks
-the whole announcement session, a daily bar that contains the release. It is not a pre-announcement
-window. The pre-FOMC drift in the literature (Lucca and Moench, 2015) is a 2pm-to-2pm window that
-spans two sessions, and this flag does not measure that window. The flag reads the calendar and
+the whole announcement session, a daily bar that contains the release. It marks no window before
+the release day, so it does not measure a pre-announcement drift. The flag reads the calendar and
 the bar dates only, never prices.
 """
 
