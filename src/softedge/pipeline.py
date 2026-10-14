@@ -77,6 +77,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     ``synthetic_bench`` holds the benchmark markets of ``softedge.data.bench``: ``family`` picks
     one family or ``"all"``, and market ``i`` is seeded ``seed_offset + i``.
     """
+    if open_interest and universe != "crypto_basis":
+        raise ValueError(f"open_interest attaches to crypto_basis frames only, not {universe!r}")
     if universe == "synthetic_bench":
         from softedge.data.bench import bench_frames
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 import yaml
 
 import softedge.experiment as experiment
@@ -78,10 +79,11 @@ def test_gated_config_differs_from_the_funding_prior_only_in_the_gate():
     assert without_start(base) == without_start(prior)
 
 
-def test_both_configs_start_at_the_open_interest_archive():
-    # The gate needs 7 days of growth and 180 days of growth history inside the frame, so the
-    # first computable day is 2022-07-06 for a frame that starts 2022-01-01 and 2023-01-03 for
-    # one that starts 2022-07-01. Both configs start in 2022-01 so they trade the same days.
+def test_both_configs_start_at_the_loader_request_floor():
+    # The loader requests open interest from OI_START (2022-01). The gate needs 7 days of growth
+    # and 180 days of growth history inside the frame, so the first computable day is 2022-07-06
+    # for a frame that starts 2022-01-01 and 2023-01-03 for one that starts 2022-07-01. Both
+    # configs start in 2022-01 so they trade the same days.
     gated = _load("crypto_basis_1d_squeeze_gate.yaml")
     base = _load("crypto_basis_1d_squeeze_base.yaml")
     assert gated["data"]["start"] == "2022-01"
@@ -102,3 +104,8 @@ def test_daily_resample_keeps_the_23_55_snapshot_of_each_day(monkeypatch):
     # Day 1 closes at 2024-01-02 00:00, so its last hourly bar takes the 23:55 snapshot.
     # Day 2 closes at 2024-01-03 00:00 and takes the 23:55 snapshot of its own day.
     assert daily["oi_value"].tolist() == [10.0, 30.0]
+
+
+def test_open_interest_is_refused_outside_crypto_basis():
+    with pytest.raises(ValueError, match="crypto_basis frames only"):
+        pipeline.load_frames("synthetic", open_interest=True)
