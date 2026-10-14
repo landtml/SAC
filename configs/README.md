@@ -212,3 +212,21 @@ in `multi/`.
 | --- | --- | --- |
 | `multi/multi_daily_vt.yaml` | Crypto perpetuals, forex and macro, daily, walk-forward from 2016, volatility target 0.1, no prior. | No |
 | `multi/multi_daily_prior.yaml` | As `multi_daily_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
+
+## Benchmark
+
+Synthetic markets with fresh draws, for comparing algorithm changes. The markets come from
+`softedge.data.bench`. Four families: `break` (the edge flips or vanishes in the second half),
+`jump` (GARCH volatility with crash jumps), `threshold` (the signal predicts only in high-volatility
+bars) and `prior` (a linear market whose prior is the failure mode). `data.family: all` mixes the
+four. Every market carries `prior_hint`, a prior in units of a 1% bar volatility, so `prior_hint`
+works as `prior_feature`.
+
+Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
+the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`).
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
+| `bench/bench_prior.yaml` | The `prior` family, seed offset 2000, the prior `prior_hint` as `prior_feature`. | No |
