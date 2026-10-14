@@ -88,18 +88,57 @@ def test_attach_peg_marks_stablecoins_fixed_and_staking_tokens_trailing():
     validate_frame(pegs.attach_peg(stake))
 
 
-def test_bars_before_a_multi_day_archive_gap_are_dropped(monkeypatch):
-    # The archive has no monthly files for some months; the loader would bridge them with one
-    # return across the gap. Only the bars after the last such gap are kept.
-    close = _walk(24 * 12, seed=9, scale=0.001)
-    frame = _spot(close, "USDCUSDT", peg=None)
-    keep = np.r_[np.arange(24 * 3), np.arange(24 * 6, 24 * 12)]
-    gapped = frame.iloc[keep].copy()
-    gapped.attrs = dict(frame.attrs)
-    monkeypatch.setattr(binance, "load_spot", lambda *a, **k: gapped)
-    (out,) = pegs.load_peg_frames(symbols=["USDCUSDT"])
-    assert out.index[0] == frame.index[24 * 6]
-    assert len(out) == 24 * 6
+def _runs(symbol, runs, peg=None):
+    """Spot frame from runs of ``(start, closes)``. Each run starts where the archive resumes,
+    so the hours between two runs are a gap."""
+    parts = [_spot(closes, symbol, peg=peg, start=start) for start, closes in runs]
+    frame = pd.concat(parts)
+    frame.attrs = dict(parts[0].attrs)
+    return frame
+
+
+def test_series_splits_at_gaps_longer_than_two_bars_and_drops_short_pieces(monkeypatch):
+    # Run one has a single missing bar (a two-hour step, not a gap). Runs one and two are
+    # separated by a four-hour gap; runs two and three by a week. Run three lasts five days.
+    one = _walk(24 * 31, seed=9, scale=0.001)
+    two = _walk(24 * 31, seed=10, scale=0.001)
+    three = _walk(24 * 5, seed=11, scale=0.001)
+    frame = _runs("USDCUSDT", [("2020-01-01", one), ("2020-02-01 03:00", two),
+                               ("2020-03-10", three)])
+    frame = frame.drop(frame.index[100])
+    monkeypatch.setattr(binance, "load_spot", lambda *a, **k: frame)
+    out = pegs.load_peg_frames(symbols=["USDCUSDT"])
+    assert [f.attrs["symbol"] for f in out] == ["USDCUSDT-1", "USDCUSDT-2"]
+    assert len(out[0]) == 24 * 31 - 1
+    assert out[1].index[0] == pd.Timestamp("2020-02-01 03:00", tz="UTC")
+    assert all(f.attrs["peg"] == 1.0 and f.attrs["kind"] == "spot" for f in out)
+    for f in out:
+        validate_frame(f)
+
+
+def test_trailing_median_restarts_in_each_piece(monkeypatch):
+    # The second piece trades about 60% above the first. Its peg must come from its own bars,
+    # and its first week has no peg, even though it starts more than 30 days into the series.
+    first = _walk(24 * 40, seed=1, scale=0.002, centre=0.03)
+    second = _walk(24 * 40, seed=2, scale=0.002, centre=0.05)
+    frame = _runs("WBETHETH", [("2024-01-01", first), ("2024-02-12", second)])
+    monkeypatch.setattr(binance, "load_spot", lambda *a, **k: frame)
+    out = pegs.load_peg_frames(symbols=["WBETHETH"])
+    assert [f.attrs["symbol"] for f in out] == ["WBETHETH-1", "WBETHETH-2"]
+    assert out[1].attrs["peg"] == pegs.TRAILING
+    dev = pegs.peg_deviation(out[1]).to_numpy()
+    assert np.isnan(dev[: 24 * 7]).all() and np.isfinite(dev[24 * 7 :]).all()
+    times = out[1].index
+    for t in (24 * 10, 24 * 30, len(second) - 1):
+        window = second[(times > times[t] - pd.Timedelta("30D")) & (times <= times[t])]
+        assert dev[t] == pytest.approx(np.log(second[t] / np.median(window)))
+
+
+def test_unsplit_series_is_returned_whole_under_its_own_symbol(monkeypatch):
+    frame = _runs("BNSOLSOL", [("2024-01-01", _walk(24 * 10, seed=12))])
+    monkeypatch.setattr(binance, "load_spot", lambda *a, **k: frame)
+    (out,) = pegs.load_peg_frames(symbols=["BNSOLSOL"])
+    assert out.attrs["symbol"] == "BNSOLSOL" and len(out) == 24 * 10
     validate_frame(out)
 
 
