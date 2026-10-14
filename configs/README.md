@@ -93,6 +93,9 @@ funding priors are a causal average of recent funding, with gain -1.
 | `carry/perp_spread_wide_prior.yaml` | As `perp_spread_1d_prior.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 | `carry/delivery_basis_1d.yaml` | Quarterly futures on Binance (dated contracts that expire and settle to spot): long spot, short the front quarterly, rolled 7 days before expiry. BTC and ETH, daily, walk-forward from 2023, no prior. | No |
 | `carry/delivery_basis_1d_prior.yaml` | As `delivery_basis_1d.yaml` with the annualized basis as the prior (`basis_ann`, gain 10, so a 10% annual basis maps to 1.0). | No |
+| `carry/crypto_basis_xsfund_prior.yaml` | As `crypto_basis_wide_prior.yaml` (32 coins, daily, same folds) with the cross-sectional funding rank as the prior. `funding_xs` is the trailing 7-day income of each coin, minus the cross-sectional median, divided by the median absolute deviation across coins listed with a full window; gain 1, so a 1 MAD gap maps to about 1. The 5% borrow rate is a placeholder for negative funding. The coin list holds coins listed today, so it carries survivorship bias. Each run adds five trials to `crypto_basis` for the deflated Sharpe gate. | No |
+| `carry/crypto_basis_xsfund_topk.yaml` | As `crypto_basis_xsfund_prior.yaml` with the top-k benchmark as the prior: 1 for the five coins with the highest trailing 7-day income, 0 otherwise. Its `prior_only` strategy is the top-k rule on the same days. | No |
+| `carry/crypto_basis_xsfund_plain.yaml` | As `crypto_basis_xsfund_prior.yaml` with no prior and no cross-sectional features. | No |
 
 ## Pegs
 
