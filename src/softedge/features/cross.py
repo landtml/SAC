@@ -27,12 +27,14 @@ _RELATIVE_HORIZON = 16
 
 
 def cross_features(tables: dict[str, pd.DataFrame], horizons: tuple[int, ...] = CROSS_HORIZONS,
-                   min_assets: int = 3, clip: float = 5.0) -> dict[str, pd.DataFrame]:
+                   min_assets: int = 3, clip: float = 5.0,
+                   min_history: int = 0) -> dict[str, pd.DataFrame]:
     """Cross-asset features for each table, on that table's own index, as float32 columns.
 
     Columns are ``mkt_ret_h{h}`` for each ``h`` in ``horizons``, then ``rel_ret_h16``,
     ``mkt_dispersion`` and ``mkt_breadth``. The market columns are equal for every asset at a
-    timestamp.
+    timestamp. An asset joins the cross-section at ``t`` only once its table holds at least
+    ``min_history`` rows up to and including ``t``.
     """
     if len(tables) < 2:
         raise ValueError("cross_features needs at least two tables")
@@ -51,8 +53,13 @@ def cross_features(tables: dict[str, pd.DataFrame], horizons: tuple[int, ...] = 
     for sym in symbols[1:]:
         union = union.union(tables[sym].index)
 
-    rets = {h: np.column_stack([tables[s][f"ret_h{h}"].reindex(union).to_numpy(np.float64)
-                                for s in symbols])
+    # Rows each table holds up to each timestamp: a table counts only once it has ``min_history``.
+    seen = (pd.DataFrame({s: pd.Series(1.0, index=tables[s].index) for s in symbols})
+            .reindex(union).fillna(0.0).cumsum().to_numpy())
+    rets = {h: np.where(seen >= min_history,
+                        np.column_stack([tables[s][f"ret_h{h}"].reindex(union).to_numpy(np.float64)
+                                         for s in symbols]),
+                        np.nan)
             for h in needed}
     finite = {h: np.isfinite(r) for h, r in rets.items()}
     count = {h: f.sum(axis=1) for h, f in finite.items()}

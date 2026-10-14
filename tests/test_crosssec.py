@@ -1,9 +1,12 @@
+import hashlib
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from softedge import experiment
 from softedge.data.schema import make_frame
+from softedge.data.synthetic import binary_market, gbm
 from softedge.features.crosssec import xs_funding_features
 from softedge.pipeline import to_tapes
 
@@ -165,3 +168,71 @@ def test_xs_funding_cannot_be_combined_with_sources(monkeypatch):
         experiment.build_all_tapes({"sources": [{**block, "data": {"xs_funding": xs}}, block]})
     with pytest.raises(ValueError, match="one universe"):
         experiment.build_all_tapes({"sources": [block], "data": {"xs_funding": xs}})
+
+
+def _tape_digest(tapes):
+    h = hashlib.sha256()
+    for tp in tapes:
+        h.update(tp.symbol.encode())
+        h.update(np.ascontiguousarray(tp.times).tobytes())
+        h.update(np.ascontiguousarray(tp.features).tobytes())
+        h.update(",".join(tp.feature_names).encode())
+    return h.hexdigest()
+
+
+def _coins(n, seed=11, late=None):
+    """Four long daily carry coins A to D, and E with ``n`` rows (E starts at ``late`` days in)."""
+    rng = np.random.default_rng(seed)
+    frames = [carry_frame(s, rng.normal(1.0, 1.0, 400), seed=i) for i, s in enumerate("ABCD")]
+    start = START + pd.Timedelta(days=late or 0)
+    e_long = carry_frame("E", rng.normal(1.0, 1.0, 400), start=start, seed=9)
+    return frames, e_long.iloc[:n].copy(), e_long
+
+
+def _rows_up_to(tapes, cut):
+    return [(tp.times[tp.times <= cut], tp.features[tp.times <= cut]) for tp in tapes]
+
+
+@pytest.mark.parametrize("kwargs", [{"cross": True}, {"xs_funding": {"window": 7, "topk": 2}}],
+                         ids=["cross", "xs_funding"])
+def test_coin_too_short_to_be_a_tape_does_not_change_others_up_to_t(kwargs):
+    # E has 266 rows, so to_tapes drops it. Its extended twin is kept. Coins A to D must read the
+    # same at every row up to E's last bar in both versions.
+    frames, e_short, e_long = _coins(266)
+    cut = e_short.index[-1].value
+    short = to_tapes([*frames, e_short], **kwargs)
+    longer = to_tapes([*frames, e_long], **kwargs)
+    assert len(short) == 4 and len(longer) == 5
+    for (t_a, f_a), (t_b, f_b) in zip(_rows_up_to(short, cut), _rows_up_to(longer[:4], cut),
+                                      strict=True):
+        assert len(t_a) > 0
+        np.testing.assert_array_equal(t_a, t_b)
+        np.testing.assert_array_equal(f_a, f_b)
+
+
+@pytest.mark.parametrize("kwargs", [{"cross": True}, {"xs_funding": {"window": 7, "topk": 2}}],
+                         ids=["cross", "xs_funding"])
+def test_coin_without_warmup_history_stays_out_of_the_cross_section(kwargs):
+    # E lists 100 days in, so it has fewer than warmup_bars (256) rows of history until day 355.
+    # Coins A to D must not feel it before then, although E is kept as a tape.
+    frames, _, e_late = _coins(300, late=100)
+    cut = (START + pd.Timedelta(days=354)).value
+    with_e = to_tapes([*frames, e_late], **kwargs)
+    without_e = to_tapes(frames, **kwargs)
+    assert len(with_e) == 5
+    for (t_a, f_a), (t_b, f_b) in zip(_rows_up_to(without_e, cut), _rows_up_to(with_e[:4], cut),
+                                      strict=True):
+        assert len(f_a) > 0
+        np.testing.assert_array_equal(t_a, t_b)
+        np.testing.assert_array_equal(f_a, f_b)
+
+
+def test_all_long_universe_tapes_are_unchanged():
+    # Digests of the tapes built before the membership rule; a universe with no short coin keeps them.
+    daily = [carry_frame(s, np.linspace(0.5, 2.0, 400) * (i + 1), seed=i)
+             for i, s in enumerate("ABCDE")]
+    xs_tapes = to_tapes(daily, cross=True, xs_funding={"window": 7, "topk": 2})
+    assert _tape_digest(xs_tapes) == "8cb3f24c15ee6ed9307da5be6c411a2d5bddaead2359f618b5b158d8dbf6b8fb"
+    hourly = [gbm(600, sigma=0.01, seed=i, symbol=f"H{i}") for i in range(4)]
+    hourly.append(binary_market(400, seed=9, symbol="B"))
+    assert _tape_digest(to_tapes(hourly, cross=True)) == "f823aa91fdafd46b68ae6356e3fcf9d82c0ce160dca0b30a4dc85ba7455525ea"

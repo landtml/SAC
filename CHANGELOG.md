@@ -62,6 +62,11 @@ All notable changes to this project are recorded here. The format follows
   per year, saved as `bars_per_year` in `result.json`. They had re-estimated it from the pooled
   out-of-sample index, which misses the bars at fold boundaries, so recomputed Sharpe ratios
   drifted low. Runs saved without the key use the old estimate and print a warning.
+- Cross-sectional features (`cross_features`, `xs_funding`) decide membership at each bar from the
+  coin's history up to that bar. A coin shorter than the length filter used to drop out of the
+  cross-section, and its presence moved the features of the other coins at bars before its end. A
+  coin now counts at bar `t` once it has `warmup_bars` rows up to `t`, including coins listed later
+  than the start of the data.
 
 ### Known limitations
 
