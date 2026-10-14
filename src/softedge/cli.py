@@ -95,7 +95,8 @@ def main(argv: list[str] | None = None) -> int:
         from softedge.experiment import load_config, run_experiment
 
         result = run_experiment(load_config(args.config), args.out)
-        print(json.dumps(result["summary"], indent=2))
+        # Walk-forward results carry "summary"; CPCV results carry "aggregate".
+        print(json.dumps(result.get("summary", result.get("aggregate")), indent=2))
         return 0
     return 2
 
