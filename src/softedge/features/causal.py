@@ -143,6 +143,10 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         cols["iv_rv"] = np.log(iv / (sigma * np.sqrt(bars_per_year))).fillna(0.0)
         cols["iv_change"] = np.log(iv / iv.shift(cfg.horizons[1])).fillna(0.0)
 
+    if "dvol_open" in frame.columns:
+        # Implied minus trailing realized variance, annualized (softedge.data.variance).
+        cols["vrp"] = frame["dvol_open"].astype("float64") ** 2 - frame["rv30"].astype("float64") ** 2
+
     if "premium" in frame.columns:
         # The perp premium over its index sets the next funding payment, so it leads funding.
         prem_bps = frame["premium"].astype("float64").fillna(0.0) * 1e4

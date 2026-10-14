@@ -45,6 +45,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 roll_cost: float | None = None) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi``, ``pegs`` or ``synthetic``.
+    ``polymarket``, ``kalshi``, ``vrp`` or ``synthetic``. ``vrp`` holds daily short-variance
+    carry frames on BTC and ETH (``softedge.data.variance``).
 
     ``fx_em`` holds emerging-market dollar pairs with their short-rate differentials, where the
     carry premium is larger than among G10 pairs. ``crypto_basis`` is the cash-and-carry spread of each symbol (long spot, short perp), a
@@ -167,6 +169,10 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
 
         return [rates.attach_rate_diff(fx.load_fx_daily(p, start=f"{start}-01"))
                 for p in (symbols or FX_PAIRS)]
+    if universe == "vrp":
+        from softedge.data.variance import vrp_frames
+
+        return vrp_frames(start, end, tuple(symbols or ("BTC", "ETH")))
     if universe == "kalshi":
         from softedge.data import kalshi
 
