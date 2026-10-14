@@ -115,6 +115,18 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 | `macro/macro_1d_prior.yaml` | As `macro_1d_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
 | `macro/macro_1d_rich.yaml` | As `macro_1d_prior.yaml` with implied volatility, regime features and cross-asset features. | No |
 
+## Variance
+
+Daily short 30-day variance on BTC and ETH from 2021-03: the payoff is Deribit DVOL squared over 365
+minus the day's squared log return, scored as a variance-swap carry proxy. The prior is the
+annualized variance premium (DVOL squared minus trailing 30-day realized variance), scaled by a 40%
+volatility. The plain config has no prior and runs the same settings otherwise.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `vrp/vrp_btc_eth_1d_plain.yaml` | Two coins, daily, walk-forward from 2023, volatility target 0.1, up to 4x leverage, no prior. | No |
+| `vrp/vrp_btc_eth_1d_prior.yaml` | As `vrp_btc_eth_1d_plain.yaml` with the variance premium prior (gain 6.25). | No |
+
 ## Prediction markets
 
 Binary YES and NO markets from Kalshi and Polymarket, each with a single split. The priors use
