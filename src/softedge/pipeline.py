@@ -167,10 +167,11 @@ def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
 
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
              feature_cfg: FeatureConfig | None = None, cross: bool = False,
-             regime: bool = False) -> list[MarketTape]:
+             regime: bool = False, premia: bool = False) -> list[MarketTape]:
     """Tapes from frames. ``cross`` adds cross-asset context (``features.cross``) to every
     non-binary frame when there are at least three of them; ``regime`` adds the regime
-    indicators of ``features.regime`` to every frame."""
+    indicators of ``features.regime`` to every frame; ``premia`` adds the premium features of
+    ``features.premia`` to every non-binary frame."""
     kept, tables = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
@@ -183,6 +184,10 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
             from softedge.features.regime import regime_features
 
             table = pd.concat([table, regime_features(fr)], axis=1)
+        if premia:
+            from softedge.features.premia import premia_features
+
+            table = pd.concat([table, premia_features(fr)], axis=1)
         tables.append(table)
     linear = [i for i, fr in enumerate(kept) if fr.attrs["kind"] != "binary"]
     if cross and len(linear) >= 3:
