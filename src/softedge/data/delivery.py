@@ -12,13 +12,11 @@ June, September or December. Their daily klines come from the public archive und
 daily bars so both legs close at 00:00 UTC.
 
 The chained future price moves with each held contract's own return. A roll is traded at the
-close that decides it, so its cost, ``roll_cost`` (two trades of one futures unit at the normal
-perp fee and half spread), lands on the step that follows the roll. The frame carries that cost
-on the short-future leg only, so it hits the long side of the spread; the tape gives the short
-side the mirror return. A symmetric roll cost needs a tape change and is not modelled here.
-When the successor has no bar yet, the expiring contract is held until it does. The roll
-window and roll cost are this module's defaults: the ``costs`` and roll settings of a config do
-not reach the frame builder yet.
+close that decides it. Its cost, ``roll_cost`` (two trades of one futures unit at the normal perp
+fee and half spread), sits in the frame's ``roll_cost`` column on that bar, and the tape charges
+it to both sides of the spread. When the successor has no bar yet, the expiring contract is held
+until it does. The roll window and roll cost default to ``DEFAULT_ROLL_DAYS`` and
+``DEFAULT_ROLL_COST``; a config sets them with ``data.roll_days`` and ``data.roll_cost``.
 
 ``basis_ann`` is the prior feature: the held future's close over spot, minus one, annualized over
 the days left to expiry. It uses only the close of its own bar and the expiry date.
@@ -88,9 +86,9 @@ def front_chain(bars: dict[str, pd.DataFrame], expiries: dict[str, pd.Timestamp]
     ``bars`` maps each contract to a daily frame with ``close`` and ``volume``; ``expiries``
     gives each contract's expiry. The front on a bar is the earliest-expiring contract with a
     close on that bar and more than ``roll_days`` left. Its return over the next bar is applied
-    to ``close`` (starting at 1.0). A roll adds ``roll_cost`` to that next step. Returns columns
-    ``close``, ``volume``, ``held``, ``held_close`` and ``days_left``, from the first bar with a
-    front contract.
+    to ``close`` (starting at 1.0). A roll leaves the price unchanged and puts ``roll_cost`` in
+    the ``roll_cost`` column of its bar. Returns columns ``close``, ``volume``, ``held``,
+    ``held_close``, ``days_left`` and ``roll_cost``, from the first bar with a front contract.
     """
     if set(bars) != set(expiries):
         raise ValueError("bars and expiries must name the same contracts")
@@ -121,6 +119,7 @@ def front_chain(bars: dict[str, pd.DataFrame], expiries: dict[str, pd.Timestamp]
 
     price = np.full(n, np.nan)
     price[first] = 1.0
+    rolled = np.zeros(n)
     for i in range(first, n - 1):
         h = int(held[i])
         if h < 0:
@@ -129,8 +128,9 @@ def front_chain(bars: dict[str, pd.DataFrame], expiries: dict[str, pd.Timestamp]
         if not np.isfinite(nxt):
             raise ValueError(f"no bar of {syms[h]} on {index[i + 1].date()}: cannot carry "
                              "the position")
-        drag = roll_cost if i > first and changed[i] else 0.0
-        price[i + 1] = price[i] * (nxt / close[i, h] + drag)
+        price[i + 1] = price[i] * nxt / close[i, h]
+        if i > first and changed[i]:
+            rolled[i] = roll_cost
 
     rows = np.arange(n)
     pick = np.where(held >= 0, held, 0)
@@ -142,6 +142,7 @@ def front_chain(bars: dict[str, pd.DataFrame], expiries: dict[str, pd.Timestamp]
             "held": names,
             "held_close": close[rows, pick],
             "days_left": left[rows, pick],
+            "roll_cost": rolled,
         },
         index=index,
     )
@@ -167,6 +168,7 @@ def delivery_basis_frame(spot: pd.DataFrame, bars: dict[str, pd.DataFrame],
     held_close = chain["held_close"].reindex(frame.index).to_numpy(np.float64)
     days_left = chain["days_left"].reindex(frame.index).to_numpy(np.float64)
     frame["basis_ann"] = (held_close / spot_close - 1.0) * 365.0 / days_left
+    frame["roll_cost"] = chain["roll_cost"].reindex(frame.index).fillna(0.0).to_numpy(np.float64)
     return frame
 
 

@@ -40,7 +40,8 @@ class SplitSpec:
 def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6, implied_vol: bool = False,
-                premium: bool = False) -> list[pd.DataFrame]:
+                premium: bool = False, roll_days: int | None = None,
+                roll_cost: float | None = None) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi`` or ``synthetic``.
 
@@ -119,7 +120,13 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     if universe == "delivery_basis":
         from softedge.data.delivery import DELIVERY_SYMBOLS, load_delivery_basis
 
-        return load_delivery_basis(symbols or DELIVERY_SYMBOLS, start, end)
+        # Unset roll settings keep the loader's defaults.
+        rolls = {}
+        if roll_days is not None:
+            rolls["roll_days"] = roll_days
+        if roll_cost is not None:
+            rolls["roll_cost"] = roll_cost
+        return load_delivery_basis(symbols or DELIVERY_SYMBOLS, start, end, **rolls)
     if universe == "macro":
         from softedge.data.fred_markets import load_fred_market
 

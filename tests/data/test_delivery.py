@@ -56,8 +56,9 @@ def test_front_rolls_seven_days_before_expiry_without_a_price_jump():
     assert list(chain["held"].iloc[:3]) == ["A", "B", "B"]
     # The 5% level gap between A and B is not a return: the chain does not jump at the roll.
     assert chain["close"].iloc[1] / chain["close"].iloc[0] == pytest.approx(1.0)
-    # The roll is traded at the close of 2024-01-02, so its cost lands on the next step.
-    assert chain["close"].iloc[2] / chain["close"].iloc[1] == pytest.approx(1.001)
+    # The roll is traded at the close of 2024-01-02: its cost sits on that row, not in the price.
+    assert chain["close"].iloc[2] / chain["close"].iloc[1] == pytest.approx(1.0)
+    assert list(chain["roll_cost"].iloc[:3]) == [0.0, 0.001, 0.0]
 
 
 def test_expiring_contract_is_held_until_its_successor_is_listed():
@@ -68,7 +69,8 @@ def test_expiring_contract_is_held_until_its_successor_is_listed():
     chain = front_chain({"A": a, "B": b}, exp, roll_days=7, roll_cost=0.001)
     assert list(chain["held"].iloc[:5]) == ["A", "A", "A", "A", "B"]
     assert chain["close"].loc[utc("2024-01-06")] / chain["close"].loc[utc("2024-01-05")] \
-        == pytest.approx(1.001)
+        == pytest.approx(1.0)
+    assert chain["roll_cost"].loc[utc("2024-01-05")] == pytest.approx(0.001)
 
 
 def test_missing_bar_of_the_held_contract_raises():
@@ -141,6 +143,51 @@ def test_basis_ann_reaches_the_feature_table_clipped_to_five():
     np.testing.assert_allclose(table["basis_ann"].to_numpy(),
                                frame["basis_ann"].clip(-5.0, 5.0).to_numpy(), rtol=1e-6,
                                atol=1e-7)
+
+
+def test_chain_return_is_the_held_contracts_return_on_every_bar_including_the_roll():
+    index, spot, contracts, exp = _two_contract_market(seed=3)
+    chain = front_chain(contracts, exp, roll_days=7, roll_cost=0.001)
+    assert (chain["roll_cost"] > 0).sum() == 1
+    held = chain["held"].to_numpy()
+    for i in range(len(chain) - 1):
+        closes = contracts[held[i]]["close"]
+        want = closes.loc[chain.index[i + 1]] / closes.loc[chain.index[i]] - 1.0
+        got = chain["close"].iloc[i + 1] / chain["close"].iloc[i] - 1.0
+        assert got == pytest.approx(want, abs=1e-12)
+
+
+def test_delivery_frame_carries_the_roll_cost_column_once_per_roll():
+    index, spot, contracts, exp = _two_contract_market(seed=3)
+    frame = delivery_basis_frame(spot, contracts, exp, symbol="BTC-DELIV")
+    assert frame["roll_cost"].sum() == pytest.approx(DEFAULT_ROLL_COST)
+    assert (frame["roll_cost"] > 0).sum() == 1
+
+
+def test_roll_days_from_load_frames_moves_the_roll_date(monkeypatch):
+    import softedge.data.binance as binance
+    import softedge.data.delivery as delivery
+    from softedge.pipeline import load_frames
+
+    index = days("2024-01-01", "2024-03-31")
+    exp = {"BTCUSDT_240329": utc("2024-03-29 08:00"), "BTCUSDT_240628": utc("2024-06-28 08:00")}
+    listed = [delivery.Contract(s, e, ("2024-01",)) for s, e in exp.items()]
+    monkeypatch.setattr(delivery, "list_contracts", lambda base, start, end: listed)
+    monkeypatch.setattr(delivery, "load_contract",
+                        lambda c: bars(index, np.full(len(index), 100.0)))
+    hourly = pd.date_range("2024-01-01", "2024-03-31 23:00", freq="1h", tz="UTC")
+    spot_1h = make_frame(hourly, *(np.full(len(hourly), 100.0),) * 4, np.ones(len(hourly)),
+                         symbol="BTCUSDT", kind="spot", bar="1h")
+    monkeypatch.setattr(binance, "load_spot", lambda *a, **k: spot_1h)
+
+    def roll_dates(roll_days):
+        (frame,) = load_frames("delivery_basis", "2024-01", "2024-03", symbols=["BTCUSDT"],
+                               roll_days=roll_days)
+        return list(frame.index[frame["roll_cost"] > 0])
+
+    # The roll falls on the first bar with at most roll_days left before the March expiry.
+    assert roll_dates(7) == [utc("2024-03-22")]
+    assert roll_dates(14) == [utc("2024-03-15")]
 
 
 def test_default_roll_is_seven_days_and_two_normal_perp_trades():
