@@ -21,6 +21,8 @@ All per-step arrays have length ``T`` and describe the interval ``(t, t + 1]``:
   used for liquidation checks
 * ``carry_long[t]`` / ``carry_short[t]`` holding cost rate per unit of exposure
   (funding, swap, borrow, roll). Positive means the position pays.
+* ``fin_long[t]`` cash financing rate per unit of long exposure above 1x, charged on the
+  part of a long position that borrows cash. Nonzero only for spot tapes with ``financing_apr``.
 * ``cost_long[t]`` / ``cost_short[t]`` proportional cost per unit of exposure
   traded at row ``t`` (fee plus half spread)
 
@@ -65,6 +67,8 @@ class CostSpec:
     swap_apr_short: float = 0.0
     max_leverage: float = 1.0
     maint_margin: float = 0.005
+    # Annual rate on cash borrowed to hold long exposure above 1x (spot tapes only).
+    financing_apr: float = 0.0
 
 
 DEFAULT_COSTS = {
@@ -92,6 +96,7 @@ class MarketTape:
     short_worst: np.ndarray
     carry_long: np.ndarray
     carry_short: np.ndarray
+    fin_long: np.ndarray
     cost_long: np.ndarray
     cost_short: np.ndarray
     bars_per_year: float
@@ -144,7 +149,7 @@ class MarketTape:
 
 _STEP_ARRAYS = (
     "long_ret", "short_ret", "short_growth", "long_worst", "short_worst",
-    "carry_long", "carry_short", "cost_long", "cost_short",
+    "carry_long", "carry_short", "fin_long", "cost_long", "cost_short",
 )
 
 
@@ -201,6 +206,7 @@ def build_tape(
     short_worst = np.zeros(n)
     carry_long = np.zeros(n)
     carry_short = np.zeros(n)
+    fin_long = np.zeros(n)
 
     long_ret[cur] = close[nxt] / close[cur] - 1.0
     long_worst[cur] = np.minimum(low[nxt] / close[cur] - 1.0, long_ret[cur])
@@ -233,6 +239,7 @@ def build_tape(
                 carry_short[cur] += costs.borrow_apr * per_bar
         elif kind == "spot":
             carry_short[cur] = costs.borrow_apr * per_bar
+            fin_long[cur] = costs.financing_apr * per_bar
         elif kind == "fx":
             # A long holds the base currency and borrows the quote currency, so it earns the
             # rate differential; swap_apr_* is the broker's financing markup on top.
@@ -273,6 +280,7 @@ def build_tape(
         short_worst=short_worst[rows],
         carry_long=carry_long[rows],
         carry_short=carry_short[rows],
+        fin_long=fin_long[rows],
         cost_long=np.asarray(cost_long, dtype=np.float64)[rows].copy(),
         cost_short=np.asarray(cost_short, dtype=np.float64)[rows].copy(),
         bars_per_year=float(bpy),

@@ -57,7 +57,7 @@ def backtest(tape: MarketTape, policy: Callable[[int, float], float]) -> Backtes
             tape.long_worst[s], tape.short_worst[s],
             tape.carry_long[s], tape.carry_short[s],
             tape.cost_long[s], tape.cost_short[s],
-            tape.impact, tape.maint_margin,
+            tape.impact, tape.maint_margin, fin_long=tape.fin_long[s],
         )
         returns[t] = step.ret[0]
         exposure[t] = target

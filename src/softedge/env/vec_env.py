@@ -35,7 +35,7 @@ N_MAP_CONTEXT = 2
 
 _STEP_FIELDS = (
     "long_ret", "short_ret", "short_growth", "long_worst", "short_worst",
-    "carry_long", "carry_short", "cost_long", "cost_short",
+    "carry_long", "carry_short", "fin_long", "cost_long", "cost_short",
 )
 
 
@@ -219,7 +219,7 @@ class TapeSet:
             w_prev, target, s["long_ret"][g], s["short_ret"][g], s["short_growth"][g],
             s["long_worst"][g], s["short_worst"][g], s["carry_long"][g], s["carry_short"][g],
             s["cost_long"][g] * cost_mult, s["cost_short"][g] * cost_mult,
-            self.impact[k], self.maint_margin[k],
+            self.impact[k], self.maint_margin[k], fin_long=s["fin_long"][g],
         )
         terminal = self.terminal_at_end[k] & (np.asarray(t) == self.lengths[k] - 1)
         return res, log_reward(res.ret), terminal
