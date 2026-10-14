@@ -93,7 +93,7 @@ def load_closes(start: str, end: str, archive: Mapping[str, Iterable[str]] | Non
         if lo > hi:
             continue
         try:
-            bars = binance.load_spot(sym, INTERVAL, lo, hi)
+            bars = _read_bars(sym, lo, hi)
         except ValueError as exc:  # no klines in the window, or fewer than two bars
             warnings.warn(f"{sym} skipped: {exc}", UserWarning, stacklevel=2)
             continue
@@ -146,6 +146,36 @@ def daily_returns(close: pd.Series, symbol: str = "") -> pd.Series:
     rets = px / px.shift(1) - 1.0
     rets[step != ONE_DAY] = np.nan
     return rets
+
+
+def _read_bars(symbol: str, lo: str, hi: str) -> pd.DataFrame:
+    """Cached 1d bars for months ``lo``..``hi``, read as the binance loader reads them.
+
+    The loader rejects any frame with negative volume, and this module needs only closes. So
+    the same zips are read here, and negative volumes are set to NaN with a warning that names
+    the rows. Raises ``ValueError`` when the months hold no usable bars.
+    """
+    rel_dir = f"spot/monthly/klines/{symbol}/{INTERVAL}"
+    parts = []
+    for month in binance._months(lo, hi):
+        body = binance._fetch_zip(rel_dir, f"{symbol}-{INTERVAL}-{month}.zip")
+        if body is not None:
+            parts.append(binance._parse_klines(binance._read_zip(body)))
+    if not parts:
+        raise ValueError(f"no spot klines in {lo}..{hi}")
+    bars = binance._clean(pd.concat(parts).sort_index())
+    if len(bars) < 2:
+        raise ValueError("fewer than two bars")
+    binance._warn_gaps(bars, symbol, INTERVAL)
+    negative = bars.index[bars["volume"].to_numpy() < 0]
+    if len(negative):
+        days = ", ".join(d.strftime("%Y-%m-%d") for d in negative[:5])
+        more = " and more" if len(negative) > 5 else ""
+        warnings.warn(
+            f"{symbol} has {len(negative)} row(s) with negative volume ({days}{more}); "
+            "volume set to NaN, closes kept.", UserWarning, stacklevel=2)
+        bars = bars.assign(volume=bars["volume"].where(bars["volume"] >= 0))
+    return bars
 
 
 def _split_reused(symbol: str, bars: pd.DataFrame) -> dict[str, pd.DataFrame]:

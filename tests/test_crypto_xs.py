@@ -18,12 +18,14 @@ from softedge.data import binance, crypto_xs
 BASE = "https://data.binance.vision/data/spot/monthly/klines"
 
 
-def kline_zip(symbol: str, month: str, closes: dict[str, float]) -> bytes:
-    """One monthly 1d zip; ``closes`` maps a UTC day to its close."""
+def kline_zip(symbol: str, month: str, closes: dict[str, float],
+              volumes: dict[str, float] | None = None) -> bytes:
+    """One monthly 1d zip; ``closes`` maps a UTC day to its close, ``volumes`` overrides volume."""
     rows = []
     for day, close in closes.items():
         open_ms = int(pd.Timestamp(day, tz="UTC").value // 1_000_000)
-        rows.append(f"{open_ms},{close},{close},{close},{close},1,{open_ms + 86_399_999},"
+        volume = (volumes or {}).get(day, 1.0)
+        rows.append(f"{open_ms},{close},{close},{close},{close},{volume},{open_ms + 86_399_999},"
                     f"1,1,1,1,0")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -222,3 +224,17 @@ def test_reused_ticker_splits_into_two_coins_with_no_return_across_the_junction(
     assert np.isnan(returns.loc["2022-05-31", "LUNA2USDT"])  # new coin's first bar
     assert returns.loc["2022-06-01", "LUNA2USDT"] == pytest.approx(0.5)
     assert returns.loc["2022-05-04":"2022-05-30"].isna().all().all()  # nothing spans the junction
+
+
+def test_negative_volume_rows_keep_their_closes_and_warn_naming_the_day(monkeypatch, tmp_path):
+    zips = {
+        url_of("NEGUSDT", "2019-01"): kline_zip(
+            "NEGUSDT", "2019-01", days_of("2019-01", [5.0, 5.5, 4.95]),
+            volumes={"2019-01-02": -3.0}),
+    }
+    serve(monkeypatch, tmp_path, zips)
+    with pytest.warns(UserWarning, match="2019-01-02"):
+        returns, _ = crypto_xs.load_crypto_xs("2019-01-01", "2019-01-31",
+                                              archive={"NEGUSDT": ["2019-01"]})
+    assert returns.loc["2019-01-02", "NEGUSDT"] == pytest.approx(0.10)
+    assert returns.loc["2019-01-03", "NEGUSDT"] == pytest.approx(-0.10)
