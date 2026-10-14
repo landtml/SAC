@@ -100,3 +100,27 @@ def test_attach_ignores_snapshots_at_or_after_bar_close(monkeypatch):
     monkeypatch.setattr(metrics, "load_open_interest", lambda sym, start, end: after)
     b = metrics.attach_open_interest(frame, "BTCUSDT")["oi_value"].to_numpy()
     np.testing.assert_array_equal(a, b)
+
+
+def test_attach_leaves_a_day_without_snapshots_missing(monkeypatch):
+    snaps = pd.Series([1.0, 3.0],
+                      index=pd.DatetimeIndex(["2024-01-01 23:55", "2024-01-03 23:55"], tz="UTC"),
+                      name="oi_value")
+    monkeypatch.setattr(metrics, "load_open_interest", lambda sym, start, end: snaps)
+    out = metrics.attach_open_interest(hourly_frame("2024-01-02 00:00", 48),
+                                       "BTCUSDT")["oi_value"].to_numpy()
+    # Day 2 has no snapshot, so its bars stay missing rather than carry day 1's 23:55 value.
+    assert np.isnan(out[:47]).all()
+    assert out[47] == 3.0  # day 3 at 23:00 closes at midnight and takes its own 23:55 snapshot
+
+
+def test_loader_warns_on_a_cache_hit_too(monkeypatch, tmp_path):
+    files = {f"{BASE}/BTCUSDT-metrics-2022-01-01.zip": day_zip("2022-01-01", {"00:00": 1.0}),
+             f"{BASE}/BTCUSDT-metrics-2022-01-03.zip": day_zip("2022-01-03", {"00:00": 3.0})}
+    serve(monkeypatch, tmp_path, files)
+    with pytest.warns(UserWarning, match="missing day"):
+        metrics.load_open_interest("BTCUSDT", "2021-12", "2022-01")
+    # The second call reads the parquet cache and must still say the archive has a gap.
+    with pytest.warns(UserWarning, match="missing day"):
+        series = metrics.load_open_interest("BTCUSDT", "2021-12", "2022-01")
+    assert series.tolist() == [1.0, 3.0]

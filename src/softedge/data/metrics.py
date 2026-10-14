@@ -9,9 +9,10 @@ later has no earlier days.
 ``load_open_interest`` returns that value per snapshot, indexed by the snapshot's UTC time.
 Months before ``OI_START`` are not requested, since each day costs one request.
 ``attach_open_interest`` adds a float64 ``oi_value`` column to a bar frame. A bar takes the
-last snapshot strictly before its close, so a bar that closes at 00:00 UTC takes the 23:55
-snapshot and nothing later. A bar with no earlier snapshot gets NaN. Hourly bars resampled to
-daily keep the last hourly value, which is the 23:55 snapshot of the day.
+last snapshot strictly before its close and inside its own span, so a bar that closes at 00:00
+UTC takes the 23:55 snapshot and nothing later. A bar with no snapshot in its span gets NaN, so
+a day the archive lacks stays missing and is not filled from an earlier day. Hourly bars
+resampled to daily keep the last non-missing hourly value, which is the 23:55 snapshot of the day.
 
 Parsed series are cached as parquet under ``$SOFTEDGE_DATA/binance/metrics`` once the end month
 has passed. Raw zips are cached by ``fetch_bytes``.
@@ -44,10 +45,12 @@ def load_open_interest(symbol: str, start: str = OI_START, end: str = "2026-09")
     start = max(start, OI_START)
     path = cache_dir("binance", "metrics") / f"{sym}-{start}-{end}.parquet"
     if path.exists():
-        return load_frame(path)["oi_value"]
-    series = _oi_series(sym, start, end)
-    if _month_passed(end):
-        save_frame(series.to_frame(), path)
+        series = load_frame(path)["oi_value"]
+    else:
+        series = _oi_series(sym, start, end)
+        if _month_passed(end):
+            save_frame(series.to_frame(), path)
+    _warn_missing_days(sym, series.index.normalize().unique())
     return series
 
 
@@ -57,45 +60,48 @@ def attach_open_interest(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
     width = pd.Timedelta(frame.attrs["bar"])
     series = load_open_interest(symbol, _month(frame.index[0]), _month(frame.index[-1]))
     out = frame.copy()
-    out["oi_value"] = _last_before(series, frame.index + width)
+    out["oi_value"] = _last_before(series, frame.index + width, width)
     return out
 
 
-def _last_before(series: pd.Series, closes: pd.DatetimeIndex) -> np.ndarray:
-    """Per bar close, the value of the last snapshot strictly before it, else NaN."""
+def _last_before(series: pd.Series, closes: pd.DatetimeIndex, width: pd.Timedelta) -> np.ndarray:
+    """Per bar close, the value of the last snapshot strictly before it and at or after the
+    start of the bar's span ``close - width``, else NaN."""
     times = series.index.as_unit("ns").asi8
     values = series.to_numpy(dtype=np.float64)
-    pos = np.searchsorted(times, closes.as_unit("ns").asi8, side="left") - 1
+    close_ns = closes.as_unit("ns").asi8
+    pos = np.searchsorted(times, close_ns, side="left") - 1
     out = np.full(len(closes), np.nan)
-    found = pos >= 0
-    out[found] = values[pos[found]]
+    found = np.flatnonzero(pos >= 0)
+    fresh = times[pos[found]] >= close_ns[found] - width.value
+    keep = found[fresh]
+    out[keep] = values[pos[keep]]
     return out
 
 
 def _oi_series(symbol: str, start: str, end: str) -> pd.Series:
-    parts, days = [], []
+    parts = []
     for day in _days(start, end):
         body = _fetch_day(symbol, day)
         if body is not None:
             parts.append(_parse_metrics(body))
-            days.append(day)
     if not parts:
         raise ValueError(f"no open interest for {symbol} in {start}..{end}")
-    _warn_missing_days(symbol, days)
     series = pd.concat(parts)
     return series[~series.index.duplicated(keep="last")].sort_index()
 
 
-def _warn_missing_days(symbol: str, days: list[str]) -> None:
-    """Warn about days between the first and last archive day with no file. Gate features hold
-    the last sample over such a day, so a warning marks a stretch that is stale."""
-    have = pd.DatetimeIndex(pd.to_datetime(days))
+def _warn_missing_days(symbol: str, days: pd.DatetimeIndex) -> None:
+    """Warn about days between the first and last archive day with no samples. The squeeze gate
+    treats such a day as missing and leaves the gate open, so a warning marks a stretch the
+    gate cannot read."""
+    have = pd.DatetimeIndex(days)
     span = pd.date_range(have[0], have[-1], freq="D")
     missing = span.difference(have)
     if len(missing):
         warnings.warn(
             f"{symbol} open interest has {len(missing)} missing day(s) between {have[0].date()} "
-            f"and {have[-1].date()}; the squeeze gate holds the last sample over them",
+            f"and {have[-1].date()}; the squeeze gate treats them as missing and stays open",
             UserWarning, stacklevel=3)
 
 

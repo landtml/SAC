@@ -1,16 +1,18 @@
 """Open-interest squeeze gate on the funding prior of a cash-and-carry bar frame.
 
-The gate closes the carry while open interest grows fast. On each daily bar t:
+The gate closes the carry while open interest grows fast. On each daily bar t, with windows
+counted in calendar days:
 
     growth_t = log(OI_t) - log(OI_{t-7})           seven-day growth in USD open interest
-    limit_t  = 80th percentile of growth over the 180 daily values ending at t
+    limit_t  = 80th percentile of growth over the 180 calendar days ending at t
     gate_t   = 0 if growth_t > limit_t, else 1
 
-``OI_t`` is the last sample at or before day t, held over days without one. The gate is 0
-until both growth and a full 180-day distribution exist. The gated prior is the funding prior
-times the gate: ``funding_ewm_gated = funding_ewm * gate``.
+``OI_t`` is the open interest of day t, with no fill: a day without a sample is missing, and
+any growth or limit whose window holds a missing day is missing too. The gate is 1 (open)
+wherever it cannot be computed, which is the base carry without the squeeze signal. The gated
+prior is the funding prior times the gate: ``funding_ewm_gated = funding_ewm * gate``.
 
-The thresholds (7 days, 180 days, 0.8) are the pre-registered values of the carry framing.
+The thresholds (7 days, 180 days, 0.8) are fixed at the values of the carry framing.
 Row t depends on samples at or before t only.
 
 Gate and prior rows are computed on daily bars, so a frame must be resampled to ``1D`` first.
@@ -27,15 +29,22 @@ QUANTILE = 0.8
 
 
 def squeeze_gate(oi_value: pd.Series, bar: str) -> pd.Series:
-    """Gate per bar (1.0 open, 0.0 closed) from daily USD open interest. See the module docstring."""
+    """Gate per bar (1.0 open, 0.0 closed) from daily USD open interest. See the module docstring.
+
+    The result has the index of ``oi_value``. Days missing from that index are missing from the
+    calendar, so they count as missing samples rather than shifting the windows.
+    """
     if pd.Timedelta(bar) != pd.Timedelta("1D"):
         raise ValueError(f"the squeeze gate runs on daily bars, got {bar!r}")
-    oi = oi_value.astype(np.float64).where(oi_value > 0.0).ffill()
+    oi = oi_value.astype(np.float64).where(oi_value > 0.0)
+    calendar = pd.date_range(oi.index[0], oi.index[-1], freq="D")
+    oi = oi.reindex(calendar)
     log_oi = np.log(oi)
     growth = log_oi - log_oi.shift(WINDOW_DAYS)
     limit = growth.rolling(HISTORY_DAYS, min_periods=HISTORY_DAYS).quantile(QUANTILE)
-    known = growth.notna() & limit.notna()
-    return ((growth <= limit) & known).astype(np.float64)
+    closed = growth.notna() & limit.notna() & (growth > limit)
+    gate = (~closed).astype(np.float64)
+    return gate.reindex(oi_value.index)
 
 
 def gated_funding(funding_ewm: pd.Series, oi_value: pd.Series, bar: str) -> pd.Series:
