@@ -91,6 +91,8 @@ funding priors are a causal average of recent funding, with gain -1.
 | `carry/crypto_basis_wide_prior.yaml` | As `crypto_basis_1d_prior_v2.yaml` on 32 coins instead of ten. | No |
 | `carry/hl_basis_wide_prior.yaml` | As `hl_basis_1d_prior_v2.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 | `carry/perp_spread_wide_prior.yaml` | As `perp_spread_1d_prior.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
+| `carry/delivery_basis_1d.yaml` | Quarterly futures on Binance (dated contracts that expire and settle to spot): long spot, short the front quarterly, rolled 7 days before expiry. BTC and ETH, daily, walk-forward from 2023, no prior. | No |
+| `carry/delivery_basis_1d_prior.yaml` | As `delivery_basis_1d.yaml` with the annualized basis as the prior (`basis_ann`, gain 10, so a 10% annual basis maps to 1.0). | No |
 
 ## Forex
 
