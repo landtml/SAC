@@ -24,7 +24,9 @@ funding is positive.
 Causality. Row ``t`` of every output reads the funding rows ``<= t`` of every frame and nothing
 later. A coin joins the cross-section at ``t`` only when it has ``window`` consecutive bars ending
 at ``t``, so a coin listed inside a window, or with a gap in it, stays out until its window fills.
-A bar with fewer than ``min_coins`` eligible coins, or a zero MAD, gets zeros.
+A bar with fewer than ``min_coins`` eligible coins, or a zero MAD, gets zeros. ``min_history``
+adds the rule that a coin counts at ``t`` only with ``min_history`` rows up to and including ``t``;
+it is applied before the median and MAD, so a coin outside the rule moves neither.
 """
 
 from __future__ import annotations
@@ -38,11 +40,13 @@ _MAD_FLOOR = 1e-12
 
 
 def xs_funding_features(frames: list[pd.DataFrame], window: int = 7, topk: int = 5,
-                        min_coins: int = 3, clip: float = 5.0) -> list[pd.DataFrame]:
+                        min_coins: int = 3, clip: float = 5.0,
+                        min_history: int = 0) -> list[pd.DataFrame]:
     """``funding_xs`` and ``funding_topk`` for each frame, on that frame's own index (float32).
 
-    The frames must be daily (``bar == "1D"``) and carry a ``funding_rate`` column. See the
-    module docstring for the definitions and the causal rule.
+    The frames must be daily (``bar == "1D"``) and carry a ``funding_rate`` column. A coin joins
+    the cross-section at ``t`` only once its frame holds at least ``min_history`` rows up to and
+    including ``t``. See the module docstring for the definitions and the causal rule.
     """
     if window < 1 or topk < 1 or min_coins < 1:
         raise ValueError("window, topk and min_coins must be at least 1")
@@ -57,7 +61,10 @@ def xs_funding_features(frames: list[pd.DataFrame], window: int = 7, topk: int =
 
     # A full window: every one of the last ``window`` rows is present, so a gap or a late listing
     # leaves the coin out until ``window`` consecutive bars have passed.
-    trail = income.rolling(window, min_periods=window).mean()
+    # Rows each frame holds up to each timestamp: a coin counts only once it has ``min_history``.
+    seen = (pd.DataFrame({j: pd.Series(1.0, index=fr.index) for j, fr in enumerate(frames)})
+            .reindex(index).fillna(0.0).cumsum())
+    trail = income.rolling(window, min_periods=window).mean().where(seen >= min_history)
     med = trail.median(axis=1)
     mad = trail.sub(med, axis=0).abs().median(axis=1)
     live = ((trail.count(axis=1) >= min_coins) & (mad > _MAD_FLOOR)).to_numpy()[:, None]

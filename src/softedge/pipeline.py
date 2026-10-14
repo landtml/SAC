@@ -251,14 +251,17 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
     indicators of ``features.regime`` to every frame; ``calib`` adds the ``calib_edge`` column
     of ``features.calibration`` to every binary frame; ``premia`` adds the premium features of
     ``features.premia`` to every non-binary frame; ``xs_funding`` (keyword arguments of
-    ``features.crosssec.xs_funding_features``) adds the cross-sectional funding rank to every frame."""
-    kept, tables = [], []
+    ``features.crosssec.xs_funding_features``) adds the cross-sectional funding rank to every frame.
+
+    The cross-sectional context is computed over all frames before the length filter, and a coin
+    joins the cross-section at bar ``t`` only with ``warmup_bars`` rows up to and including ``t``.
+    So the context at ``t`` never depends on rows after ``t``, including how long a coin is. The
+    length filter then decides which frames become tapes."""
+    tables, cfgs = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
         cfg = feature_cfg or (BINARY_FEATURES if kind == "binary" else FeatureConfig())
-        if len(fr) <= warmup_bars(cfg) + 16:
-            continue
-        kept.append(fr)
+        cfgs.append(cfg)
         table = compute_features(fr, cfg)
         if regime:
             from softedge.features.regime import regime_features
@@ -269,22 +272,26 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
 
             table = pd.concat([table, premia_features(fr)], axis=1)
         tables.append(table)
+    min_history = warmup_bars(feature_cfg or FeatureConfig())
     if xs_funding is not None:
         from softedge.features.crosssec import xs_funding_features
 
-        extra = xs_funding_features(kept, **xs_funding)
+        extra = xs_funding_features(frames, min_history=min_history, **xs_funding)
         tables = [pd.concat([t, e], axis=1) for t, e in zip(tables, extra, strict=True)]
+    linear_all = [i for i, fr in enumerate(frames) if fr.attrs["kind"] != "binary"]
+    if cross and len(linear_all) >= 3:
+        from softedge.features.cross import cross_features
+
+        ctx = cross_features({str(i): tables[i] for i in linear_all}, min_history=min_history)
+        for i in linear_all:
+            tables[i] = pd.concat([tables[i], ctx[str(i)]], axis=1).clip(-5.0, 5.0)
+    keep = [i for i, fr in enumerate(frames) if len(fr) > warmup_bars(cfgs[i]) + 16]
+    kept = [frames[i] for i in keep]
+    tables = [tables[i] for i in keep]
     if calib is not None:
         binary = [i for i, fr in enumerate(kept) if fr.attrs["kind"] == "binary"]
         for i, edge in zip(binary, calib_edge([kept[i] for i in binary], calib), strict=True):
             tables[i] = pd.concat([tables[i], edge], axis=1)
-    linear = [i for i, fr in enumerate(kept) if fr.attrs["kind"] != "binary"]
-    if cross and len(linear) >= 3:
-        from softedge.features.cross import cross_features
-
-        ctx = cross_features({str(i): tables[i] for i in linear})
-        for i in linear:
-            tables[i] = pd.concat([tables[i], ctx[str(i)]], axis=1).clip(-5.0, 5.0)
     tapes = []
     for fr, feats in zip(kept, tables, strict=True):
         spec = costs(fr) if callable(costs) else (costs or DEFAULT_COSTS[fr.attrs["kind"]])
