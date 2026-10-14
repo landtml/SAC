@@ -248,17 +248,17 @@ def ablations_svg(df: pd.DataFrame) -> str:
         x_hi=4,
         ticks=(-8, -6, -4, -2, 0, 2, 4),
         zero_label="same as base",
-        caption="Change in ensemble Sharpe vs base, 95% CI. Left: worse. Right: better.",
+        caption="Change in Sharpe (banded policy) vs base, 95% CI. Left: worse. Right: better.",
     )
     subtitle = (
-        "Change in ensemble Sharpe from one change to the base agent, with 95% CI "
+        "Change in Sharpe (banded policy) from one change to the base agent, with 95% CI "
         "and the verdict for each change.",
     )
     lay = Layout(width=760, label_x=24, plot_x0=300, plot_x1=500, value_x=520, verdict_x=668)
     return forest_svg(
         "Most add-ons do not beat the base agent",
         subtitle,
-        "Forest plot: change in ensemble Sharpe for each ablation against its base.",
+        "Forest plot: change in Sharpe (banded policy) for each ablation against its base.",
         (panel,),
         lay,
     )

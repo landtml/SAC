@@ -21,7 +21,14 @@ import pandas as pd
 import torch
 import yaml
 
+from softedge.agent.disagree import (
+    ShrinkPolicy,
+    disagree_shrink_on,
+    multiplier_matched_policy,
+    validation_tau,
+)
 from softedge.agent.factory import agent_from_state
+from softedge.agent.online import deploy_online
 from softedge.agent.sac import TQCSAC, SACConfig
 from softedge.env.vec_env import EnvConfig, TapeSet, rollout
 from softedge.eval import baselines
@@ -92,7 +99,9 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
                          implied_vol=bool(data.get("implied_vol", False)),
                          premium=bool(data.get("premium", False)),
                          roll_days=data.get("roll_days"), roll_cost=data.get("roll_cost"),
-                         open_interest=bool(data.get("open_interest", False)))
+                         open_interest=bool(data.get("open_interest", False)),
+                         family=data.get("family", "all"),
+                         seed_offset=int(data.get("seed_offset", 0)))
     if data.get("resample"):
         frames = [resample_frame(f, data["resample"]) for f in frames]
     overrides = cfg.get("costs") or {}
@@ -151,10 +160,12 @@ def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
 
 
 def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, window: int,
-               feature_names: tuple[str, ...], n_val_evals: int = 1) -> tuple[dict, dict]:
+               feature_names: tuple[str, ...], n_val_evals: int = 1,
+               reward_scales: dict[int, float] | None = None) -> tuple[dict, dict]:
     start_row = window - 1
     test = parts["test"]
-    action_map = build_train_config(cfg, seeds[0]).env.action_map
+    tc = build_train_config(cfg, seeds[0])
+    action_map = tc.env.action_map
     test_ts = TapeSet(test, window, feature_names, action_map)
     runs = {}
     for seed, agent in zip(seeds, agents, strict=True):
@@ -163,8 +174,25 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
     val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    disagree: dict = {}
+    if disagree_shrink_on(cfg.get("deploy", {})):
+        # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.
+        if len(agents) < 2:
+            raise ValueError("deploy.disagree_shrink needs at least two seeds")
+        tau = validation_tau(agents, val_ts)
+        shrunk = ShrinkPolicy(agents, tau=tau)
+        runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
+        matched = multiplier_matched_policy(agents, val_ts, tau)
+        runs["sac_multiplier_matched"] = rollout(test_ts, matched)
+        # Both tau and the matched constant are fixed on validation bars.
+        disagree = {"tau": tau, "matched_const": matched.const}
     band, band_scores = choose_band(policy, val_ts)
-    runs["sac_banded"] = rollout(test_ts, policy, band=band)
+    online_info = None
+    if tc.online_every > 0:
+        runs["sac_banded"], online_info = deploy_online(agents, test_ts, reward_scales, seeds, tc,
+                                                        band)
+    else:
+        runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
     # validation record. Below the gate the strategy stays flat for this fold. The same validation
     # record picked the checkpoints and the band, so gate "dsr" deflates it by that search:
@@ -199,9 +227,14 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         trend_kw = cfg.get("trend", {})
         runs["trend"] = [rollout_exposures(tp, baselines.vol_target_trend(tp, **trend_kw), start_row)
                          for tp in test]
-    return runs, {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
-                  "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
-                  "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    info = {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
+            "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
+            "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    if online_info is not None:
+        info["online"] = online_info
+    if disagree:
+        info["disagree"] = disagree
+    return runs, info
 
 
 def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
@@ -253,7 +286,8 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
             seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale,
                                "n_val_evals": len(res.history)}
         runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names,
-                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()))
+                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()),
+                                reward_scales={s: reward_scales[s] for s in seeds})
         test = parts["test"]
         fold_sharpe = {}
         for strat, run in runs.items():

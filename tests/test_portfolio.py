@@ -5,14 +5,26 @@ from softedge.portfolio import log_reward, step_portfolio
 
 
 def _step(w_prev, target, lr=0.0, sr=None, sg=None, lw=None, sw=None,
-          kl=0.0, ks=0.0, cl=0.0, cs=0.0, impact=0.0, maint=0.0):
+          kl=0.0, ks=0.0, cl=0.0, cs=0.0, impact=0.0, maint=0.0, fin=0.0):
     sr = -lr if sr is None else sr
     sg = 1.0 + lr if sg is None else sg
     lw = lr if lw is None else lw
     sw = sr if sw is None else sw
     a = lambda x: np.atleast_1d(np.asarray(x, dtype=np.float64))  # noqa: E731
     return step_portfolio(a(w_prev), a(target), a(lr), a(sr), a(sg), a(lw), a(sw),
-                          a(kl), a(ks), a(cl), a(cs), impact, maint)
+                          a(kl), a(ks), a(cl), a(cs), impact, maint, fin_long=a(fin))
+
+
+def test_financing_charged_on_long_exposure_above_one_x():
+    assert _step(3.0, 3.0, fin=0.001).carry[0] == pytest.approx(2 * 0.001)
+    assert _step(0.0, 3.0, fin=0.001).carry[0] == pytest.approx(2 * 0.001)
+    assert _step(3.0, 3.0, lr=0.02, fin=0.001).ret[0] == pytest.approx(3 * 0.02 - 2 * 0.001)
+
+
+def test_financing_free_at_or_below_one_x_and_on_shorts():
+    assert _step(1.0, 1.0, fin=0.001).carry[0] == 0.0
+    assert _step(0.5, 0.5, fin=0.001).carry[0] == 0.0
+    assert _step(-3.0, -3.0, fin=0.001).carry[0] == 0.0
 
 
 def test_flat_stays_flat():

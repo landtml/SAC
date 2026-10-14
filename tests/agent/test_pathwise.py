@@ -58,13 +58,14 @@ def test_torch_step_matches_numpy_step():
     m = {"long_ret": rng.normal(0, 0.05, n), "short_ret": rng.normal(0, 0.05, n),
          "long_worst": -np.abs(rng.normal(0, 0.3, n)), "short_worst": -np.abs(rng.normal(0, 0.3, n)),
          "carry_long": rng.normal(0, 1e-4, n), "carry_short": rng.normal(0, 1e-4, n),
+         "fin_long": rng.uniform(0, 1e-3, n),
          "cost_long": rng.uniform(0, 1e-3, n), "cost_short": rng.uniform(0, 1e-3, n)}
     m["short_growth"] = 1.0 + m["long_ret"]
     w, target = rng.uniform(-3, 3, n), rng.uniform(-3, 3, n)
     impact, maint = np.where(rng.random(n) < 0.5, 0.0, 1e-3), np.full(n, 0.05)
     ref = step_portfolio(w, target, m["long_ret"], m["short_ret"], m["short_growth"],
                          m["long_worst"], m["short_worst"], m["carry_long"], m["carry_short"],
-                         m["cost_long"], m["cost_short"], impact, maint)
+                         m["cost_long"], m["cost_short"], impact, maint, fin_long=m["fin_long"])
     assert ref.liquidated.any() and not ref.liquidated.all()
     t64 = {key: torch.as_tensor(v) for key, v in m.items()}
     ret, w_next = step_portfolio_torch(torch.as_tensor(w), torch.as_tensor(target), t64,

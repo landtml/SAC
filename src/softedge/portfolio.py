@@ -39,6 +39,7 @@ def step_portfolio(
     cost_short: np.ndarray,
     impact: np.ndarray | float,
     maint_margin: np.ndarray | float,
+    fin_long: np.ndarray | float = 0.0,
 ) -> StepResult:
     """Trade from ``w_prev`` to ``target`` at row ``t`` and hold to ``t + 1``.
 
@@ -55,7 +56,8 @@ def step_portfolio(
     ds = np.abs(sp - sp0)
     turnover = dl + ds
     cost = cost_long * dl + cost_short * ds + impact * turnover**1.5
-    carry = lp * carry_long + sp * carry_short
+    # Cash financing on long exposure above 1x; a leveraged spot long borrows the excess.
+    carry = lp * carry_long + sp * carry_short + fin_long * np.maximum(lp - 1.0, 0.0)
     ret = lp * long_ret + sp * short_ret - carry - cost
 
     gross = lp + sp

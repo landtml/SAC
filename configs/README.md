@@ -116,8 +116,8 @@ G10 pairs (seven dollar pairs) from 2000, and emerging-market dollar pairs.
 | File | What it tests | Results |
 | --- | --- | --- |
 | `fx/fx.yaml` | G10 forex, daily, up to 3x leverage, swap rates. One split: train to 2016, validation 2016-2019, test from 2019. | No |
-| `fx/fx_wf.yaml` | G10 forex, daily walk-forward from 2014 with 730-day validation and test windows. No prior. | Yes |
-| `fx/fx_v2.yaml` | As `fx_wf.yaml` with smaller networks (hidden 64, actor 32) and 256-bar episodes. | No |
+| `fx/fx_wf.yaml` | G10 forex, daily walk-forward from 2014 with 730-day validation and test windows. No prior. | No |
+| `fx/fx_v2.yaml` | As `fx_wf.yaml` with smaller networks (hidden 64, actor 32) and 256-bar episodes. | Yes |
 | `fx/fx_carry.yaml` | As `fx_wf.yaml` with a rate-differential prior (gain 2) and volatility target 0.1. | Yes |
 | `fx/fx_em_vt.yaml` | Emerging-market dollar pairs, walk-forward from 2010, 4 bp half-spread, 1% swap rates, volatility target 0.1. | No |
 | `fx/fx_em_carry.yaml` | As `fx_em_vt.yaml` with the rate-differential prior (gain 2). | No |
@@ -143,15 +143,17 @@ reference is price-only too.
 
 ## Variance risk premium
 
-A short-variance index on the S&P 500, daily, from FRED. The SP500 series starts in October 2016 (2016-10-14 in the cached file), so the sample is about ten years. Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
+A short-variance index on the S&P 500, daily, from FRED. The SP500 series starts on 2016-10-13, so the sample is about ten years. Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. The 252 is a scaling convention: the index is a return series, not a traded instrument. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
 
 The payoff is a proxy. VIX stands in for implied variance and trailing 21-day realized variance is the other leg; no variance-swap quotes are used. The 21-day window smooths crash days, so tail losses are understated.
 
 The SPXVRP index is always on. It is the P&L of a short-variance position held at every bar, so it is the premium itself, with no policy in it. The drawdown gate in the prior file reads that premium. It does not read the strategy's P&L.
 
-Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The template does not fit a variance index. The borrow lands on negative exposure, which is long variance, and long variance carries no borrow in practice. The short-variance side, where the premium is earned, carries no carry cost. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Roll cost is not modelled. A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
+Costs are placeholders. Both files use the spot template in `tape.py`: 7.5 bp fee and 1.0 bp half-spread on the index level, and a 10% borrow rate on negative exposure. The borrow rate is a template charge, not a measured cost of a variance position. Replicating short variance carries roll and financing costs, and neither is modelled. Funding does not apply: it is defined for perpetual frames only, and the premium index is a spot frame. Long exposure above 1x pays cash financing at 5% a year (`costs.financing_apr: 0.05`). A cost sensitivity over fee and half-spread levels is required before any result from these files is published. No sensitivity has been run. Training samples a cost multiplier between 0.5 and 2.0 (`cost_mult_low`, `cost_mult_high`); that range is not a reported sensitivity.
 
-Scale. The prior is `vrp_prior = iv - rv`, an annualized variance difference, and `ActionMap` clips `gain * vrp_prior` to [-1, 1]. With gain 50 the clip binds at a gap of 0.02, since 50 x 0.02 = 1. For example, VIX 20 gives implied variance 0.04, and realized volatility of about 14.1% gives 0.02. The 63-bar gate window is 252 / 4, one quarter of trading days. The repo does not record whether gain 50 or the 63-bar window was fixed before the first run. Both count as trials until a run records otherwise.
+Warm-up. The realized window needs 21 returns, so the first 20 bars after the first row move by zero and carry no P&L. No bar after that is zero-filled, and a missing input after warm-up raises. Measured on 2016-10-13 to 2026-09-30: 20 zero-move rows, none after row 20.
+
+Scale. The prior is `vrp_prior = iv - rv`, an annualized variance difference, and `ActionMap` clips `gain * vrp_prior` to [-1, 1]. With gain 50 the clip binds at a gap of 0.02, since 50 x 0.02 = 1. For example, VIX 20 gives implied variance 0.04, and realized volatility of about 14.1% gives 0.02. Measured on the gated `vrp_prior` column after warm-up, |vrp_prior| exceeds 0.02 on 19% of bars (2,483 bars in the window; 27% before the gate). The 63-bar gate window is 252 / 4, one quarter of trading days. The repo does not record whether gain 50 or the 63-bar window was fixed before the first run. Both count as trials until a run records otherwise.
 
 | File | What it tests | Results |
 | --- | --- | --- |
@@ -174,11 +176,23 @@ BTC and ETH are the two largest coins today. The choice uses that ranking, so th
 selection hindsight.
 
 Costs: the configs charge 11 bp per unit of exposure change, a fee of 10 bp and a half spread of
-1 bp. This replaces the spot default in the tape (7.5 bp fee, 1 bp half spread). The level is a
-spot-trading assumption, and option bid and ask are not in the data, so the cost of the instrument
-is unknown. For scale, DVOL at 55% and 30-day realized volatility at 47% give a daily payoff of
-about 2.2 bp per unit before costs. If the exposure is re-entered each day, the 11 bp charge is
-about five times that payoff. The gross and 3x configs bracket the level.
+1 bp. This replaces the spot default in the tape (7.5 bp fee, 1 bp half spread). The 11 bp level is
+an assumption, not a quote: option bid and ask are not in the data, so the cost of the instrument is
+unknown.
+
+Scale, measured on the cached data from 2021-03-25 to 2026-09-30 (1h DVOL and 1h spot for BTC and ETH,
+2,016 daily rows per coin). Median DVOL is 55.4% for BTC and 69.3% for ETH. Median trailing 30-day
+realized volatility is 48.0% and 65.6%. The mean daily payoff before costs is 2.5 bp per unit for BTC,
+1.1 bp for ETH and 1.8 bp pooled. With one unit of exposure change per day (full daily re-entry), a
+cost of 2.5 bp per unit on BTC, or 1.8 bp pooled, takes the carry to zero. The 11 bp level is about
+four times the BTC payoff. The gross config is the payoff before costs and the 3x config is three
+times the base level. Neither bounds the real cost.
+
+Borrow, funding and roll are 0 by design. The payoff is a swap on DVOL, so no spot is borrowed to
+short it. Funding is defined for perpetual frames only. Each day rolls a fresh one-day swap, so no roll
+cost applies (`variance.py`). `max_leverage` is 4, against the spot default of 1:
+the payoff index moves far less than a price, so a 0.1 volatility target needs leverage, and the cap
+of 4 limits it. Long exposure above 1x pays cash financing at 5% a year (`costs.financing_apr: 0.05`).
 
 The two main configs are two trials. The gross and 3x configs are sensitivity runs on the prior
 config. Count all four when judging the Variance results.
@@ -214,3 +228,56 @@ in `multi/`.
 | --- | --- | --- |
 | `multi/multi_daily_vt.yaml` | Crypto perpetuals, forex and macro, daily, walk-forward from 2016, volatility target 0.1, no prior. | No |
 | `multi/multi_daily_prior.yaml` | As `multi_daily_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
+
+## Benchmark
+
+Synthetic markets with fresh draws, for comparing algorithm changes. The markets come from
+`softedge.data.bench`. Four families: `break` (the edge flips or vanishes in the second half),
+`jump` (GARCH volatility with crash jumps), `threshold` (the signal predicts only in high-volatility
+bars) and `prior` (a linear market whose prior is the failure mode). `data.family: all` mixes the
+four. Every market carries `prior_hint`, a prior in units of a 1% bar volatility, so `prior_hint`
+works as `prior_feature`.
+
+Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
+the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair).
+
+The online pair differs only in `train.online_every`: the deployed agents take 16 gradient
+steps every 24 test bars on the transitions realized in the last 5000 bars (`agent/online.py`).
+Only the banded and gated runs deploy online; the frozen per-seed and ensemble runs are unchanged.
+
+The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on). When on, each
+test fold adds two runs, `sac_disagree_shrink` and `sac_multiplier_matched`, and both count as
+trials. The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is
+the spread of the members' residuals and tau is the median spread over validation bars. The control
+holds the multiplier constant at its mean over the validation bars, on the same path that sets tau,
+so no test-fold bar sets it. Both new runs use no no-trade band, as does `sac_ensemble`. The file
+pair needs at least two seeds.
+
+Neither new run passes through the deploy gate. Only `sac_gated` is gated, and its validation PSR
+is computed on the unshrunk banded policy. So `sac_gated` on the `_on` run is not the shrink, and
+it is not the shrink's deployed result. The shrink's test-fold result is `sac_disagree_shrink`.
+
+Run each file of the pair in its own output root (`--out`). Each run appends its `sac_*` strategies
+to `trials.jsonl` in its root, and later runs on the same universe in that root count them. An off
+run after an on run in one root has `n_trials` 12 instead of 5, so its deflated Sharpe ratio is not
+the one it gets alone.
+
+The shrunk run and the matched control differ in how much their targets change from bar to bar,
+so their gap includes a trading-cost effect as well as the multiplier. Compare `turnover_per_year`
+and `cost_per_year` per tape in the run's `report.md` before reading that gap as the effect of the
+shrink.
+
+`tau` and the matched constant are set on the validation bars. Those bars also choose the
+checkpoints and the no-trade band, so the shrink adds validation selection on top of them. No test
+bar enters either value. Both new runs count as trials in `n_trials`, which deflates the reported
+DSR for them. `tau` is one fixed median and is not searched.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
+| `bench/bench_prior.yaml` | The `prior` family, seed offset 2000, the prior `prior_hint` as `prior_feature`. | No |
+| `bench/disagree-shrink_off.yaml` | All four families, eight markets, seed offset 3000, the base agent with the disagreement shrink off. | No |
+| `bench/disagree-shrink_on.yaml` | As `disagree-shrink_off.yaml`, with the disagreement shrink on. | No |
+| `bench/online-deploy-updates_off.yaml` | All four families, seed offset 3100, online updates off (the base of the pair). | No |
+| `bench/online-deploy-updates_on.yaml` | As the off config with `online_every: 24`: causal online updates during deployment. | No |

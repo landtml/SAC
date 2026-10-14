@@ -9,6 +9,7 @@
   <a href="docs/design.md">Design</a> ·
   <a href="docs/glossary.md">Glossary</a> ·
   <a href="docs/roadmap.md">Roadmap</a> ·
+  <a href="docs/research-log.md">Research log</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -42,7 +43,7 @@ premia.**
 | --- | --- | --- |
 | Synthetic market with a hidden signal (control) | Sharpe 15.1, signal found | the method works when an edge exists |
 | Random walk (control) | Sharpe -1.5, deflated Sharpe 0.004 | correctly rejected: no false discovery |
-| Synthetic market with hidden regimes and fat tails | Sharpe 3.8 (a perfect-foresight sign oracle reaches 8.6) | beats buy-and-hold, but deflated Sharpe is 0.09 after 40 trials |
+| Synthetic market with hidden regimes and fat tails | Sharpe 3.8 (a perfect-foresight sign oracle reaches 8.6) | beats buy-and-hold, but deflated Sharpe is 0.14 after 70 trials |
 | Forex, 7 major pairs, 2014-2026 | Sharpe 0.35, deflated Sharpe 0.37 | no edge |
 | Crypto perpetual futures, 10 coins, price direction, 2023-2026 | Sharpe 0.41 vs 0.64 for a trend rule | no edge |
 | Macro: S&P 500, Nasdaq 100, Nikkei 225, WTI, Brent, 10y and 2y Treasuries, daily | Sharpe 0.07 vs 0.55 for buy-and-hold | no edge |

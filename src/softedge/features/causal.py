@@ -180,6 +180,9 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
 
     if "signal" in frame.columns:
         cols["signal"] = frame["signal"].astype("float64")
+    if "prior_hint" in frame.columns:
+        # Already in units of a nominal bar volatility, so prior_gain 1 is a unit prior.
+        cols["prior_hint"] = frame["prior_hint"].astype("float64")
 
     out = pd.DataFrame(cols, index=index)
     return out.clip(lower=-cfg.clip, upper=cfg.clip).astype(np.float32)

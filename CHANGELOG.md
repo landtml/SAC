@@ -4,6 +4,15 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Training: optional causal online updates during deployment (`train.online_every`, with
+  `online_steps` and `online_window`). The deployed agents keep learning from transitions whose
+  reward and next exposure are realized by the current bar in calendar time, also across tapes
+  that start on different dates. Off by default; the frozen deployment is unchanged.
+
 ## [0.2.0] - 2026-10-13
 
 ### Changed

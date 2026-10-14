@@ -26,7 +26,7 @@ from softedge.env.vec_env import TapeSet
 from softedge.portfolio import MIN_EQUITY
 
 _FIELDS = ("long_ret", "short_ret", "short_growth", "long_worst", "short_worst",
-           "carry_long", "carry_short", "cost_long", "cost_short")
+           "carry_long", "carry_short", "fin_long", "cost_long", "cost_short")
 
 
 def step_portfolio_torch(w_prev: torch.Tensor, target: torch.Tensor, m: dict[str, torch.Tensor],
@@ -39,7 +39,7 @@ def step_portfolio_torch(w_prev: torch.Tensor, target: torch.Tensor, m: dict[str
     # The impact term's gradient is infinite at zero turnover, so it is only formed when used.
     imp = torch.where(impact > 0, impact * (turnover + 1e-12) ** 1.5, torch.zeros_like(turnover))
     cost = m["cost_long"] * dl + m["cost_short"] * ds + imp
-    carry = lp * m["carry_long"] + sp * m["carry_short"]
+    carry = lp * m["carry_long"] + sp * m["carry_short"] + m["fin_long"] * (lp - 1.0).clamp_min(0.0)
     ret = lp * m["long_ret"] + sp * m["short_ret"] - carry - cost
     gross = lp + sp
     worst = lp * m["long_worst"] + sp * m["short_worst"] - carry - cost
