@@ -42,8 +42,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6, implied_vol: bool = False,
                 premium: bool = False, roll_days: int | None = None,
-                roll_cost: float | None = None, family: str = "all",
-                seed_offset: int = 0) -> list[pd.DataFrame]:
+                roll_cost: float | None = None, open_interest: bool = False,
+                family: str = "all", seed_offset: int = 0) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi``, ``pegs`` or ``synthetic``.
     ``polymarket``, ``kalshi``, ``vrp`` or ``synthetic``. ``vrp`` holds daily short-variance
@@ -60,11 +60,15 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     every other coin, the crypto market's implied volatility; for ``vrp_spx`` it selects the
     variance risk premium prior of ``softedge.data.vrp``). ``premium`` joins the Binance perp
     mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
-    FRED. ``macro_fomc`` holds the equity indices (SPX, NDX, NKY by default) with the column
+    FRED. ``tips_breakeven`` holds the nominal-minus-TIPS spread at the 5 and 10 year tenors
+    (``softedge.data.tips``), with the column ``tips_prior``. ``macro_fomc`` holds the equity
+    indices (SPX, NDX, NKY by default) with the column
     ``fomc_next``, the scheduled-announcement flag of ``softedge.data.fomc``. ``implied_vol``
     joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
     premium index, which leads the next funding payment, onto Binance perp legs.
+    ``open_interest`` attaches Binance's USD open interest (``softedge.data.metrics``) to
+    ``crypto_basis`` frames, for the squeeze gate of ``softedge.features.squeeze``.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
     (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
@@ -73,6 +77,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     ``synthetic_bench`` holds the benchmark markets of ``softedge.data.bench``: ``family`` picks
     one family or ``"all"``, and market ``i`` is seeded ``seed_offset + i``.
     """
+    if open_interest and universe != "crypto_basis":
+        raise ValueError(f"open_interest attaches to crypto_basis frames only, not {universe!r}")
     if universe == "synthetic_bench":
         from softedge.data.bench import bench_frames
 
@@ -133,9 +139,18 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
         from softedge.data.basis import basis_frame
 
         perp = binance.load_perp
-        return [basis_frame(binance.load_spot(s, "1h", start, end),
-                            _with_premium(perp(s, "1h", start, end)) if premium else perp(s, "1h", start, end))
-                for s in (symbols or CRYPTO_SYMBOLS)]
+        frames = []
+        for s in (symbols or CRYPTO_SYMBOLS):
+            perp_leg = perp(s, "1h", start, end)
+            basis = basis_frame(binance.load_spot(s, "1h", start, end),
+                                _with_premium(perp_leg) if premium else perp_leg)
+            # Open interest is attached hourly, so a daily resample keeps the last 23:55 sample.
+            frames.append(_with_open_interest(basis, s) if open_interest else basis)
+        return frames
+    if universe == "tips_breakeven":
+        from softedge.data.tips import load_tips_breakeven
+
+        return [load_tips_breakeven(t, start, end) for t in (symbols or ("5", "10"))]
     if universe == "pegs":
         from softedge.data.pegs import load_peg_frames
 
@@ -221,22 +236,32 @@ def _with_premium(frame: pd.DataFrame) -> pd.DataFrame:
     return attach_premium(frame)
 
 
+def _with_open_interest(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    from softedge.data.metrics import attach_open_interest
+
+    return attach_open_interest(frame, symbol)
+
+
 def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFrame], CostSpec] | None = None,
              feature_cfg: FeatureConfig | None = None, cross: bool = False,
              regime: bool = False, calib: CalibConfig | None = None,
-             premia: bool = False) -> list[MarketTape]:
+             premia: bool = False, xs_funding: dict | None = None) -> list[MarketTape]:
     """Tapes from frames. ``cross`` adds cross-asset context (``features.cross``) to every
     non-binary frame when there are at least three of them; ``regime`` adds the regime
     indicators of ``features.regime`` to every frame; ``calib`` adds the ``calib_edge`` column
     of ``features.calibration`` to every binary frame; ``premia`` adds the premium features of
-    ``features.premia`` to every non-binary frame."""
-    kept, tables = [], []
+    ``features.premia`` to every non-binary frame; ``xs_funding`` (keyword arguments of
+    ``features.crosssec.xs_funding_features``) adds the cross-sectional funding rank to every frame.
+
+    The cross-sectional context is computed over all frames before the length filter, and a coin
+    joins the cross-section at bar ``t`` only with ``warmup_bars`` rows up to and including ``t``.
+    So the context at ``t`` never depends on rows after ``t``, including how long a coin is. The
+    length filter then decides which frames become tapes."""
+    tables, cfgs = [], []
     for fr in frames:
         kind = fr.attrs["kind"]
         cfg = feature_cfg or (BINARY_FEATURES if kind == "binary" else FeatureConfig())
-        if len(fr) <= warmup_bars(cfg) + 16:
-            continue
-        kept.append(fr)
+        cfgs.append(cfg)
         table = compute_features(fr, cfg)
         if regime:
             from softedge.features.regime import regime_features
@@ -247,17 +272,26 @@ def to_tapes(frames: list[pd.DataFrame], costs: CostSpec | Callable[[pd.DataFram
 
             table = pd.concat([table, premia_features(fr)], axis=1)
         tables.append(table)
+    min_history = warmup_bars(feature_cfg or FeatureConfig())
+    if xs_funding is not None:
+        from softedge.features.crosssec import xs_funding_features
+
+        extra = xs_funding_features(frames, min_history=min_history, **xs_funding)
+        tables = [pd.concat([t, e], axis=1) for t, e in zip(tables, extra, strict=True)]
+    linear_all = [i for i, fr in enumerate(frames) if fr.attrs["kind"] != "binary"]
+    if cross and len(linear_all) >= 3:
+        from softedge.features.cross import cross_features
+
+        ctx = cross_features({str(i): tables[i] for i in linear_all}, min_history=min_history)
+        for i in linear_all:
+            tables[i] = pd.concat([tables[i], ctx[str(i)]], axis=1).clip(-5.0, 5.0)
+    keep = [i for i, fr in enumerate(frames) if len(fr) > warmup_bars(cfgs[i]) + 16]
+    kept = [frames[i] for i in keep]
+    tables = [tables[i] for i in keep]
     if calib is not None:
         binary = [i for i, fr in enumerate(kept) if fr.attrs["kind"] == "binary"]
         for i, edge in zip(binary, calib_edge([kept[i] for i in binary], calib), strict=True):
             tables[i] = pd.concat([tables[i], edge], axis=1)
-    linear = [i for i, fr in enumerate(kept) if fr.attrs["kind"] != "binary"]
-    if cross and len(linear) >= 3:
-        from softedge.features.cross import cross_features
-
-        ctx = cross_features({str(i): tables[i] for i in linear})
-        for i in linear:
-            tables[i] = pd.concat([tables[i], ctx[str(i)]], axis=1).clip(-5.0, 5.0)
     tapes = []
     for fr, feats in zip(kept, tables, strict=True):
         spec = costs(fr) if callable(costs) else (costs or DEFAULT_COSTS[fr.attrs["kind"]])

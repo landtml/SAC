@@ -1,5 +1,6 @@
 """Command line: ``softedge download <universe>``, ``softedge run <config.yaml>``,
-``softedge dsr``, ``softedge leaderboard`` and ``softedge compare <base> <runs>...``."""
+``softedge dsr``, ``softedge active``, ``softedge leaderboard`` and
+``softedge compare <base> <runs>...``."""
 
 from __future__ import annotations
 
@@ -11,7 +12,8 @@ from pathlib import Path
 # Every name ``softedge.pipeline.load_frames`` accepts; a test keeps this in sync with it.
 DOWNLOAD_UNIVERSES = (
     "crypto_perp", "crypto_spot", "crypto_basis", "hl_basis", "perp_spread", "delivery_basis",
-    "pegs", "vrp", "vrp_spx", "macro_fomc", "fx", "fx_em", "macro", "kalshi", "polymarket",
+    "pegs", "vrp", "vrp_spx", "macro_fomc", "fx", "fx_em", "macro", "tips_breakeven",
+    "kalshi", "polymarket",
     "synthetic", "synthetic_null", "synthetic_hard", "synthetic_bench",
 )
 
@@ -34,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     dsr = sub.add_parser("dsr", help="recompute deflated Sharpe ratios over all saved runs")
     dsr.add_argument("--runs", default="runs")
     dsr.add_argument("--out", default=None, help="file to write (default: RUNS/dsr.md)")
+
+    act = sub.add_parser("active", help="Sharpe and DSR of each run's active return over its prior")
+    act.add_argument("--runs", default="runs")
+    act.add_argument("--strategy", default="sac_banded")
+    act.add_argument("--out", required=True, help="file to write")
 
     lb = sub.add_parser("leaderboard", help="rank every saved run by deflated Sharpe ratio")
     lb.add_argument("--runs", default="runs")
@@ -89,6 +96,13 @@ def main(argv: list[str] | None = None) -> int:
                 "n_bars", "skew", "kurt"]
         text = to_markdown(table[cols])
         _write_report(args.out or Path(args.runs) / "dsr.md", text)
+        print(text)
+        return 0
+    if args.cmd == "active":
+        from softedge.eval.active import active_markdown
+
+        text = active_markdown(args.runs, args.strategy)
+        _write_report(args.out, text)
         print(text)
         return 0
     if args.cmd == "download":

@@ -11,8 +11,10 @@ ratio counts all configurations tried.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import time
+import warnings
 from dataclasses import fields, replace
 from pathlib import Path
 
@@ -27,7 +29,9 @@ from softedge.agent.disagree import (
     multiplier_matched_policy,
     validation_tau,
 )
+from softedge.agent.drawdown import drawdown_switch
 from softedge.agent.factory import agent_from_state
+from softedge.agent.online import deploy_online
 from softedge.agent.sac import TQCSAC, SACConfig
 from softedge.env.vec_env import EnvConfig, TapeSet, rollout
 from softedge.eval import baselines
@@ -80,7 +84,14 @@ def build_train_config(cfg: dict, seed: int) -> TrainConfig:
     env = _dataclass_from(EnvConfig, cfg.get("env"))
     sac = _dataclass_from(SACConfig, cfg.get("sac"))
     tc = _dataclass_from(TrainConfig, cfg.get("train"))
-    return replace(tc, env=env, sac=sac, seed=seed)
+    # The drawdown switch lives in the reward and obs sections, so it cannot be set twice.
+    for section, key in (("env", "drawdown_obs"), ("train", "dd_penalty"),
+                         ("train", "dd_tolerance")):
+        if key in (cfg.get(section) or {}):
+            raise ValueError(f"set the drawdown switch in reward and obs, not {section}.{key}")
+    dd = drawdown_switch(cfg)
+    return replace(tc, env=replace(env, drawdown_obs=dd.obs), sac=sac, seed=seed,
+                   dd_penalty=dd.penalty, dd_tolerance=dd.tolerance)
 
 
 def build_all_tapes(cfg: dict) -> list[MarketTape]:
@@ -90,6 +101,11 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     ``data``, ``costs``), so one agent can train on several universes with their own costs.
     """
     if "sources" in cfg:
+        # The rank is computed across the coins of one frame list. Under sources it would be
+        # computed per source, so it is refused rather than silently ranking each source alone.
+        if any("xs_funding" in (c.get("data") or {}) for c in [cfg, *cfg["sources"]]):
+            raise ValueError("xs_funding ranks the coins of one universe, so it cannot be combined "
+                             "with sources; move it to a single-universe config")
         return [tp for src in cfg["sources"] for tp in build_all_tapes(src)]
     data = cfg.get("data", {})
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
@@ -98,6 +114,7 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
                          implied_vol=bool(data.get("implied_vol", False)),
                          premium=bool(data.get("premium", False)),
                          roll_days=data.get("roll_days"), roll_cost=data.get("roll_cost"),
+                         open_interest=bool(data.get("open_interest", False)),
                          family=data.get("family", "all"),
                          seed_offset=int(data.get("seed_offset", 0)))
     if data.get("resample"):
@@ -110,7 +127,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     calib = CalibConfig(**data["calib"]) if data.get("calib") else None
     return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)),
                     regime=bool(data.get("regime_features", False)), calib=calib,
-                    premia=bool(data.get("premia_features", False)))
+                    premia=bool(data.get("premia_features", False)),
+                    xs_funding=data.get("xs_funding"))
 
 
 def make_splits(cfg: dict) -> list[SplitSpec]:
@@ -158,18 +176,21 @@ def choose_band(act_fn, val: TapeSet) -> tuple[float, dict[float, float]]:
 
 
 def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, window: int,
-               feature_names: tuple[str, ...], n_val_evals: int = 1) -> tuple[dict, dict]:
+               feature_names: tuple[str, ...], n_val_evals: int = 1,
+               reward_scales: dict[int, float] | None = None) -> tuple[dict, dict]:
     start_row = window - 1
     test = parts["test"]
-    action_map = build_train_config(cfg, seeds[0]).env.action_map
-    test_ts = TapeSet(test, window, feature_names, action_map)
+    tc = build_train_config(cfg, seeds[0])
+    action_map = tc.env.action_map
+    dd_obs = tc.env.drawdown_obs
+    test_ts = TapeSet(test, window, feature_names, action_map, drawdown=dd_obs)
     runs = {}
     for seed, agent in zip(seeds, agents, strict=True):
         runs[f"sac_seed{seed}"] = rollout(test_ts, lambda o, a=agent: a.act(o, deterministic=True))
     policy = ensemble_policy(agents)
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
-    val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    val_ts = TapeSet(parts["val"], window, feature_names, action_map, drawdown=dd_obs)
     disagree: dict = {}
     if disagree_shrink_on(cfg.get("deploy", {})):
         # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.
@@ -183,7 +204,12 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         # Both tau and the matched constant are fixed on validation bars.
         disagree = {"tau": tau, "matched_const": matched.const}
     band, band_scores = choose_band(policy, val_ts)
-    runs["sac_banded"] = rollout(test_ts, policy, band=band)
+    online_info = None
+    if tc.online_every > 0:
+        runs["sac_banded"], online_info = deploy_online(agents, test_ts, reward_scales, seeds, tc,
+                                                        band)
+    else:
+        runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled
     # validation record. Below the gate the strategy stays flat for this fold. The same validation
     # record picked the checkpoints and the band, so gate "dsr" deflates it by that search:
@@ -221,6 +247,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     info = {"chosen": band, "val_sharpe": band_scores, "val_psr": float(val_psr),
             "val_psr_plain": float(probabilistic_sharpe_ratio(val_r)),
             "gate": deploy_cfg.get("gate", "psr"), "gate_psr": gate_psr, "deployed": deploy}
+    if online_info is not None:
+        info["online"] = online_info
     if disagree:
         info["disagree"] = disagree
     return runs, info
@@ -275,7 +303,8 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
             seed_info[seed] = {"best_val_sharpe": res.best_score, "reward_scale": res.reward_scale,
                                "n_val_evals": len(res.history)}
         runs, band = _test_runs(cfg, agents, seeds, parts, window, feature_names,
-                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()))
+                                n_val_evals=max(s["n_val_evals"] for s in seed_info.values()),
+                                reward_scales={s: reward_scales[s] for s in seeds})
         test = parts["test"]
         fold_sharpe = {}
         for strat, run in runs.items():
@@ -295,8 +324,10 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
     pooled = {strat: pooled_returns(run, all_tapes, start_row) for strat, run in all_runs.items()}
     bpy = float(np.median([tp.bars_per_year for tp in all_tapes]))
     reference = cfg.get("reference", "buy_and_hold")
-    sac_sr = {s: _per_bar_sharpe(series) for s, series in pooled.items() if s.startswith("sac_")}
-    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()))
+    sac_series = {s: series for s, series in pooled.items() if s.startswith("sac_")}
+    sac_sr = {s: _per_bar_sharpe(series) for s, series in sac_series.items()}
+    keys = [_series_key([series.dropna().to_numpy()]) for series in sac_series.values()]
+    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()), keys)
     summary = summary_from_pooled(pooled, bpy, reference, n_trials=n_trials, sr_variance=sr_var)
     fold_table = pd.DataFrame([{"fold": f["fold"], **f["pooled_sharpe"]} for f in folds
                                if "pooled_sharpe" in f])
@@ -304,6 +335,7 @@ def run_experiment(cfg: dict, out_root: str | Path = "runs") -> dict:
         "name": name,
         "minutes": round((time.time() - t0) / 60, 1),
         "n_trials": n_trials,
+        "bars_per_year": bpy,
         "n_folds": len(fold_table),
         "folds": folds,
         "summary": json.loads(summary.set_index("strategy").to_json(orient="index")),
@@ -328,60 +360,130 @@ def _per_bar_sharpe(series: pd.Series) -> float:
     return float(r.mean() / sd) if sd > 0 else 0.0
 
 
-def trial_stats(root: Path, universe: str, current: list[float]) -> tuple[int, float | None]:
+def trial_stats(root: Path, universe: str, current: list[float],
+                current_keys: list[str | None] | None = None) -> tuple[int, float | None]:
     """Trial count and cross-trial Sharpe variance for the deflated Sharpe ratio.
 
     Every SAC variant reported on ``universe`` counts as one trial: each seed, the ensemble and
     the banded and gated versions, across all earlier experiments in ``root`` plus ``current``.
-    The variance is that of their per-bar Sharpe ratios (None below two trials, which leaves the
-    zero-skill floor).
+    A trial whose per-bar return series equals an earlier trial's counts once, so the banded and
+    gated versions of a run that never leaves the band are one trial. ``current_keys`` holds the
+    series key of each entry of ``current`` (see ``_series_key``); the ledger's keys come from
+    the saved returns of each run. Trials without a key are never merged. The ledger keeps every
+    row. The variance is that of the Sharpe ratios of the unique series (None below two, which
+    leaves the zero-skill floor).
     """
-    srs = list(current)
+    keys = [None] * len(current) if current_keys is None else current_keys
+    trials = list(zip(current, keys, strict=True))
     path = root / "trials.jsonl"
     if path.exists():
         for line in open(path):
             row = json.loads(line)
             if row.get("universe") == universe:
-                srs.extend(row.get("sac_sr_bar", {}).values())
+                keys = _run_series_keys(root / row["name"])
+                trials.extend((sr, keys.get(s)) for s, sr in row.get("sac_sr_bar", {}).items())
+    srs = _unique_sharpes(trials)
     n = max(len(srs), 1)
     return n, (float(np.var(srs, ddof=1)) if len(srs) > 1 else None)
+
+
+def _series_key(parts: list[np.ndarray]) -> str:
+    """Exact identity of a trial's per-bar returns: a SHA-256 of their float64 bytes, one part per path."""
+    h = hashlib.sha256()
+    for part in parts:
+        b = np.ascontiguousarray(part, dtype=np.float64).tobytes()
+        h.update(len(b).to_bytes(8, "little"))
+        h.update(b)
+    return h.hexdigest()
+
+
+def _unique_sharpes(trials: list[tuple[float, str | None]]) -> list[float]:
+    """Sharpe ratio of each trial, keeping the first of trials that share a series key."""
+    seen: set[str] = set()
+    srs = []
+    for sr, key in trials:
+        if key is not None:
+            if key in seen:
+                continue
+            seen.add(key)
+        srs.append(sr)
+    return srs
+
+
+def _saved_returns(run_dir: Path) -> tuple[str, list[pd.DataFrame]] | None:
+    """Mode and per-bar returns of a saved run: one frame for walk-forward, one per CPCV path."""
+    # round_trip parsing restores the exact float64 values the run wrote. The default parser
+    # changes the last digits of some values, so identical series would get different keys.
+    def read(p: Path) -> pd.DataFrame:
+        return pd.read_csv(p, index_col=0, parse_dates=True, float_precision="round_trip")
+
+    if (run_dir / "pooled_returns.csv").exists():
+        return "walk_forward", [read(run_dir / "pooled_returns.csv")]
+    paths = sorted(run_dir.glob("path*_returns.csv"), key=lambda p: int(p.stem[4:-8]))
+    if paths:
+        return "cpcv", [read(p) for p in paths]
+    return None
+
+
+def _saved_bars_per_year(run_dir: Path) -> float | None:
+    """Bar rate the run annualised its Sharpe ratios with; None when its result.json lacks it."""
+    path = run_dir / "result.json"
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text()).get("bars_per_year")
+    return None if value is None else float(value)
+
+
+def _run_series_keys(run_dir: Path) -> dict[str, str]:
+    """Series key of each SAC strategy saved in ``run_dir``; empty when the run saved no returns."""
+    saved = _saved_returns(run_dir)
+    if saved is None:
+        return {}
+    frames = saved[1]
+    return {col: _series_key([f[col].dropna().to_numpy() for f in frames])
+            for col in frames[0].columns if col.startswith("sac_")}
 
 
 def recompute_dsr(root: str | Path) -> pd.DataFrame:
     """DSR table for every saved run under ``root``, deflated by the current trial count.
 
+    Sharpe ratios are annualised with the run's ``bars_per_year`` from its ``result.json``, so
+    they match the run's own summary. A run without that key falls back to the bar rate of its
+    pooled index and emits a warning naming the run.
+
     Walk-forward and single-split runs (``pooled_returns.csv``) give one row per strategy. CPCV
     runs (``path{j}_returns.csv``) give one row per strategy with the mean over paths of Sharpe,
     PSR and DSR, plus ``dsr_min`` and ``n_paths``. Every SAC strategy of every run is one trial of
-    its universe (a CPCV strategy counts once, at its mean per-bar Sharpe across paths); the
-    cross-trial variance is that of those per-bar Sharpe ratios. Directories without
+    its universe (a CPCV strategy counts once, at its mean per-bar Sharpe across paths), and a
+    trial whose return series equals another's in the universe counts once. The cross-trial
+    variance is that of the Sharpe ratios of the unique series. Directories without
     ``config.yaml`` are skipped.
     """
     root = Path(root)
     runs = []
     for d in sorted(p for p in root.iterdir() if p.is_dir() and (p / "config.yaml").exists()):
-        cfg = load_config(d / "config.yaml")
-        if (d / "pooled_returns.csv").exists():
-            pooled = pd.read_csv(d / "pooled_returns.csv", index_col=0, parse_dates=True)
-            runs.append((d.name, cfg, "walk_forward", [pooled]))
-        else:
-            paths = sorted(d.glob("path*_returns.csv"), key=lambda p: int(p.stem[4:-8]))
-            if paths:
-                frames = [pd.read_csv(p, index_col=0, parse_dates=True) for p in paths]
-                runs.append((d.name, cfg, "cpcv", frames))
-    by_universe: dict[str, list[float]] = {}
-    for _, cfg, _, frames in runs:
+        saved = _saved_returns(d)
+        if saved is not None:
+            runs.append((d.name, load_config(d / "config.yaml"), *saved, _saved_bars_per_year(d)))
+    by_universe: dict[str, list[tuple[float, str]]] = {}
+    for _, cfg, _, frames, _ in runs:
         for col in frames[0].columns:
             if col.startswith("sac_"):
                 sr = np.mean([_per_bar_sharpe(f[col].dropna()) for f in frames])
-                by_universe.setdefault(cfg["universe"], []).append(float(sr))
+                key = _series_key([f[col].dropna().to_numpy() for f in frames])
+                by_universe.setdefault(cfg["universe"], []).append((float(sr), key))
     rows = []
-    for name, cfg, mode, frames in runs:
-        srs = by_universe.get(cfg["universe"], [])
+    for name, cfg, mode, frames, bpy in runs:
+        srs = _unique_sharpes(by_universe.get(cfg["universe"], []))
         var = float(np.var(srs, ddof=1)) if len(srs) > 1 else None
         n = max(len(srs), 1)
+        if bpy is None:
+            warnings.warn(f"run {name!r} has no bars_per_year in result.json; annualising its "
+                          "Sharpe ratios with the bar rate of its pooled index", UserWarning,
+                          stacklevel=2)
         for col in frames[0].columns:
-            ds = [dsr_summary(f[col].dropna().to_numpy(), _bars_per_year(f.index), n, var)
+            ds = [dsr_summary(f[col].dropna().to_numpy(),
+                              bpy if bpy is not None else _bars_per_year(f.index), n, var)
                   for f in frames]
             row = {k: float(np.mean([d[k] for d in ds])) for k in ds[0]}
             row.update(run=name, universe=cfg["universe"], mode=mode, strategy=col,

@@ -1,0 +1,20 @@
+name: crypto_basis_xsfund_prior
+universe: crypto_basis
+symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT, ADAUSDT, LINKUSDT, AVAXUSDT,
+  LTCUSDT, SUIUSDT, APTUSDT, ARBUSDT, OPUSDT, NEARUSDT, ATOMUSDT, DOTUSDT, TRXUSDT, AAVEUSDT,
+  UNIUSDT, INJUSDT, TIAUSDT, SEIUSDT, FILUSDT, ETCUSDT, BCHUSDT, WLDUSDT, ENAUSDT, HBARUSDT,
+  XLMUSDT, ICPUSDT, RUNEUSDT]
+data: {end: 2026-09, resample: 1D, start: 2020-01, xs_funding: {window: 7, topk: 5}}
+costs: {fee_bps: 10.0, half_spread_bps: 1.0, maint_margin: 0.05, max_leverage: 1.0, borrow_apr: 0.05}
+walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2023-01-01', fold_steps: 15000, test: 365D,
+  val: 180D, warm_start: true}
+env: {cost_mult_high: 2.0, cost_mult_low: 0.5, episode_len: 256, n_envs: 16, window: 4, prior_feature: funding_xs,
+  prior_gain: 1.0}
+sac: {actor_hidden: 32, critic_blocks: 1, gamma: 0.95, hidden: 64, risk: mean, smooth_coef: 0.5, target_entropy_scale: 0.5,
+  action_l2: 0.05}
+train: {eval_every: 500, relabel_frac: 0.5, target_entropy_end_scale: 2.0, threads: 1, total_steps: 40000,
+  utd: 0.25, warmup_steps: 5000}
+trend: {lookback: 30, target_vol: 0.4, vol_span: 7}
+deploy: {gate_psr: 0.8, gate: dsr}
+seeds: [0, 1]
+reference: buy_and_hold

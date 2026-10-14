@@ -19,6 +19,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from softedge.data.schema import validate_frame
+from softedge.features.squeeze import gated_funding
 
 _FLOOR = 1e-8
 _BINARY_LAGS = (1, 4, 24)
@@ -106,6 +107,10 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         carried = funding_bps.where(funding_bps != 0.0).ffill().fillna(0.0)
         cols["funding_last"] = carried
         cols["funding_ewm"] = carried.ewm(span=_FUNDING_EWM_SPAN, adjust=False).mean()
+        if "oi_value" in frame.columns:
+            # Funding prior closed while open interest growth is in its trailing top fifth.
+            cols["funding_ewm_gated"] = gated_funding(cols["funding_ewm"], frame["oi_value"],
+                                                      frame.attrs["bar"])
 
     if _is_intraday(frame.attrs["bar"]):
         seconds = np.asarray(index.hour * 3600 + index.minute * 60 + index.second, dtype=float)
@@ -169,6 +174,9 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
     if "vrp_prior" in frame.columns:
         # Implied minus realized variance at the close; zero while gated or in warm-up.
         cols["vrp_prior"] = frame["vrp_prior"].astype("float64").fillna(0.0)
+    if "tips_prior" in frame.columns:
+        # Breakeven minus trailing CPI inflation in percentage points, from released CPI.
+        cols["tips_prior"] = frame["tips_prior"].astype("float64")
     if "fomc_next" in frame.columns:
         # 1 when the next session holds a scheduled FOMC announcement (the calendar, not prices).
         cols["fomc_next"] = frame["fomc_next"].astype("float64")

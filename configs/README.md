@@ -75,13 +75,14 @@ Spot and perpetual futures on Binance, the ten coins in the crypto universe.
 ## Carry
 
 Trades whose return is mostly a premium. Basis trades hold spot against a perpetual future. The
-funding priors are a causal average of recent funding, with gain -1.
+funding priors are a causal average of recent funding, with gain -1. Basis and spread tapes charge one fee per unit of spread traded; the crypto basis configs set 11 bp per unit, below the 13.5 bp that the spot and perp legs cost at the repo's defaults. The _2leg config charges both legs.
 
 | File | What it tests | Results |
 | --- | --- | --- |
 | `carry/crypto_basis_1d.yaml` | Crypto cash-and-carry (long spot, short perpetual), daily, walk-forward from 2023, 5% borrow rate, no prior. | No |
 | `carry/crypto_basis_1d_prior.yaml` | Daily walk-forward with the funding prior and action penalty 0.05. No borrow rate is set. | No |
 | `carry/crypto_basis_1d_prior_v2.yaml` | Funding prior, 5% borrow rate, and the deflated Sharpe ratio gate. | Yes |
+| `carry/crypto_basis_1d_prior_v2_2leg.yaml` | As `crypto_basis_1d_prior_v2.yaml`. Robustness check: both legs charged, 13.5 bp per unit. | No |
 | `carry/crypto_basis_1d_prior_prem.yaml` | As `crypto_basis_1d_prior_v2.yaml` plus the Binance perpetual premium index feature. | Yes |
 | `carry/crypto_basis_1d_prior_cpcv.yaml` | Funding prior and the deflated Sharpe ratio gate, tested with combinatorial purged cross-validation (CPCV): 6 time groups, 2 held out per split, 20-day purge, 10-day embargo, span from 2022-07 to 2026-09. | No |
 | `carry/hl_basis_1d_prior.yaml` | Long Binance spot, short Hyperliquid perpetual, daily, funding prior, 12 bp fee. | No |
@@ -93,6 +94,11 @@ funding priors are a causal average of recent funding, with gain -1.
 | `carry/perp_spread_wide_prior.yaml` | As `perp_spread_1d_prior.yaml` on the same 32 coins, all listed on Hyperliquid. | No |
 | `carry/delivery_basis_1d.yaml` | Quarterly futures on Binance (dated contracts that expire and settle to spot): long spot, short the front quarterly, rolled 7 days before expiry. BTC and ETH, daily, walk-forward from 2023, no prior. | No |
 | `carry/delivery_basis_1d_prior.yaml` | As `delivery_basis_1d.yaml` with the annualized basis as the prior (`basis_ann`, gain 10, so a 10% annual basis maps to 1.0). | No |
+| `carry/crypto_basis_xsfund_prior.yaml` | As `crypto_basis_wide_prior.yaml` (32 coins, daily, same folds) with the cross-sectional funding rank as the prior. `funding_xs` is the trailing 7-day income of each coin, minus the cross-sectional median, divided by the median absolute deviation across coins listed with a full window; gain 1, so a 1 MAD gap maps to about 1. A 5% APR spot-borrow placeholder is charged on the short-basis side, as in the sibling configs. The coin list holds coins listed today, so it carries survivorship bias. Each run adds five trials to `crypto_basis` for the deflated Sharpe gate. | No |
+| `carry/crypto_basis_xsfund_topk.yaml` | As `crypto_basis_xsfund_prior.yaml` with the top-k benchmark as the prior: 1 for the coins above the fifth place by trailing 7-day income, 0 for those below it. Coins tied across the fifth place split the places left for them, so each gets a fraction (three coins tied for places 4 to 6 get 2/3 each). The flags sum to five on each day with five or more eligible coins. Its `prior_only` strategy is the top-k rule on the same days. | No |
+| `carry/crypto_basis_xsfund_plain.yaml` | As `crypto_basis_xsfund_prior.yaml` with no prior and no cross-sectional features. The comparison with the prior config is joint: the prior configs also add `funding_xs` and `funding_topk` as observed features, so the difference is the prior and the observed features together. No config isolates the prior alone. | No |
+| `carry/crypto_basis_1d_squeeze_gate.yaml` | As `crypto_basis_1d_prior_v2.yaml` with the funding prior multiplied by an open-interest squeeze gate (`funding_ewm_gated`). The gate is 0 while the seven-day growth in Binance USD open interest is above the 80th percentile of the trailing 180 calendar days, and 1 (open) wherever it cannot be computed, which is the base carry. The loader requests open interest from 2022-01 (`OI_START` in `softedge.data.metrics`, its request floor, since each day costs one request), and every cached coin file starts there, so the history starts 2022-01 (not 2020-01 as in `prior_v2`). The gate first computes on 2022-07-06. Fold 0 has no training data and is skipped, so the runs cover three test folds. Each run adds 5 trials (two seeds, ensemble, banded, gated) to the crypto_basis universe. | No |
+| `carry/crypto_basis_1d_squeeze_base.yaml` | Ungated baseline for the squeeze gate: identical to `crypto_basis_1d_prior_v2.yaml` except for the name and the start, which is 2022-01 to match the gated config (`prior_v2` starts 2020-01). The start is the loader's request floor for open interest (`OI_START`); fold 0 has no training data and is skipped, so the runs cover three test folds. Each run adds 5 trials (two seeds, ensemble, banded, gated) to the crypto_basis universe. | No |
 
 ## Pegs
 
@@ -138,6 +144,49 @@ reference is price-only too.
 | `macro/macro_1d_tsmom_curve.yaml` | As `macro_1d_vt.yaml` with both macro priors summed before clipping (`prior_features`). | No |
 | `macro/fomc_1d_vt.yaml` | S&P 500, Nasdaq (FRED NASDAQCOM, the `NDX` symbol) and Nikkei 225, daily, volatility target 0.1, no prior. The plain baseline for the FOMC prior. | No |
 | `macro/fomc_1d_prior.yaml` | As `fomc_1d_vt.yaml` with the scheduled-announcement flag as prior (`fomc_next`, gain 1: 1 on a session with a scheduled announcement, else 0) and action penalty 0.05. | No |
+
+## TIPS breakeven
+
+Long nominal Treasury against short TIPS of the same tenor, at 5 and 10 years, daily from 2003 (`softedge.data.tips`).
+The spread earns the breakeven inflation rate less realized inflation. The prior is the breakeven minus the trailing
+12-month CPI inflation, both in percentage points, using only CPI released by each bar's close; each month's CPI is
+taken as released on the 16th of the following month. The TIPS accrual uses CPI lagged three months. October 2025 has
+no CPI print in the FRED series, so that month carries September's value forward. Every read of October 2025 CPI gets
+September's value, so the December 2025 and January 2026 accruals omit part of October's CPI change, as does any prior
+that reads it. Each leg's duration and convexity are fixed per tenor, and the spread carries no margin or repo haircut.
+
+Borrow. The frame has no borrow charge. The shortfall of the TIPS rebate below the bill rate is not sourced, so it is
+omitted. The omission flatters a long spread by that shortfall per year. A short spread owes no TIPS borrow, but it
+sells the nominal leg short, and the frame charges no specialness or repo cost on that leg. That cost is not sourced.
+
+Costs. A unit of spread turnover trades two bonds. The configs charge 2 bp fee and 2 bp half spread per unit, which is
+1 bp fee and 1 bp half spread per bond, doubled. Those per-bond figures are placeholders, not sourced. TIPS liquidity is
+not verified here, so the real charge may be higher. `tips/tips_breakeven_1d_gross.yaml` gives the payoff before
+costs, and `tips/tips_breakeven_1d_cost3x.yaml` runs at three times the base charge, 6 bp fee and 6 bp half spread per
+unit. No run has used either file yet, so no cost sensitivity is reported.
+
+Roll. The constant-maturity yields are synthetic, and the configs charge no roll cost. A real position in futures or
+on-the-run issues rolls, and each roll has a cost that this spread does not model.
+
+The prior's scale. The configs set gain 0.5 per point, so a prior of 2 points or more in absolute value saturates the
+clip at 1. Measured over 2003-01-02 to 2026-09-30 on the cached FRED series (checked 2026-10-14, a shared 4-vCPU
+machine), that share is 14.2 percent of 5-year bars and 13.8 percent of 10-year bars. The prior's correlation with the
+next-day spread return is -0.023 (5 years) and -0.027 (10 years). The gain is positive, so the config goes long on a
+high prior. The sample's sign is the opposite: a high prior came before lower next-day returns. A one-point prior is one
+percent a year, about 0.004 percent per business-day bar, against a standard deviation per bar of 0.23 percent (5 years)
+and 0.29 percent (10 years). The correlation is weak, so the decision test is the prior config against the plain
+baseline: `tips_breakeven_1d_prior.yaml` against `tips_breakeven_1d.yaml`.
+
+Measured on the same cache with no borrow charge, the annualized volatility is 3.7 percent (5 years) and 4.6 percent
+(10 years), and the annualized log return is -0.9 and -0.8 percent. Breakeven running below realized inflation on
+average is an inference from that return, not a separate measurement.
+
+| File | What it tests | Results |
+| --- | --- | --- |
+| `tips/tips_breakeven_1d.yaml` | Long nominal, short TIPS, 5 and 10 years. Volatility target 0.05, up to 4x leverage, no prior. The plain baseline for the breakeven prior. | No |
+| `tips/tips_breakeven_1d_prior.yaml` | As `tips_breakeven_1d.yaml` with the breakeven prior (`tips_prior`, gain 0.5 per point, clipped at 1). | No |
+| `tips/tips_breakeven_1d_gross.yaml` | As `tips_breakeven_1d.yaml` with fee and half spread at zero: the payoff before costs. | No |
+| `tips/tips_breakeven_1d_cost3x.yaml` | As `tips_breakeven_1d.yaml` at three times the base charge: 6 bp fee and 6 bp half spread per unit. | No |
 
 ## Variance risk premium
 
@@ -238,7 +287,11 @@ works as `prior_feature`.
 
 Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
 the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
-same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`).
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair), 3200 (the drawdown pair).
+
+The online pair differs only in `train.online_every`: the deployed agents take 16 gradient
+steps every 24 test bars on the transitions realized in the last 5000 bars (`agent/online.py`).
+Only the banded and gated runs deploy online; the frozen per-seed and ensemble runs are unchanged.
 
 The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on). When on, each
 test fold adds two runs, `sac_disagree_shrink` and `sac_multiplier_matched`, and both count as
@@ -267,9 +320,30 @@ checkpoints and the no-trade band, so the shrink adds validation selection on to
 bar enters either value. Both new runs count as trials in `n_trials`, which deflates the reported
 DSR for them. `tau` is one fixed median and is not searched.
 
+The `drawdown-penalty` pair differs only in `reward.dd_penalty` and `obs.drawdown` (off: 0 and
+false; on: 1.0 and true). The reward is the per-bar log growth minus `dd_penalty` times the standard
+deviation of the buffer's base reward, times the log drawdown beyond `dd_tolerance` (0.05) after the
+step, capped at 1.0 log unit beyond the tolerance (`DD_EXCESS_CAP` in `agent/drawdown.py`). The
+drawdown is measured from the running equity peak of each training episode and each test tape.
+Limit: the peak resets at those starts, so a drawdown carried across a fold boundary is erased and
+the penalty does not charge it. The observation carries `log1p` of the drawdown, and the penalty
+requires that observation. The penalty is applied on the replayed transitions, and the drawdown
+observation is refused with online updates or the pathwise objective. Both runs count as trials in
+`n_trials`, which deflates the reported DSR for them.
+
+The pair's comparison must report, for the off and on runs: the mean max drawdown on vs off; the
+share of the sign oracle's Sharpe captured on vs off; and the mean absolute exposure by drawdown
+bucket on vs off, with the buckets u = 0, 0 < u <= `dd_tolerance`, and u > `dd_tolerance`. The
+switch-off equivalence is shown on one small config (the pinned digest and absent-equals-off tests
+in `tests/agent/test_drawdown.py`), not on the bench.
+
 | File | What it tests | Results |
 | --- | --- | --- |
 | `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
 | `bench/bench_prior.yaml` | The `prior` family, seed offset 2000, the prior `prior_hint` as `prior_feature`. | No |
 | `bench/disagree-shrink_off.yaml` | All four families, eight markets, seed offset 3000, the base agent with the disagreement shrink off. | No |
 | `bench/disagree-shrink_on.yaml` | As `disagree-shrink_off.yaml`, with the disagreement shrink on. | No |
+| `bench/online-deploy-updates_off.yaml` | All four families, seed offset 3100, online updates off (the base of the pair). | No |
+| `bench/online-deploy-updates_on.yaml` | As the off config with `online_every: 24`: causal online updates during deployment. | No |
+| `bench/drawdown-penalty_off.yaml` | All four families, eight markets, seed offset 3200, the drawdown penalty and drawdown observation off. | No |
+| `bench/drawdown-penalty_on.yaml` | As `drawdown-penalty_off.yaml` with `dd_penalty` 1.0, `dd_tolerance` 0.05 and the drawdown observation on. | No |
