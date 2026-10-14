@@ -39,6 +39,7 @@ from softedge.eval.stats import dsr_summary, pbo_cscv
 from softedge.experiment import (
     _append_jsonl,
     _per_bar_sharpe,
+    _series_key,
     _test_runs,
     build_all_tapes,
     build_train_config,
@@ -146,7 +147,8 @@ def run_cpcv(cfg: dict, out_root: str | Path = "runs") -> dict:
     reference = cfg.get("reference", "buy_and_hold")
     sac_sr = {s: float(np.mean([_per_bar_sharpe(p[s]) for p in path_series]))
               for s in strategies if s.startswith("sac_")}
-    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()))
+    keys = [_series_key([p[s].dropna().to_numpy() for p in path_series]) for s in sac_sr]
+    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()), keys)
 
     rows = []
     for j, series in enumerate(path_series):

@@ -56,4 +56,9 @@ def test_cpcv_run_builds_paths_and_counts_trials(tmp_path):
     # A path covers the whole CPCV span once: about 89 days of hourly bars minus window warm-up.
     assert p0.index.is_unique and len(p0) > 85 * 24
     rows = [json.loads(line) for line in open(tmp_path / "trials.jsonl")]
-    assert rows[-1]["mode"] == "cpcv" and res["n_trials"] == 3
+    assert rows[-1]["mode"] == "cpcv"
+    # banded and gated return the same series on every path, so with seed 0 they are one trial.
+    paths_ret = [pd.read_csv(tmp_path / "cpcv_tiny" / f"path{j}_returns.csv", index_col=0)
+                 for j in range(3)]
+    assert all(p["sac_banded"].equals(p["sac_gated"]) for p in paths_ret)
+    assert res["n_trials"] == 2

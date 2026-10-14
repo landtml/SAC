@@ -75,13 +75,14 @@ Spot and perpetual futures on Binance, the ten coins in the crypto universe.
 ## Carry
 
 Trades whose return is mostly a premium. Basis trades hold spot against a perpetual future. The
-funding priors are a causal average of recent funding, with gain -1.
+funding priors are a causal average of recent funding, with gain -1. Basis and spread tapes charge one fee per unit of spread traded; the crypto basis configs set 11 bp per unit, below the 13.5 bp that the spot and perp legs cost at the repo's defaults. The _2leg config charges both legs.
 
 | File | What it tests | Results |
 | --- | --- | --- |
 | `carry/crypto_basis_1d.yaml` | Crypto cash-and-carry (long spot, short perpetual), daily, walk-forward from 2023, 5% borrow rate, no prior. | No |
 | `carry/crypto_basis_1d_prior.yaml` | Daily walk-forward with the funding prior and action penalty 0.05. No borrow rate is set. | No |
 | `carry/crypto_basis_1d_prior_v2.yaml` | Funding prior, 5% borrow rate, and the deflated Sharpe ratio gate. | Yes |
+| `carry/crypto_basis_1d_prior_v2_2leg.yaml` | As `crypto_basis_1d_prior_v2.yaml`. Robustness check: both legs charged, 13.5 bp per unit. | No |
 | `carry/crypto_basis_1d_prior_prem.yaml` | As `crypto_basis_1d_prior_v2.yaml` plus the Binance perpetual premium index feature. | Yes |
 | `carry/crypto_basis_1d_prior_cpcv.yaml` | Funding prior and the deflated Sharpe ratio gate, tested with combinatorial purged cross-validation (CPCV): 6 time groups, 2 held out per split, 20-day purge, 10-day embargo, span from 2022-07 to 2026-09. | No |
 | `carry/hl_basis_1d_prior.yaml` | Long Binance spot, short Hyperliquid perpetual, daily, funding prior, 12 bp fee. | No |
