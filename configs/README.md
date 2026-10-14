@@ -117,10 +117,28 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 
 ## Variance
 
-Daily short 30-day variance on BTC and ETH from 2021-03: the payoff is Deribit DVOL squared over 365
-minus the day's squared log return, scored as a variance-swap carry proxy. The prior is the
-annualized variance premium (DVOL squared minus trailing 30-day realized variance), scaled by a 40%
-volatility. The plain config has no prior and runs the same settings otherwise.
+A short variance carry on BTC and ETH from 2021-03, rolled daily. Each day is a one-day variance
+swap priced from the 30-day Deribit DVOL index: the payoff is DVOL squared over 365 minus the day's
+squared log return. It is a proxy scored as a carry, not a held 30-day position. A short 30-day
+variance book also loses when implied volatility rises (vega). The proxy charges none of that, so
+results on these frames overstate a real 30-day position in volatility spikes. The proxy also omits
+gamma path, hedging, and option bid and ask.
+
+The prior is the annualized variance premium (DVOL squared minus trailing 30-day realized variance),
+scaled by a 40% volatility. The plain config has no prior and runs the same settings otherwise.
+
+BTC and ETH are the two largest coins today. The choice uses that ranking, so the sample carries
+selection hindsight.
+
+Costs: the configs charge 11 bp per unit of exposure change, a fee of 10 bp and a half spread of
+1 bp. This replaces the spot default in the tape (7.5 bp fee, 1 bp half spread). The level is a
+spot-trading assumption, and option bid and ask are not in the data, so the cost of the instrument
+is unknown. For scale, DVOL at 55% and 30-day realized volatility at 47% give a daily payoff of
+about 2.2 bp per unit before costs. If the exposure is re-entered each day, the 11 bp charge is
+about five times that payoff. The gross and 3x configs bracket the level.
+
+The two main configs are two trials. The gross and 3x configs are sensitivity runs on the prior
+config. Count all four when judging the Variance results.
 
 | File | What it tests | Results |
 | --- | --- | --- |
