@@ -12,7 +12,8 @@ All notable changes to this project are recorded here. The format follows
   coin its trailing 7-day funding income relative to the other coins listed at the same bar
   (`funding_xs`), and a top-five flag (`funding_topk`): 1 for the coins above the cut, 0 below it,
   and a fraction for coins tied at the cut, so the flags sum to five. Enabled by `xs_funding` in a
-  config's `data` block. Configs `carry/crypto_basis_xsfund_*.yaml`.
+  config's `data` block; it cannot be combined with `sources`. Configs
+  `carry/crypto_basis_xsfund_*.yaml`.
 
 ## [0.2.0] - 2026-10-13
 

@@ -154,3 +154,14 @@ def test_build_all_tapes_passes_the_xs_funding_block(monkeypatch):
         {"universe": "crypto_basis", "data": {**data, "xs_funding": {"window": 7, "topk": 2}}})
     assert all("funding_xs" in tp.feature_names for tp in tapes)
     assert all("funding_xs" not in tp.feature_names for tp in plain)
+
+
+def test_xs_funding_cannot_be_combined_with_sources(monkeypatch):
+    # Each source would rank only its own coins, so the combination is refused before any data loads.
+    monkeypatch.setattr(experiment, "load_frames", lambda *a, **k: pytest.fail("loaded data"))
+    xs = {"window": 7, "topk": 2}
+    block = {"universe": "crypto_basis"}
+    with pytest.raises(ValueError, match="one universe"):
+        experiment.build_all_tapes({"sources": [{**block, "data": {"xs_funding": xs}}, block]})
+    with pytest.raises(ValueError, match="one universe"):
+        experiment.build_all_tapes({"sources": [block], "data": {"xs_funding": xs}})
