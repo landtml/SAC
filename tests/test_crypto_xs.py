@@ -200,3 +200,25 @@ def test_symbol_with_fewer_than_two_bars_is_skipped_with_a_warning(monkeypatch, 
         returns, _ = crypto_xs.load_crypto_xs("2019-01-01", "2019-01-31", archive=archive)
     assert list(returns.columns) == ["BBBUSDT"]
     assert returns.loc["2019-01-02", "BBBUSDT"] == pytest.approx(0.10)
+
+
+def test_reused_ticker_splits_into_two_coins_with_no_return_across_the_junction(
+        monkeypatch, tmp_path):
+    # LUNAUSDT's old coin trades to May 3 here; the reused ticker's new coin starts May 31.
+    zips = {
+        url_of("LUNAUSDT", "2022-05"): kline_zip(
+            "LUNAUSDT", "2022-05",
+            {"2022-05-01": 10.0, "2022-05-02": 11.0, "2022-05-03": 12.1, "2022-05-31": 1.0}),
+        url_of("LUNAUSDT", "2022-06"): kline_zip(
+            "LUNAUSDT", "2022-06", {"2022-06-01": 1.5, "2022-06-02": 1.2}),
+    }
+    serve(monkeypatch, tmp_path, zips)
+    archive = {"LUNAUSDT": ["2022-05", "2022-06"]}
+    with pytest.warns(UserWarning):  # the archive gap between the two coins
+        returns, _ = crypto_xs.load_crypto_xs("2022-05-01", "2022-06-30", archive=archive)
+
+    assert returns.loc["2022-05-02", "LUNAUSDT"] == pytest.approx(0.10)
+    assert returns.loc["2022-05-31":, "LUNAUSDT"].isna().all()  # old coin has no later bars
+    assert np.isnan(returns.loc["2022-05-31", "LUNA2USDT"])  # new coin's first bar
+    assert returns.loc["2022-06-01", "LUNA2USDT"] == pytest.approx(0.5)
+    assert returns.loc["2022-05-04":"2022-05-30"].isna().all().all()  # nothing spans the junction

@@ -46,6 +46,10 @@ STABLECOIN_BASES = frozenset({
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 # Coins whose tickers end in a leveraged-token suffix but are not leveraged tokens.
 NOT_LEVERAGED = frozenset({"JUP", "SYRUP"})
+# A ticker the archive reuses for another coin: bars before the date are the old coin, bars
+# from the date on are the new coin under the second name. LUNAUSDT's last old-coin bar is
+# 2022-05-13 and its first new-coin bar is 2022-05-31.
+TICKER_REUSE = {"LUNAUSDT": ("2022-05-31", "LUNA2USDT")}
 
 
 def is_excluded(symbol: str) -> bool:
@@ -71,18 +75,16 @@ def list_archive() -> dict[str, list[str]]:
     return {sym: m for sym, m in zip(symbols, months, strict=True) if m}
 
 
-def load_crypto_xs(start: str, end: str, archive: Mapping[str, Iterable[str]] | None = None,
-                   ) -> tuple[pd.DataFrame, pd.Series]:
-    """Daily close-to-close returns and the day mask, for inclusive ``YYYY-MM-DD`` days.
+def load_closes(start: str, end: str, archive: Mapping[str, Iterable[str]] | None = None,
+                ) -> dict[str, pd.Series]:
+    """Daily closes by coin for inclusive ``YYYY-MM-DD`` days, reused tickers split in two.
 
     ``archive`` maps each symbol to the months that hold its 1d zips; the default is
-    ``list_archive()``. Returns ``(returns, mask)``: ``returns`` is indexed by UTC day with one
-    column per coin (NaN where the coin has no return), and ``mask[day]`` is True when at least
-    ``MIN_COINS`` coins have a return that day.
+    ``list_archive()``. Each value is a close Series indexed by UTC bar open.
     """
     if archive is None:
         archive = list_archive()
-    columns = {}
+    closes = {}
     for sym in universe(archive):
         months = sorted(archive[sym])
         if not months:
@@ -95,9 +97,25 @@ def load_crypto_xs(start: str, end: str, archive: Mapping[str, Iterable[str]] | 
         except ValueError as exc:  # no klines in the window, or fewer than two bars
             warnings.warn(f"{sym} skipped: {exc}", UserWarning, stacklevel=2)
             continue
-        rets = daily_returns(bars["close"], sym)
+        for name, part in _split_reused(sym, bars).items():
+            closes[name] = part["close"]
+    return closes
+
+
+def load_crypto_xs(start: str, end: str, archive: Mapping[str, Iterable[str]] | None = None,
+                   ) -> tuple[pd.DataFrame, pd.Series]:
+    """Daily close-to-close returns and the day mask, for inclusive ``YYYY-MM-DD`` days.
+
+    ``archive`` maps each symbol to the months that hold its 1d zips; the default is
+    ``list_archive()``. Returns ``(returns, mask)``: ``returns`` is indexed by UTC day with one
+    column per coin (NaN where the coin has no return), and ``mask[day]`` is True when at least
+    ``MIN_COINS`` coins have a return that day.
+    """
+    columns = {}
+    for name, close in load_closes(start, end, archive).items():
+        rets = daily_returns(close, name)
         if rets.notna().any():
-            columns[sym] = rets
+            columns[name] = rets
     if not columns:
         return pd.DataFrame(), pd.Series(dtype=bool)
     days = pd.date_range(start, end, freq="D")
@@ -128,6 +146,16 @@ def daily_returns(close: pd.Series, symbol: str = "") -> pd.Series:
     rets = px / px.shift(1) - 1.0
     rets[step != ONE_DAY] = np.nan
     return rets
+
+
+def _split_reused(symbol: str, bars: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Bars by coin name: one entry, unless ``symbol`` is a reused ticker that splits in two."""
+    if symbol not in TICKER_REUSE:
+        return {symbol: bars}
+    reuse_day, new_name = TICKER_REUSE[symbol]
+    cut = pd.Timestamp(reuse_day, tz="UTC")
+    parts = {symbol: bars[bars.index < cut], new_name: bars[bars.index >= cut]}
+    return {name: part for name, part in parts.items() if not part.empty}
 
 
 def _listed_months(symbol: str) -> list[str]:
