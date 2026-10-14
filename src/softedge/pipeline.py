@@ -61,7 +61,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     variance risk premium prior of ``softedge.data.vrp``). ``premium`` joins the Binance perp
     mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
     FRED. ``tips_breakeven`` holds the nominal-minus-TIPS spread at the 5 and 10 year tenors
-    (``softedge.data.tips``), with the column ``tips_prior``. ``macro_fomc`` holds the equity indices (SPX, NDX, NKY by default) with the column
+    (``softedge.data.tips``), with the column ``tips_prior``. ``macro_fomc`` holds the equity
+    indices (SPX, NDX, NKY by default) with the column
     ``fomc_next``, the scheduled-announcement flag of ``softedge.data.fomc``. ``implied_vol``
     joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp

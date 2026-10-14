@@ -170,7 +170,7 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
         # Implied minus realized variance at the close; zero while gated or in warm-up.
         cols["vrp_prior"] = frame["vrp_prior"].astype("float64").fillna(0.0)
     if "tips_prior" in frame.columns:
-        # Breakeven minus trailing CPI inflation, in percentage points, from released CPI (data.tips).
+        # Breakeven minus trailing CPI inflation in percentage points, from released CPI.
         cols["tips_prior"] = frame["tips_prior"].astype("float64")
     if "fomc_next" in frame.columns:
         # 1 when the next session holds a scheduled FOMC announcement (the calendar, not prices).
