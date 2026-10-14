@@ -8,7 +8,7 @@ fitted to. The deployed residual is shrunk by the disagreement:
     m    = 1 / (1 + (sigma / tau)^2),    deployed = rbar * m.
 
 ``tau`` is the median of ``sigma`` over the validation bars of the ensemble's own path, fixed
-before the test fold. The exposure-matched control uses the mean of ``m`` over the same bars.
+before the test fold. The multiplier-matched control uses the mean of ``m`` over the same bars.
 ``m`` depends only on the observation at its bar, which is causal. This is
 deployment-only: no loss or gradient involves it, and no weight is changed.
 """
@@ -39,7 +39,7 @@ def deployed_action(agents: list, obs: np.ndarray, tau: float | None = None,
                     const: float | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Shrunk residual and its multiplier for one batch of observations.
 
-    ``const`` replaces the disagreement multiplier by a constant (the exposure-matched control).
+    ``const`` replaces the disagreement multiplier by a constant (the multiplier-matched control).
     """
     rbar, sigma = ensemble_stats(agents, obs)
     if const is not None:
@@ -66,7 +66,7 @@ def validation_tau(agents: list, val_ts) -> float:
     return tau
 
 
-def exposure_matched_policy(agents: list, val_ts, tau: float) -> ShrinkPolicy:
+def multiplier_matched_policy(agents: list, val_ts, tau: float) -> ShrinkPolicy:
     """Control that holds the multiplier at its mean over the validation bars.
 
     The constant comes from the shrink's own path on validation, so no test-fold bar enters it.

@@ -241,7 +241,7 @@ the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `ora
 same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`).
 
 The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on). When on, each
-test fold adds two runs, `sac_disagree_shrink` and `sac_exposure_matched`, and both count as trials.
+test fold adds two runs, `sac_disagree_shrink` and `sac_multiplier_matched`, and both count as trials.
 The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is the
 spread of the members' residuals and tau is the median spread over validation bars. The control
 holds the multiplier constant at its mean over the validation bars, on the same path that sets tau,

@@ -24,7 +24,7 @@ import yaml
 from softedge.agent.disagree import (
     ShrinkPolicy,
     disagree_shrink_on,
-    exposure_matched_policy,
+    multiplier_matched_policy,
     validation_tau,
 )
 from softedge.agent.factory import agent_from_state
@@ -178,8 +178,8 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
         tau = validation_tau(agents, val_ts)
         shrunk = ShrinkPolicy(agents, tau=tau)
         runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
-        matched = exposure_matched_policy(agents, val_ts, tau)
-        runs["sac_exposure_matched"] = rollout(test_ts, matched)
+        matched = multiplier_matched_policy(agents, val_ts, tau)
+        runs["sac_multiplier_matched"] = rollout(test_ts, matched)
         # The matched constant is fixed on validation; the test-fold mean is a diagnostic only.
         disagree = {"tau": tau, "matched_const": matched.const,
                     "test_mean_multiplier": shrunk.mean_multiplier}

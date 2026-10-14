@@ -11,7 +11,7 @@ from softedge.agent.disagree import (
     deployed_action,
     disagree_shrink_on,
     ensemble_stats,
-    exposure_matched_policy,
+    multiplier_matched_policy,
     shrink_multiplier,
     validation_tau,
 )
@@ -141,7 +141,7 @@ def test_matched_control_holds_the_shrink_mean_multiplier_over_validation():
     tau = validation_tau(agents, ts)
     shrink = ShrinkPolicy(agents, tau=tau)
     rollout(ts, shrink)
-    matched = exposure_matched_policy(agents, ts, tau)
+    matched = multiplier_matched_policy(agents, ts, tau)
     assert matched.tau is None
     assert matched.const == pytest.approx(shrink.mean_multiplier)
 
@@ -206,7 +206,7 @@ def test_switch_on_adds_the_shrunk_run_and_the_matched_control():
     cfg, parts, names = _test_runs_inputs()
     agents = _agents(TapeSet(parts["test"], window=4, feature_names=names).obs_dim, seeds=(0, 1))
     on, _ = _test_runs({**cfg, "deploy": {"disagree_shrink": 1.0}}, agents, [0, 1], parts, 4, names)
-    assert "sac_disagree_shrink" in on and "sac_exposure_matched" in on
+    assert "sac_disagree_shrink" in on and "sac_multiplier_matched" in on
     shrunk = np.concatenate([r["target"] for r in on["sac_disagree_shrink"]])
     ens = np.concatenate([r["target"] for r in on["sac_ensemble"]])
     assert not np.allclose(shrunk, ens)
