@@ -212,3 +212,77 @@ def test_backfill_skips_a_young_run_without_the_key_even_if_it_is_truncated(tmp_
     _, _, status = _backfill_module().backfill_run(path, 600.0)
 
     assert status == "skipped: result.json younger than 600 s"
+
+
+def _bare_macro_run(root, name, symbol):
+    """A run on one FRED market with nothing cached, so reading its data needs the network."""
+    (root / name).mkdir()
+    (root / name / "config.yaml").write_text(json.dumps({**MACRO, "name": name, "symbols": [symbol]}))
+    _write(root, name, {"name": name, "summary": {}})
+    old = time.time() - 30 * 86400
+    os.utime(_result_path(root, name), (old, old))
+
+
+@pytest.fixture
+def fred_server(monkeypatch, tmp_path):
+    """A local stand-in for FRED's CSV endpoint; yields the list of series ids it was asked for."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+    from urllib.parse import parse_qs, urlparse
+
+    from softedge.data import fred_markets
+
+    dates = pd.bdate_range("2019-01-01", "2021-06-30")
+    body = pd.DataFrame({"observation_date": dates.strftime("%Y-%m-%d"),
+                         "SP500": 100 + 0.1 * np.arange(len(dates))}).to_csv(index=False).encode()
+    requested = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            requested.append(parse_qs(urlparse(self.path).query)["id"][0])
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(fred_markets, "FRED_CSV_URL",
+                        f"http://127.0.0.1:{server.server_port}/fredgraph.csv")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
+    monkeypatch.setenv("SOFTEDGE_DATA", str(tmp_path / "data"))
+    try:
+        yield requested
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_allow_network_lets_only_the_named_run_fetch(tmp_path, fred_server, capsys):
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    _bare_macro_run(runs, "named", "SPX")
+    _bare_macro_run(runs, "unnamed", "NDX")
+
+    assert _backfill_module().main(["--runs", str(runs), "--allow-network", "named"]) == 0
+
+    assert _load(runs, "named")["bars_per_year"] > 0
+    assert "bars_per_year" not in _load(runs, "unnamed")
+    assert fred_server == ["SP500"]
+    assert "needs network" in capsys.readouterr().out
+
+
+def test_without_allow_network_every_run_is_blocked(tmp_path, fred_server):
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    _bare_macro_run(runs, "named", "SPX")
+
+    assert _backfill_module().main(["--runs", str(runs)]) == 0
+
+    assert "bars_per_year" not in _load(runs, "named")
+    assert fred_server == []
