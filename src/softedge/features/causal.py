@@ -165,6 +165,9 @@ def compute_features(frame: pd.DataFrame, cfg: FeatureConfig | None = None) -> p
     if "vrp_prior" in frame.columns:
         # Implied minus realized variance at the close; zero while gated or in warm-up.
         cols["vrp_prior"] = frame["vrp_prior"].astype("float64").fillna(0.0)
+    if "fomc_next" in frame.columns:
+        # 1 when the next session holds a scheduled FOMC announcement (the calendar, not prices).
+        cols["fomc_next"] = frame["fomc_next"].astype("float64")
 
     if "signal" in frame.columns:
         cols["signal"] = frame["signal"].astype("float64")

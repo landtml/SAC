@@ -56,6 +56,11 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     FRED. ``implied_vol`` joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
     every other coin, the crypto market's implied volatility; for ``vrp_spx`` it selects the
     variance risk premium prior of ``softedge.data.vrp``). ``premium`` joins the Binance perp
+    mid-2023. ``macro`` holds daily equity indices, oil and Treasury excess-return indices from
+    FRED. ``macro_fomc`` holds the equity indices (SPX, NDX, NKY by default) with the column
+    ``fomc_next``, the scheduled-announcement flag of ``softedge.data.fomc``. ``implied_vol``
+    joins Deribit's DVOL onto crypto frames (ETH's for ETH, BTC's for
+    every other coin, the crypto market's implied volatility). ``premium`` joins the Binance perp
     premium index, which leads the next funding payment, onto Binance perp legs.
 
     ``synthetic`` is a set of hourly spot markets with a planted, observable return signal
@@ -146,6 +151,12 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
 
             frames = [attach_fred_implied_vol(f) for f in frames]
         return frames
+    if universe == "macro_fomc":
+        from softedge.data.fomc import attach_fomc
+
+        names = symbols or ("SPX", "NDX", "NKY")
+        return [attach_fomc(f) for f in load_frames("macro", start, end, symbols=names,
+                                                    implied_vol=implied_vol)]
     if universe == "fx_em":
         from softedge.data import fx, rates
 

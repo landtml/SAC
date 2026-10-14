@@ -124,7 +124,9 @@ G10 pairs (seven dollar pairs) from 2000, and emerging-market dollar pairs.
 
 ## Macro
 
-Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices from FRED, from 2000.
+Daily S&P 500, Nasdaq, Nikkei, WTI and Brent price series, and Treasury excess-return indices, from FRED,
+from 2000. The equity series are price indices, so their returns exclude dividends, and the buy-and-hold
+reference is price-only too.
 
 | File | What it tests | Results |
 | --- | --- | --- |
@@ -134,6 +136,8 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 | `macro/macro_1d_tsmom.yaml` | As `macro_1d_vt.yaml` with a 12-month time-series momentum prior (`tsmom_12m`, last month skipped, scaled by volatility). | No |
 | `macro/macro_1d_curve.yaml` | As `macro_1d_vt.yaml` with the 10-year minus 2-year yield slope as prior (`curve_slope`) on the Treasury tapes. | No |
 | `macro/macro_1d_tsmom_curve.yaml` | As `macro_1d_vt.yaml` with both macro priors summed before clipping (`prior_features`). | No |
+| `macro/fomc_1d_vt.yaml` | S&P 500, Nasdaq (FRED NASDAQCOM, the `NDX` symbol) and Nikkei 225, daily, volatility target 0.1, no prior. The plain baseline for the FOMC prior. | No |
+| `macro/fomc_1d_prior.yaml` | As `fomc_1d_vt.yaml` with the scheduled-announcement flag as prior (`fomc_next`, gain 1: 1 on a session with a scheduled announcement, else 0) and action penalty 0.05. | No |
 
 ## Variance risk premium
 
