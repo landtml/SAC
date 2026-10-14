@@ -46,8 +46,8 @@ premia.**
 | Forex, 7 major pairs, 2014-2026 | Sharpe 0.35, deflated Sharpe 0.37 | no edge |
 | Crypto perpetual futures, 10 coins, price direction, 2023-2026 | Sharpe 0.41 vs 0.64 for a trend rule | no edge |
 | Macro: S&P 500, Nasdaq 100, Nikkei 225, WTI, Brent, 10y and 2y Treasuries, daily | Sharpe 0.07 vs 0.55 for buy-and-hold | no edge |
-| Crypto cash-and-carry, 10 coins, 2023-2026 | +0.49 Sharpe over its simple funding rule (95% CI 0.15 to 0.95) | small, significant gain |
-| Cross-exchange funding spread, 10 coins, 2024-2026 | +0.47 Sharpe over its simple rule (95% CI 0.14 to 0.85) | small, significant gain |
+| Crypto cash-and-carry, 10 coins, 2023-2026 | +0.49 Sharpe over its simple funding rule (95% CI 0.15 to 0.95); positive on all 5 CPCV paths | small, significant gain; shrinks to +0.37 on 32 coins |
+| Cross-exchange funding spread, 10 coins, 2024-2026 | +0.47 Sharpe over its simple rule (95% CI 0.14 to 0.85) | small, significant gain; holds on 32 coins (+0.66) |
 
 <p align="center">
   <img src="assets/png/figures/sac-vs-rule.png" alt="SAC minus its simple rule, with 95% intervals, per market" width="90%">

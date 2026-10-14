@@ -18,7 +18,9 @@ train the agent or to pick its settings.
 - **On carry trades, a small gain over the funding rule.** Two of three carry universes show a
   difference whose 95% interval sits above zero: crypto cash-and-carry (+0.49 Sharpe) and the
   cross-venue funding spread (+0.47). The Hyperliquid basis gain (+0.29) is not statistically
-  distinguishable from zero.
+  distinguishable from zero. On a wider list of 32 coins the cross-venue gain holds (+0.66) and
+  the cash-and-carry gain shrinks (+0.37, deflated Sharpe 0.13). Under CPCV the cash-and-carry gain
+  is positive on all five paths.
 - **Changes to the agent did not produce a clear win.** On the hidden-regime market, three
   changes raised the Sharpe ratio with intervals that include zero. Three lowered it.
 
@@ -83,13 +85,41 @@ residual on top of the funding rule. The "rule" column is the funding rule alone
 
 | Market | SAC Sharpe | Rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
 | --- | --- | --- | --- | --- |
-| Crypto [cash-and-carry](glossary.md#basis-cash-and-carry), long Binance spot, short perpetual; 10 coins, daily, 3.7 years | 10.61 | funding rule 10.12; passive carry 8.49 | +0.49 [0.15, 0.95], p=0.002 | 1.52, 0.88 (15) |
-| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.999 (5) |
-| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.39 | funding rule 8.09 | +0.29 [-0.21, 0.83], p=0.13 | DSR 0.89 (10) |
+| Crypto [cash-and-carry](glossary.md#basis-cash-and-carry), long Binance spot, short perpetual; 10 coins, daily, 3.7 years | 10.61 | funding rule 10.12; passive carry 8.49 | +0.49 [0.15, 0.95], p=0.002 | 1.52, 0.82 (25) |
+| Cross-venue funding spread, long Binance perpetual, short Hyperliquid perpetual; 10 coins, daily, 1.6 years | 6.76 | funding rule 6.29; passive 5.48 | +0.47 [0.14, 0.85], p=0.003 | 3.30, 0.998 (10) |
+| Hyperliquid basis, long Binance spot, short Hyperliquid perpetual; daily, 1.6 years | 8.39 | funding rule 8.09 | +0.29 [-0.21, 0.83], p=0.13 | 2.16, 0.85 (15) |
 
 "Active over rule" is the Sharpe ratio of the agent's returns minus the rule's returns, and the
 deflated Sharpe ratio of that difference. Sharpe ratios in each row are measured on the same
 days as the paired test.
+
+Trial counts include the wider-list and CPCV runs below, which count as further variants on the
+same universes.
+
+### Robustness checks
+
+Two checks test whether the carry gains depend on the coin list or on the walk-forward split.
+
+**A wider coin list.** Each carry universe was rerun on 32 coins instead of 10, with the same
+configuration.
+
+| Market, 32 coins, daily | SAC Sharpe | Funding rule | SAC minus rule, 95% CI, p-value | Active over rule: Sharpe, DSR (trials) |
+| --- | --- | --- | --- | --- |
+| Crypto cash-and-carry, 3.7 years | 10.74 | 10.37 | +0.37 [0.02, 0.79], p=0.019 | 0.46, 0.13 (25) |
+| Cross-venue funding spread, 1.7 years | 7.58 | 6.91 | +0.66 [0.41, 0.96], p<0.001 | 6.01, 1.00 (10) |
+| Hyperliquid basis, 1.7 years | 8.11 | 8.36 | -0.24 [-1.16, 0.58], p=0.72 | 0.28, 0.08 (15) |
+
+The cross-venue gain holds and grows on the wider list. The cash-and-carry gain shrinks: the paired
+interval stays just above zero, but the deflated Sharpe ratio of the active return falls to 0.13.
+The Hyperliquid basis shows no gain. The 32 coins are ones listed today, so the list carries
+survivorship bias: coins that were delisted are missing.
+
+**Combinatorial purged cross-validation.** The 10-coin cash-and-carry market was also tested with
+[CPCV](glossary.md#cpcv), which builds five out-of-sample paths over 2022-07 to 2026-08 from
+different train and test splits. The agent's Sharpe ratio is above the funding rule's on all five
+paths: 5.04 to 8.36 against 3.44 to 3.47, a difference of +1.6 to +4.9. CPCV trains on data from
+both sides of each test window, so these levels are more optimistic than walk-forward. The check
+supports the sign of the gain, not its size.
 
 ![Carry strategies, equity over time](../assets/png/figures/carry-equity.png)
 
