@@ -41,7 +41,7 @@ def _bars(kind, n, seed):
             "taker": taker, "funding": funding, "signal": signal}
 
 
-def _build(kind, b, *, bar="1h", volume=True, extras=True):
+def _build(kind, b, *, bar="1h", volume=True, extras=True, fomc=False):
     idx = pd.date_range("2024-01-01", periods=len(b["close"]), freq=bar, tz="UTC")
     kw = {}
     if kind == "perp":
@@ -56,6 +56,9 @@ def _build(kind, b, *, bar="1h", volume=True, extras=True):
         frame["signal"] = b["signal"]
     if kind == "binary":
         frame.attrs["end_time"] = BINARY_END
+    if fomc:
+        # A calendar column, the same in every perturbed copy: one scheduled announcement in 21 bars.
+        frame["fomc_next"] = np.where(np.arange(len(frame)) % 21 == 20, 1.0, 0.0)
     return frame
 
 
@@ -108,24 +111,28 @@ def test_values_clipped_to_bound(kind):
     assert np.nanmax(np.abs(tight)) == 0.5
 
 
+@pytest.mark.parametrize("fomc", (False, True))
 @pytest.mark.parametrize("kind", KINDS)
-def test_prefix_matches_full_frame(kind):
-    frame = _build(kind, _bars(kind, N, 4))
+def test_prefix_matches_full_frame(kind, fomc):
+    frame = _build(kind, _bars(kind, N, 4), fomc=fomc)
     k = 300
     head = compute_features(frame.iloc[:k])
     full = compute_features(frame)
+    assert ("fomc_next" in full.columns) is fomc
     np.testing.assert_allclose(head.to_numpy(), full.iloc[:k].to_numpy(),
                                atol=1e-6, equal_nan=True)
 
 
+@pytest.mark.parametrize("fomc", (False, True))
 @pytest.mark.parametrize("kind", KINDS)
-def test_future_rows_do_not_change_past(kind):
+def test_future_rows_do_not_change_past(kind, fomc):
     base = _bars(kind, N, 5)
     alt = _bars(kind, N, 6)
     k = 400
     changed = {key: np.concatenate([base[key][: k + 1], alt[key][k + 1:]]) for key in base}
-    full = compute_features(_build(kind, base))
-    perturbed = compute_features(_build(kind, changed))
+    full = compute_features(_build(kind, base, fomc=fomc))
+    perturbed = compute_features(_build(kind, changed, fomc=fomc))
+    assert ("fomc_next" in full.columns) is fomc
     np.testing.assert_allclose(perturbed.iloc[: k + 1].to_numpy(),
                                full.iloc[: k + 1].to_numpy(), atol=1e-6, equal_nan=True)
     # Guards against a vacuous pass: the rows after k must actually differ.
