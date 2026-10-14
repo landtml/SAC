@@ -95,3 +95,32 @@ def test_fx_rate_diff_pays_longs_and_charges_shorts():
     tape = build_tape(fr, _features(fr, warmup=0), spec, bars_per_year=250)
     np.testing.assert_allclose(tape.carry_long[:-1], (0.005 - 0.02) / 250)
     np.testing.assert_allclose(tape.carry_short[:-1], (0.005 + 0.02) / 250)
+
+
+def test_spot_financing_is_per_bar_and_zero_on_last_row():
+    fr = _frame([100, 100, 100, 100, 100])
+    tape = build_tape(fr, _features(fr, warmup=0), CostSpec(financing_apr=0.05), bars_per_year=8760)
+    np.testing.assert_allclose(tape.fin_long[:-1], 0.05 / 8760)
+    assert tape.fin_long[-1] == 0.0
+
+
+def test_financing_is_zero_for_perp_and_basis_frames():
+    fund = np.zeros(5)
+    perp = _frame([100] * 5, kind="perp", funding=fund)
+    tape = build_tape(perp, _features(perp, warmup=0), CostSpec(financing_apr=0.05), bars_per_year=8760)
+    assert not tape.fin_long.any()
+
+
+def test_default_financing_is_zero_for_spot():
+    fr = _frame([100] * 5)
+    tape = build_tape(fr, _features(fr, warmup=0), bars_per_year=8760)
+    assert not tape.fin_long.any()
+
+
+def test_financing_does_not_look_ahead():
+    base = _frame([100, 101, 102, 103, 104])
+    moved = _frame([100, 101, 102, 50, 200])
+    spec = CostSpec(financing_apr=0.05)
+    a = build_tape(base, _features(base, warmup=0), spec, bars_per_year=8760)
+    b = build_tape(moved, _features(moved, warmup=0), spec, bars_per_year=8760)
+    np.testing.assert_array_equal(a.fin_long[:3], b.fin_long[:3])
