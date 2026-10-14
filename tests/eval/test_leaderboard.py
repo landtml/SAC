@@ -82,11 +82,13 @@ def test_sorted_by_dsr_with_missing_values_last(runs_root):
 
 def test_walk_forward_rows_count_current_trials_per_universe(runs_root):
     table = collect(runs_root)
-    # One universe: every SAC variant of every run, CPCV included, is one trial
-    # (five in the two-seed walk-forward run, three in the single split, three in CPCV).
+    # One universe: every SAC row of every run, CPCV included, is a trial unless its return series
+    # repeats an earlier one. The single split's banded repeats its seed 0 and the CPCV gated
+    # repeats its banded, so 11 rows are 9 trials.
     n_sac = int(table["strategy"].str.startswith("sac_").sum())
-    assert set(table["n_trials"]) == {n_sac} == {11}
-    assert set(recompute_dsr(runs_root)["n_trials"]) == {11}
+    assert n_sac == 11
+    assert set(table["n_trials"]) == {9}
+    assert set(recompute_dsr(runs_root)["n_trials"]) == {9}
 
 
 def test_deployed_share_is_the_deployed_fold_fraction(runs_root):

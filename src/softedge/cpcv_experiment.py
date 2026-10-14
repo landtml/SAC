@@ -39,6 +39,7 @@ from softedge.eval.stats import dsr_summary, pbo_cscv
 from softedge.experiment import (
     _append_jsonl,
     _per_bar_sharpe,
+    _series_key,
     _test_runs,
     build_all_tapes,
     build_train_config,
@@ -146,7 +147,8 @@ def run_cpcv(cfg: dict, out_root: str | Path = "runs") -> dict:
     reference = cfg.get("reference", "buy_and_hold")
     sac_sr = {s: float(np.mean([_per_bar_sharpe(p[s]) for p in path_series]))
               for s in strategies if s.startswith("sac_")}
-    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()))
+    keys = [_series_key([p[s].dropna().to_numpy() for p in path_series]) for s in sac_sr]
+    n_trials, sr_var = trial_stats(Path(out_root), cfg["universe"], list(sac_sr.values()), keys)
 
     rows = []
     for j, series in enumerate(path_series):
@@ -174,7 +176,8 @@ def run_cpcv(cfg: dict, out_root: str | Path = "runs") -> dict:
     result = {
         "name": name, "mode": "cpcv", "minutes": round((time.time() - t0) / 60, 1),
         "n_splits": len(splits), "n_paths": n_paths(c["n_groups"], c["n_test"]),
-        "n_trials": n_trials, "pbo_strategy_choice": pbo, "splits": split_info,
+        "n_trials": n_trials, "bars_per_year": bpy, "pbo_strategy_choice": pbo,
+        "splits": split_info,
         "aggregate": json.loads(agg.set_index("strategy").to_json(orient="index")),
     }
     (out / "result.json").write_text(json.dumps(result, indent=2, default=str))
