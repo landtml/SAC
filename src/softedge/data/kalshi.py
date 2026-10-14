@@ -192,7 +192,7 @@ def _fetch_candles(ticker: str, series: str, start_ts: int, end_ts: int,
 
 
 def _candle_prices(rows: list[dict], period_minutes: int, end: pd.Timestamp) -> pd.Series:
-    """One price per candle before ``end``, indexed by the candle open time."""
+    """One price per candle ending at or before ``end``, indexed by the candle open time."""
     df = pd.DataFrame(rows, columns=["t", "bid", "ask", "last"]).astype(float)
     mid = (df["bid"] + df["ask"]) / 2
     # A one-sided quote is not a price, so the last trade stands in for it.
@@ -201,8 +201,10 @@ def _candle_prices(rows: list[dict], period_minutes: int, end: pd.Timestamp) -> 
     series = pd.Series(price.to_numpy(), index=index, name="price", dtype=float)
     series = series.sort_index(kind="stable")
     series = series[~series.index.duplicated(keep="first")]
-    # Trading stops at the actual close, and prices after it can already show the outcome.
-    return series[series.index < end]
+    # Trading stops at the actual close, and a candle still open at the close can already show
+    # the outcome, so only candles that ended by the close are kept.
+    candle_end = series.index + pd.Timedelta(minutes=period_minutes)
+    return series[candle_end <= end]
 
 
 def _binary_frame(row: dict, index, open_, high, low, close, bar: str) -> pd.DataFrame:
@@ -223,8 +225,8 @@ def load_candles(market: pd.Series | dict, period_minutes: int = PERIOD_MINUTES)
     """Binary bar frame of a listed market's YES price, one bar per candle.
 
     ``market`` is a row of ``list_settled_markets``. A candle contributes the mid of its yes bid
-    and ask closes, or its last trade price when a quote is missing. Bars opening at or after
-    the actual close are dropped. Candles without any price repeat the previous close, and bars
+    and ask closes, or its last trade price when a quote is missing. Candles ending after the
+    actual close are dropped. Candles without any price repeat the previous close, and bars
     before the first price are dropped. Raises ``ValueError`` when the market lacks start or
     end, or when fewer than 48 bars remain.
     """

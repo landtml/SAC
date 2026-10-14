@@ -12,6 +12,7 @@ the overview.
 - [Configs](../configs/README.md): every config file and what it changes.
 - [Roadmap](roadmap.md): open research questions.
 - [Research log](research-log.md): every market framing and algorithm change tried, with its outcome.
+- [Directional prediction study](preregistration-direction.md): the pre-registered hypotheses, data, controls and pass rule, fixed before any test was run.
 - [Technical design](design.md): the reasoning behind each design choice, and its known limitations.
 
 New to the project? Read the results, then the glossary entries they link to.
