@@ -106,6 +106,7 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
                          implied_vol=bool(data.get("implied_vol", False)),
                          premium=bool(data.get("premium", False)),
                          roll_days=data.get("roll_days"), roll_cost=data.get("roll_cost"),
+                         open_interest=bool(data.get("open_interest", False)),
                          family=data.get("family", "all"),
                          seed_offset=int(data.get("seed_offset", 0)))
     if data.get("resample"):
