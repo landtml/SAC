@@ -36,9 +36,10 @@ def _write_run(root, name, *, universe="toy", columns=None, env_prior=False):
 
 
 def _write_registry(root, rows):
+    # rows: (universe, srs) or (universe, srs, run name)
     with open(root / "trials.jsonl", "w") as f:
-        for universe, srs in rows:
-            f.write(json.dumps({"name": "x", "universe": universe,
+        for universe, srs, *name in rows:
+            f.write(json.dumps({"name": name[0] if name else "x", "universe": universe,
                                 "sac_sr_bar": {f"s{i}": v for i, v in enumerate(srs)}}) + "\n")
 
 
@@ -170,6 +171,52 @@ def test_strategy_argument_selects_gated_column(tmp_path):
     assert row["sharpe"] == pytest.approx(_sr(gated - prior) * np.sqrt(365.25), rel=1e-9)
 
 
+def test_superseded_run_is_left_out_of_excl_column_trials_and_variance(tmp_path, monkeypatch):
+    monkeypatch.setattr(active_mod, "SUPERSEDED", ("toy_3",))
+    root = _toy_root(tmp_path)
+    parts = _toy_universe(root, "toy", [0.0, 0.004, 0.008, 0.012])
+    _write_registry(root, [("toy", [0.1, 0.2, 0.3], "toy_0"), ("toy", [0.1, 0.2, 0.3], "toy_1"),
+                           ("toy", [0.1, 0.2, 0.3], "toy_2"), ("toy", [0.1, 0.2, 0.3], "toy_3")])
+    table = active_table(root).set_index("run")
+    row = table.loc["toy_1"]
+
+    names4, names3 = sorted(parts), sorted(parts)[:3]
+    var4 = float(np.var([_sr(parts[n][0]) for n in names4], ddof=1))
+    var3 = float(np.var([_sr(parts[n][0]) for n in names3], ddof=1))
+    sr = _sr(parts["toy_1"][0])
+    assert row["n_trials"] == 12
+    assert row["dsr"] == pytest.approx(_expected_dsr(sr, 12, var4), rel=1e-9)
+    assert row["dsr_excl_superseded"] == pytest.approx(_expected_dsr(sr, 9, var3), rel=1e-9)
+    assert row["dsr_excl_superseded"] != pytest.approx(row["dsr"], rel=1e-6)
+    assert pd.isna(table.loc["toy_3", "dsr_excl_superseded"])
+
+
+def test_run_in_another_universe_does_not_change_a_universe(tmp_path):
+    root = _toy_root(tmp_path)
+    _toy_universe(root, "toy", [0.0, 0.004, 0.008])
+    _write_registry(root, [("toy", [0.1, 0.2, 0.3], "toy_0")])
+    before = active_table(root).set_index("run").loc[["toy_0", "toy_1", "toy_2"]]
+
+    prior = 0.0005 * np.sin(np.arange(BARS))
+    _write_run(root, "fx_carry", universe="fx", columns={
+        "sac_banded": prior + 0.05 * _alternating(BARS), "prior_only": prior})
+    after = active_table(root).set_index("run").loc[["toy_0", "toy_1", "toy_2"]]
+
+    cols = ["n_trials", "n_with_baseline", "dsr", "dsr_floor", "dsr_abs"]
+    pd.testing.assert_frame_equal(before[cols], after[cols])
+
+
+def test_markdown_footer_lists_superseded_runs_left_out(tmp_path, monkeypatch):
+    monkeypatch.setattr(active_mod, "SUPERSEDED", ("toy_0",))
+    root = _toy_root(tmp_path)
+    _toy_universe(root, "toy", [0.0, 0.004, 0.008])
+    text = active_mod.active_markdown(root)
+
+    assert "dsr_excl_superseded" in text
+    assert text.rstrip().splitlines()[-1].startswith("Left out of dsr_excl_superseded")
+    assert "toy_0" in text.rstrip().splitlines()[-1]
+
+
 def test_cli_active_writes_only_to_out(tmp_path):
     root = _toy_root(tmp_path)
     _toy_universe(root, "toy", [0.0, 0.004, 0.008])
@@ -184,6 +231,6 @@ def test_cli_active_writes_only_to_out(tmp_path):
     assert main(["active", "--runs", str(root), "--out", str(target)]) == 0
 
     text = target.read_text()
-    assert "toy_1" in text and "dsr_abs" in text and "dsr_floor" in text
+    assert "toy_1" in text and "dsr_abs" in text and "dsr_excl_superseded" in text
     assert snapshot() == before
     assert not (root / "active.md").exists()

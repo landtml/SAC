@@ -98,10 +98,9 @@ def main(argv: list[str] | None = None) -> int:
         print(text)
         return 0
     if args.cmd == "active":
-        from softedge.eval.active import active_table
-        from softedge.eval.report import to_markdown
+        from softedge.eval.active import active_markdown
 
-        text = to_markdown(active_table(args.runs, args.strategy))
+        text = active_markdown(args.runs, args.strategy)
         _write_report(args.out, text)
         print(text)
         return 0

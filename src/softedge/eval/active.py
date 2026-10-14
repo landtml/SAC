@@ -19,13 +19,14 @@ absolute SAC Sharpe ratios of the universe, as ``recompute_dsr`` does.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from softedge.env.vec_env import TapeSet, rollout
-from softedge.eval.report import pooled_returns
+from softedge.eval.report import pooled_returns, to_markdown
 from softedge.eval.stats import dsr_summary, null_sr_variance, sharpe_moments
 from softedge.experiment import (
     build_all_tapes,
@@ -39,12 +40,28 @@ from softedge.pipeline import split_tapes
 
 PRIOR = "prior_only"
 MIN_BASELINE_TRIALS = 3
+# Runs that a later accounting fix replaced (docs/research-log.md rows marked superseded).
+SUPERSEDED = ("crypto_perp_1d_wf", "crypto_basis_1d_prior", "hl_basis_1d_prior")
 COLUMNS = ["run", "universe", "strategy", "n_bars", "sharpe", "psr", "n_trials",
-           "n_with_baseline", "cross_var", "dsr", "dsr_floor", "dsr_abs"]
+           "n_with_baseline", "cross_var", "dsr", "dsr_floor", "dsr_abs",
+           "dsr_excl_superseded"]
+
+
+def active_markdown(runs: str | Path, strategy: str = "sac_banded") -> str:
+    """The active table as a Markdown table, then a line naming the superseded runs left out."""
+    root = Path(runs)
+    left_out = [name for name in SUPERSEDED if (root / name / "config.yaml").exists()]
+    footer = ("Left out of dsr_excl_superseded (trials and variance): "
+              + (", ".join(left_out) if left_out else "none") + ".")
+    return to_markdown(active_table(root, strategy)) + "\n\n" + footer
 
 
 def active_table(runs: str | Path, strategy: str = "sac_banded") -> pd.DataFrame:
-    """One row per run with a rule baseline: the DSR of ``strategy`` minus that baseline."""
+    """One row per run with a rule baseline: the DSR of ``strategy`` minus that baseline.
+
+    ``dsr`` counts every trial of the universe and takes the variance of all baseline runs.
+    ``dsr_excl_superseded`` drops the ``SUPERSEDED`` runs from both (n/a on their own rows).
+    """
     root = Path(runs)
     absolute_var = _absolute_variances(root, strategy)
     entries = []
@@ -64,11 +81,18 @@ def active_table(runs: str | Path, strategy: str = "sac_banded") -> pd.DataFrame
         srs = [e["sr_bar"] for e in group]
         active_var = (float(np.var(srs, ddof=1))
                       if len(group) >= MIN_BASELINE_TRIALS else None)
+        kept = [e for e in group if e["run"] not in SUPERSEDED]
+        kept_srs = [e["sr_bar"] for e in kept]
+        kept_var = (float(np.var(kept_srs, ddof=1))
+                    if len(kept) >= MIN_BASELINE_TRIALS else None)
+        n_kept = n_trials - _registry_trials(root, universe, SUPERSEDED)
         for e in group:
             values = e["active"].to_numpy()
             bpy = e["bars_per_year"]
             primary = dsr_summary(values, bpy, n_trials, active_var)
             flagged = active_var is None or active_var < null_sr_variance(len(values))
+            excl = (None if e["run"] in SUPERSEDED
+                    else dsr_summary(values, bpy, n_kept, kept_var)["dsr"])
             rows.append({
                 "run": e["run"], "universe": universe, "strategy": strategy,
                 "n_bars": len(values), "sharpe": primary["sharpe"], "psr": primary["psr"],
@@ -78,6 +102,7 @@ def active_table(runs: str | Path, strategy: str = "sac_banded") -> pd.DataFrame
                 "dsr_floor": dsr_summary(values, bpy, n_trials)["dsr"],
                 "dsr_abs": dsr_summary(values, bpy, n_trials,
                                        absolute_var.get(e["run"]))["dsr"],
+                "dsr_excl_superseded": excl,
             })
     return pd.DataFrame(rows, columns=COLUMNS)
 
@@ -116,6 +141,20 @@ def _active_series(run: Path, cfg: dict, strategy: str) -> pd.Series | None:
         return None
     common = pooled.index.intersection(baseline.index)
     return (pooled.loc[common, strategy] - baseline.loc[common]).dropna()
+
+
+def _registry_trials(root: Path, universe: str, names) -> int:
+    """SAC trials that ``trials.jsonl`` records for the named runs of ``universe``."""
+    path = root / "trials.jsonl"
+    if not path.exists():
+        return 0
+    total = 0
+    with open(path) as f:
+        for line in f:
+            row = json.loads(line)
+            if row.get("universe") == universe and row.get("name") in names:
+                total += len(row.get("sac_sr_bar", {}))
+    return total
 
 
 def _absolute_variances(root: Path, strategy: str) -> dict[str, float]:
