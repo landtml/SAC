@@ -114,6 +114,8 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 | `macro/macro_1d_vt.yaml` | Volatility target 0.1, no prior, up to 4x leverage. | No |
 | `macro/macro_1d_prior.yaml` | As `macro_1d_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
 | `macro/macro_1d_rich.yaml` | As `macro_1d_prior.yaml` with implied volatility, regime features and cross-asset features. | No |
+| `macro/fomc_1d_vt.yaml` | S&P 500, Nasdaq 100 and Nikkei 225, daily, volatility target 0.1, no prior. The plain baseline for the FOMC prior. | No |
+| `macro/fomc_1d_prior.yaml` | As `fomc_1d_vt.yaml` with the scheduled-FOMC flag as prior (`fomc_next`, gain 1: 1 on a session with a scheduled announcement, else 0) and action penalty 0.05. | No |
 
 ## Prediction markets
 
