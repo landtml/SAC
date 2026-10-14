@@ -42,7 +42,8 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
                 symbols: Iterable[str] | None = None, max_markets: int = 300,
                 min_volume: float = 1e6, implied_vol: bool = False,
                 premium: bool = False, roll_days: int | None = None,
-                roll_cost: float | None = None) -> list[pd.DataFrame]:
+                roll_cost: float | None = None, family: str = "all",
+                seed_offset: int = 0) -> list[pd.DataFrame]:
     """Bar frames for ``crypto_perp``, ``crypto_spot``, ``crypto_basis``, ``fx``, ``macro``,
     ``polymarket``, ``kalshi``, ``pegs`` or ``synthetic``.
     ``polymarket``, ``kalshi``, ``vrp`` or ``synthetic``. ``vrp`` holds daily short-variance
@@ -69,7 +70,16 @@ def load_frames(universe: str, start: str = "2020-01", end: str = "2026-09",
     (column ``signal``) from ``start``; ``synthetic_null`` the same markets as random walks with no
     edge; ``synthetic_hard`` markets with hidden regimes, GARCH volatility, Student-t shocks and a
     weak nonlinear edge (``nonlinear_regime_market``). They need no network and check that the agent finds an edge only where one exists.
+    ``synthetic_bench`` holds the benchmark markets of ``softedge.data.bench``: ``family`` picks
+    one family or ``"all"``, and market ``i`` is seeded ``seed_offset + i``.
     """
+    if universe == "synthetic_bench":
+        from softedge.data.bench import bench_frames
+
+        n = int((pd.Timestamp(end) - pd.Timestamp(start)) / pd.Timedelta("1h"))
+        first = f"{start}-01" if len(start) == 7 else start
+        names = list(symbols or [f"B{i}" for i in range(8)])
+        return bench_frames(names, n, family=family, seed_offset=seed_offset, start=first)
     if universe in ("synthetic", "synthetic_null", "synthetic_hard"):
         from softedge.data.synthetic import gbm, nonlinear_regime_market, planted_signal
 

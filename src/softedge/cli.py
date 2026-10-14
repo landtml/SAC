@@ -12,7 +12,7 @@ from pathlib import Path
 DOWNLOAD_UNIVERSES = (
     "crypto_perp", "crypto_spot", "crypto_basis", "hl_basis", "perp_spread", "delivery_basis",
     "pegs", "vrp", "vrp_spx", "macro_fomc", "fx", "fx_em", "macro", "kalshi", "polymarket",
-    "synthetic", "synthetic_null", "synthetic_hard",
+    "synthetic", "synthetic_null", "synthetic_hard", "synthetic_bench",
 )
 
 
