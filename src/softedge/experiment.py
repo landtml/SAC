@@ -93,6 +93,11 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     ``data``, ``costs``), so one agent can train on several universes with their own costs.
     """
     if "sources" in cfg:
+        # The rank is computed across the coins of one frame list. Under sources it would be
+        # computed per source, so it is refused rather than silently ranking each source alone.
+        if any("xs_funding" in (c.get("data") or {}) for c in [cfg, *cfg["sources"]]):
+            raise ValueError("xs_funding ranks the coins of one universe, so it cannot be combined "
+                             "with sources; move it to a single-universe config")
         return [tp for src in cfg["sources"] for tp in build_all_tapes(src)]
     data = cfg.get("data", {})
     frames = load_frames(cfg["universe"], data.get("start", "2020-01"), data.get("end", "2026-09"),
@@ -113,7 +118,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
     calib = CalibConfig(**data["calib"]) if data.get("calib") else None
     return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)),
                     regime=bool(data.get("regime_features", False)), calib=calib,
-                    premia=bool(data.get("premia_features", False)))
+                    premia=bool(data.get("premia_features", False)),
+                    xs_funding=data.get("xs_funding"))
 
 
 def make_splits(cfg: dict) -> list[SplitSpec]:
