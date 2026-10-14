@@ -69,6 +69,9 @@ def carve_validation(train_windows, val: pd.Timedelta, purge: pd.Timedelta):
 
 
 def run_cpcv(cfg: dict, out_root: str | Path = "runs") -> dict:
+    # Online updates act on the walk-forward deployment only; refuse before any training.
+    if build_train_config(cfg, 0).online_every > 0:
+        raise ValueError("online deployment updates are not supported under CPCV")
     name = cfg["name"]
     out = Path(out_root) / name
     out.mkdir(parents=True, exist_ok=True)

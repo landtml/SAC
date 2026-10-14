@@ -238,7 +238,11 @@ works as `prior_feature`.
 
 Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
 the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
-same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`).
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`), 3100 (the online pair).
+
+The online pair differs only in `train.online_every`: the deployed agents take 16 gradient
+steps every 24 test bars on the transitions realized in the last 5000 bars (`agent/online.py`).
+Only the banded and gated runs deploy online; the frozen per-seed and ensemble runs are unchanged.
 
 The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on). When on, each
 test fold adds two runs, `sac_disagree_shrink` and `sac_multiplier_matched`, and both count as
@@ -273,3 +277,5 @@ DSR for them. `tau` is one fixed median and is not searched.
 | `bench/bench_prior.yaml` | The `prior` family, seed offset 2000, the prior `prior_hint` as `prior_feature`. | No |
 | `bench/disagree-shrink_off.yaml` | All four families, eight markets, seed offset 3000, the base agent with the disagreement shrink off. | No |
 | `bench/disagree-shrink_on.yaml` | As `disagree-shrink_off.yaml`, with the disagreement shrink on. | No |
+| `bench/online-deploy-updates_off.yaml` | All four families, seed offset 3100, online updates off (the base of the pair). | No |
+| `bench/online-deploy-updates_on.yaml` | As the off config with `online_every: 24`: causal online updates during deployment. | No |
