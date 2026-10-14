@@ -101,20 +101,23 @@ The results page has no prediction-market results. The outcomes above come from 
 **2026-10-14, finished runs.** Each line gives the gated SAC Sharpe ratio, the buy-and-hold Sharpe ratio and,
 where the run reports one, the deflated Sharpe ratio (DSR). Figures are from each run's `result.json`.
 
-- `vrp_btc_eth_1d_plain`: SAC (gated) Sharpe -2.34, buy-and-hold 0.49, DSR 0.00. Verdict: failed.
-- `vrp_btc_eth_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: failed.
-- `vrp_spx_1d`: SAC (gated) Sharpe 4.80, buy-and-hold 1.59, DSR 0.00 under the current pooled-trial definition.
-  The paired gap interval runs from -0.93 to 4.35, so it includes zero. Verdict: no edge.
-- `vrp_spx_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: failed.
-- `fomc_1d_prior`: SAC Sharpe 0.14 against buy-and-hold 1.09. Verdict: failed.
-- `fomc_1d_vt`: SAC Sharpe 0.41 against buy-and-hold 1.09. Verdict: failed.
+- `vrp_btc_eth_1d_plain`: SAC (gated) Sharpe -2.34, buy-and-hold 0.49, DSR 0.00. Verdict: does not beat the benchmark.
+- `vrp_btc_eth_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: does not beat the benchmark.
+- `vrp_spx_1d`: SAC Sharpe ranges from 3.61 to 4.91 across the two seeds (gated 4.80), against buy-and-hold 1.59.
+  DSR 0.00 under the current pooled-trial definition. The paired gap interval runs from -0.93 to 4.35, so it
+  includes zero. Verdict: no edge. The SAC runs have annualized volatility of about 0.1% and CAGR of 0.43% to
+  0.49% per seed (0.55% gated), so the high Sharpe ratio reflects a very small exposure, not a large edge.
+- `vrp_spx_1d_prior`: the gate never trades, Sharpe 0.00. Verdict: does not beat the benchmark.
+- `fomc_1d_prior`: SAC Sharpe 0.14 against buy-and-hold 1.09. Verdict: does not beat the benchmark.
+- `fomc_1d_vt`: SAC Sharpe 0.41 against buy-and-hold 1.09. Verdict: does not beat the benchmark.
 - `delivery_basis_1d_prior`: SAC Sharpe 2.34 against buy-and-hold 2.57. Verdict: no edge.
 
 **Open item, trial pooling.** The DSR pools every SAC trial in a universe, including the prior-residual
-variant, which raises the benchmark Sharpe ratio that a run must beat. Excluding the prior family gives a
-DSR of 0.94 for `vrp_spx_1d` and 0.44 for `vrp_btc_eth_1d_plain`. `sac_banded` and `sac_gated` are identical
-in `vrp_spx_1d`, so that run counts them twice. The decision is pending. The published numbers use the
-existing definition. Buy-and-hold is a benchmark, not a trial, so its DSR is not a test.
+variant, which raises the benchmark Sharpe ratio, because more trials with a wider spread of trial Sharpe
+ratios raise the expected maximum. `sac_banded` and `sac_gated` are identical in `vrp_spx_1d`, so that run
+counts them twice. A sensitivity run excluding the prior family would change the DSR materially; not yet
+recorded in this log. The decision is pending. The published numbers use the existing definition.
+Buy-and-hold is a benchmark, not a trial, so its DSR is not a test.
 
 ## Agent and algorithm changes
 
