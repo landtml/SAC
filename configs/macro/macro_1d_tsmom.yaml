@@ -1,0 +1,14 @@
+name: macro_1d_tsmom
+universe: macro
+data: {end: 2026-09, resample: 1D, start: 2000-01, premia_features: true}
+costs: {fee_bps: 1.0, half_spread_bps: 0.5, maint_margin: 0.05, max_leverage: 4.0, borrow_apr: 0.0}
+walk_forward: {embargo: 5D, end: '2026-09-01', first_test: '2012-01-01', fold_steps: 15000, test: 730D,
+  val: 365D, warm_start: true}
+env: {cost_mult_high: 2.0, cost_mult_low: 0.5, episode_len: 256, n_envs: 16, window: 4, vol_target: 0.1, prior_feature: tsmom_12m, prior_gain: 1.0}
+sac: {actor_hidden: 32, critic_blocks: 1, gamma: 0.95, hidden: 64, risk: mean, smooth_coef: 0.5, target_entropy_scale: 0.5}
+train: {eval_every: 500, relabel_frac: 0.5, target_entropy_end_scale: 2.0, threads: 1, total_steps: 40000,
+  utd: 0.25, warmup_steps: 5000}
+trend: {lookback: 120, target_vol: 0.1, vol_span: 60}
+deploy: {gate_psr: 0.8}
+seeds: [0, 1]
+reference: buy_and_hold

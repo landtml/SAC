@@ -100,7 +100,8 @@ def build_all_tapes(cfg: dict) -> list[MarketTape]:
 
     calib = CalibConfig(**data["calib"]) if data.get("calib") else None
     return to_tapes(frames, costs, cross=bool(data.get("cross_features", False)),
-                    regime=bool(data.get("regime_features", False)), calib=calib)
+                    regime=bool(data.get("regime_features", False)), calib=calib,
+                    premia=bool(data.get("premia_features", False)))
 
 
 def make_splits(cfg: dict) -> list[SplitSpec]:

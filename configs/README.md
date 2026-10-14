@@ -104,6 +104,8 @@ G10 pairs (seven dollar pairs) from 2000, and emerging-market dollar pairs.
 | `fx/fx_carry.yaml` | As `fx_wf.yaml` with a rate-differential prior (gain 2) and volatility target 0.1. | Yes |
 | `fx/fx_em_vt.yaml` | Emerging-market dollar pairs, walk-forward from 2010, 4 bp half-spread, 1% swap rates, volatility target 0.1. | No |
 | `fx/fx_em_carry.yaml` | As `fx_em_vt.yaml` with the rate-differential prior (gain 2). | No |
+| `fx/fx_carry_trend.yaml` | As `fx_carry.yaml` with the carry prior kept only when the 63-bar price trend agrees (`carry_trend`). | No |
+| `fx/fx_em_carry_trend.yaml` | As `fx_em_carry.yaml` with the trend-confirmed carry prior (`carry_trend`). | No |
 
 ## Macro
 
@@ -114,6 +116,9 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 | `macro/macro_1d_vt.yaml` | Volatility target 0.1, no prior, up to 4x leverage. | No |
 | `macro/macro_1d_prior.yaml` | As `macro_1d_vt.yaml` with a trend prior (`ret_h64`) and action penalty 0.05. | No |
 | `macro/macro_1d_rich.yaml` | As `macro_1d_prior.yaml` with implied volatility, regime features and cross-asset features. | No |
+| `macro/macro_1d_tsmom.yaml` | As `macro_1d_vt.yaml` with a 12-month time-series momentum prior (`tsmom_12m`, last month skipped, scaled by volatility). | No |
+| `macro/macro_1d_curve.yaml` | As `macro_1d_vt.yaml` with the 10-year minus 2-year yield slope as prior (`curve_slope`) on the Treasury tapes. | No |
+| `macro/macro_1d_tsmom_curve.yaml` | As `macro_1d_vt.yaml` with both macro priors summed before clipping (`prior_features`). | No |
 
 ## Prediction markets
 
