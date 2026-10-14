@@ -21,6 +21,7 @@ import pandas as pd
 import torch
 import yaml
 
+from softedge.agent.disagree import ShrinkPolicy, disagree_shrink_on, validation_tau
 from softedge.agent.factory import agent_from_state
 from softedge.agent.sac import TQCSAC, SACConfig
 from softedge.env.vec_env import EnvConfig, TapeSet, rollout
@@ -164,6 +165,15 @@ def _test_runs(cfg: dict, agents: list[TQCSAC], seeds: list[int], parts: dict, w
     if len(agents) > 1:
         runs["sac_ensemble"] = rollout(test_ts, policy)
     val_ts = TapeSet(parts["val"], window, feature_names, action_map)
+    if disagree_shrink_on(cfg.get("deploy", {})):
+        # Ensemble-disagreement shrinkage (agent/disagree.py), tau fixed on validation bars.
+        if len(agents) < 2:
+            raise ValueError("deploy.disagree_shrink needs at least two seeds")
+        tau = validation_tau(agents, val_ts)
+        shrunk = ShrinkPolicy(agents, tau=tau)
+        runs["sac_disagree_shrink"] = rollout(test_ts, shrunk)
+        matched = ShrinkPolicy(agents, const=shrunk.mean_multiplier)
+        runs["sac_exposure_matched"] = rollout(test_ts, matched)
     band, band_scores = choose_band(policy, val_ts)
     runs["sac_banded"] = rollout(test_ts, policy, band=band)
     # Deploy only on validation evidence: probabilistic Sharpe of the banded policy on the pooled

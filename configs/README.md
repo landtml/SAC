@@ -238,9 +238,18 @@ works as `prior_feature`.
 
 Each algorithm comparison must use a `seed_offset` that no earlier comparison used, and must report
 the share of the sign oracle's Sharpe captured: SAC's Sharpe divided by the `oracle` Sharpe of the
-same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`).
+same run. Offsets in use: 1000 (`bench_base`), 2000 (`bench_prior`), 3000 (`disagree-shrink`).
+
+The `disagree-shrink` pair differs only in `deploy.disagree_shrink` (0 off, 1 on). When on, each
+test fold adds two runs, `sac_disagree_shrink` and `sac_exposure_matched`, and both count as trials.
+The shrink scales the seed-ensemble residual by `1 / (1 + (sigma / tau)^2)`, where sigma is the
+spread of the members' residuals and tau is the median spread over validation bars. The control
+holds the multiplier constant at its mean over the test fold. Both new runs use no no-trade band,
+as does `sac_ensemble`. The file pair needs at least two seeds.
 
 | File | What it tests | Results |
 | --- | --- | --- |
 | `bench/bench_base.yaml` | All four families, eight markets, seed offset 1000, the base agent of `ablation/base.yaml`. | No |
 | `bench/bench_prior.yaml` | The `prior` family, seed offset 2000, the prior `prior_hint` as `prior_feature`. | No |
+| `bench/disagree-shrink_off.yaml` | All four families, eight markets, seed offset 3000, the base agent with the disagreement shrink off. | No |
+| `bench/disagree-shrink_on.yaml` | As `disagree-shrink_off.yaml`, with the disagreement shrink on. | No |
