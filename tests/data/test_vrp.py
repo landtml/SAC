@@ -1,10 +1,18 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 
 from softedge.data import fred_markets, vol_indices, vrp
-from softedge.features.causal import compute_features
+from softedge.env.vec_env import ActionMap, TapeSet
+from softedge.features.causal import FeatureConfig, compute_features
 from softedge.pipeline import load_frames
+from softedge.tape import build_tape
+
+PRIOR_CONFIG = Path(__file__).resolve().parents[2] / "configs" / "vrp" / "vrp_spx_1d_prior.yaml"
+SHORT_FEATURES = FeatureConfig(horizons=(1, 4, 16), ema_spans=(16,), vol_long_span=64)
 
 
 class FakeResponse:
@@ -120,6 +128,26 @@ def test_universe_adds_prior_column_only_when_implied_vol_is_requested(monkeypat
     assert "vrp_prior" in with_prior.columns
     assert plain.attrs["symbol"] == vrp.SYMBOL and plain.attrs["kind"] == "spot"
     assert plain.attrs["bar"] == "1D"
+
+
+def test_shipped_prior_config_holds_short_variance_when_implied_exceeds_realized(monkeypatch, tmp_path):
+    # VIX 20 is 0.04 implied variance. Daily moves of 0.5% give realized variance near 0.006,
+    # so the gap is positive on nearly every bar. Exposure earns the index, so it must be long.
+    rng = np.random.default_rng(1)
+    n = 200
+    dates = [d.strftime("%Y-%m-%d") for d in pd.bdate_range("2019-01-02", periods=n)]
+    spx = np.round(2500.0 * np.exp(np.cumsum(rng.normal(0.0, 0.005, n))), 2)
+    vix = np.full(n, 20.0)
+    frame = build(monkeypatch, tmp_path / "a", dates, spx, vix)
+    tape = build_tape(frame, compute_features(frame, SHORT_FEATURES))
+    env = yaml.safe_load(PRIOR_CONFIG.read_text())["env"]
+    rows = np.arange(len(tape) - 1)
+    amap = ActionMap(prior_feature=env["prior_feature"], prior_gain=env["prior_gain"], residual=0.0)
+    target = TapeSet([tape], window=4, action_map=amap).targets(
+        np.zeros(len(rows), dtype=np.int64), rows, np.zeros(len(rows)))
+    payoff = target * tape.long_ret[rows]
+    assert target.mean() > 0
+    assert payoff.sum() > 0
 
 
 def test_prior_feature_copies_the_prior_without_gaps(monkeypatch, tmp_path):

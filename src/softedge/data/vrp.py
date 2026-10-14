@@ -11,14 +11,16 @@ and ``rv_t = 252 * mean`` of the 21 squared daily log returns of the S&P 500 (FR
 ending on day ``t``. As for every spot frame, a position decided at row ``t`` earns the move
 from its close to the next close.
 
-With ``prior=True`` the frame also carries ``vrp_prior = iv_t - rv_t``, zeroed while the index
-is below its trailing 63-bar high (a drawdown gate) and during the 21-day warm-up. A negative
-``prior_gain`` in a config turns it into the position -clip(c * vrp_prior, -1, 1): short
-variance when implied exceeds realized.
+With ``prior=True`` the frame also carries ``vrp_prior = iv_t - rv_t``, zeroed while the SPXVRP
+index (this strategy's cumulative P&L) is below its trailing 63-bar high, a drawdown gate, and
+during the 21-day warm-up. A positive ``prior_gain`` in a config (the shipped configs use 50)
+sets the position to clip(c * vrp_prior, -1, 1). Positive exposure holds the index long, which
+is short variance, so the position is long when implied exceeds realized.
 
 FRED's ``SP500`` series starts in October 2016, so the sample is about ten years. The payoff
-is a proxy: variance-swap quotes, dealer costs and borrow are not modelled, and the daily
-close-to-close variance understates intraday variance.
+is a proxy built from VIX and trailing 21-day realized variance, not from variance-swap quotes.
+Costs come from each config. Roll is not modelled. The 21-day window smooths crash days and the
+daily close-to-close variance understates intraday variance, so tail losses are understated.
 """
 
 from __future__ import annotations

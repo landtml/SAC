@@ -119,10 +119,12 @@ Daily S&P 500, Nasdaq, Nikkei, WTI, Brent and Treasury excess-return indices fro
 
 A short-variance index on the S&P 500, daily, from FRED (about ten years: the SP500 series starts in October 2016). Each bar, the index earns today's implied variance minus the next bar's realized variance, divided by 252. See the [data module](../src/softedge/data/vrp.py). Volatility target 0.1, leverage up to 4. The files are in `vrp/`.
 
+The payoff is a proxy. VIX stands in for implied variance and trailing 21-day realized variance is the other leg; no variance-swap quotes are used. The 21-day window smooths crash days, so tail losses are understated. Costs in both files are the spot defaults in `tape.py`: 7.5 bp fee, 1.0 bp half-spread, and a 10% borrow rate on short exposure. Roll cost is not modelled.
+
 | File | What it tests | Results |
 | --- | --- | --- |
 | `vrp/vrp_spx_1d.yaml` | Short variance on the S&P 500, daily, vol target 0.1, no prior. | No |
-| `vrp/vrp_spx_1d_prior.yaml` | As `vrp_spx_1d.yaml` with the variance risk premium prior (implied minus trailing realized variance, gain -50) and a drawdown gate that zeroes the prior while the index is below its 63-bar high. | No |
+| `vrp/vrp_spx_1d_prior.yaml` | As `vrp_spx_1d.yaml` with the variance risk premium prior (implied minus trailing realized variance, gain 50, so the position is long the index when implied exceeds realized) and a drawdown gate that zeroes the prior while the SPXVRP index (this strategy's cumulative P&L) is below its 63-bar high. | No |
 
 ## Prediction markets
 
