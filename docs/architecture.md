@@ -11,6 +11,28 @@ then size". A supervised model solves the first half with lower variance, fewer 
 attribution. The design below is built around the failures this project has already met; each one has
 a named guard (see [Failure modes and their guards](#failure-modes-and-their-guards)).
 
+## Retail scope
+
+The design is for one person trading their own money through retail accounts, with a laptop and free
+or cheap data. It does not compete with professional desks on speed, data spend or headcount; an edge
+has to come from places those desks leave alone. That sets these rules for every study:
+
+- **Slow signals only.** Daily bars, hourly at most. Positions change at most once a day, and every
+  signal must survive a one-bar delay, because orders go in minutes after a close.
+- **Retail costs.** The cost model uses what a retail account pays: taker fees, the quoted spread, no
+  maker rebates and no volume discounts. Results are reported at 1x, 2x and 3x those costs.
+- **Small size, real minimums.** Positions are rounded to each venue's minimum order and step size at
+  the account size studied (for example 10,000 USD). Trades below the minimum are dropped, not
+  counted.
+- **Where a small trader can win.** Risk premia paid for holding something others avoid (carry,
+  funding, volatility); markets too small for large funds (small venues, prediction markets, small
+  coins that pass a liquidity screen); and slow spreads between venues, such as the funding spread this
+  project already found.
+- **Venue risk counts.** Money left on an exchange can be lost if the exchange fails. Studies report
+  how much capital sits on each venue.
+- **Cheap to run.** A study runs overnight on one machine. A live version would be one scheduled job a
+  day, with no co-location and no paid real-time feeds.
+
 ## Principles
 
 1. **Power before models.** Compute the minimum detectable Sharpe for a study before running it. With
@@ -168,5 +190,6 @@ both, its extra machinery is not earning its keep.
 
 ## Out of scope for now
 
-Intraday and order-book data, execution with market impact, and options. Each needs its own data layer
-and cost model before it can be tested honestly.
+High-frequency trading and market making: these are a speed race against professional desks, which
+this project will not enter. Intraday and order-book data, execution with market impact, and options:
+each needs its own data layer and cost model before it can be tested honestly.
