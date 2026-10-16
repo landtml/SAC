@@ -15,6 +15,7 @@ the overview.
 - [Directional prediction study](preregistration-direction.md): the pre-registered hypotheses, data, controls and pass rule, fixed before any test was run.
 - [Drawdown-budget checks](preregistration-drawdown-frontier.md): the pre-registered checks of the crash-budget frontier for the 60/20/20 mix, fixed before any exact check was run.
 - [Long-only weekly search](preregistration-long-only-weekly.md): the pre-registered long-only, weekly-rebalance families and pass rule, fixed before any result.
+- [Discovery search](preregistration-discovery.md): the pre-registered search for a learner by trial and error on synthetic data, with its kill rules, fixed before any candidate exists.
 - [Technical design](design.md): the reasoning behind each design choice, and its known limitations.
 - [Supervised forecasting architecture](architecture.md): a design for a forecast-then-size research track.
 
