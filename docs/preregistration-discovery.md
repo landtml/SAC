@@ -132,3 +132,10 @@ This amendment settles the open points that the harness calibration recorded. It
 8. **Constants in force.** Costs of 5 bp per unit traded, the 0.05 band, the 52-week warm-up, the 25% breach rule and the 1% feasibility limit stay as stated in the first version.
 9. **Trial count.** Every candidate evaluation produced by the search is logged and counts toward the cap of 1,000. Seed scores and probe rows are logged but do not count toward the cap.
 10. **Standardisation.** Each feature is standardised with the expanding mean and standard deviation of its own past values. Until 52 values exist, the standardised value is 0.
+
+### Amendment 3 (2026-10-16, before any candidate is scored)
+
+The first proposal pilot found children whose changed slot does not affect the exposure path. For example, a child that changes only the update or the gate of a rule that has no learned parameters behaves exactly like its parent.
+
+1. **Inert children.** A child whose exposure path equals its parent's on every design tape is inert. It is logged in the ledger as inert. It is not scored and does not count toward the cap of 1,000. Inert children are not compared with anything.
+2. **Proposals.** A proposal must change the exposure path of its parent on at least one design tape. Proposals that do not are logged as inert.
