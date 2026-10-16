@@ -45,7 +45,7 @@ For a candidate on a tape set, take the weekly net log growth minus that of the 
 
 ## Search
 
-- **Arm L, language model.** Generations of 50 candidates, 10 at most. Each of 4 Haiku workers receives the top 8 candidates and 4 diverse ones, with code and scores, and proposes about 12 children. Each child changes exactly one slot and states its mechanism in one sentence.
+- **Arm L, language model.** Generations of 50 candidates, 10 at most. Each of four proposal calls receives the top 8 candidates and 4 diverse ones, with code and scores, and proposes about 12 children. Each child changes exactly one slot and states its mechanism in one sentence.
 - **Arm R, control.** 500 random draws, each picking one part per slot from the seed parts and a grid of constants. No language model.
 - **Ledger.** Every evaluation is appended to `discovery_trials.jsonl` with arm, generation, candidate id, family, seeds and score. Identical exposure paths count once in the statistics.
 
