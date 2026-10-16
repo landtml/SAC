@@ -255,6 +255,61 @@ Conventions and data, from the run record:
 
 **Decision.** The 60/20/20 mix is a candidate, not an established result: it fails the deflated Sharpe test at the registered count. The frontier moves with the rebalancing rule. At the −15% crash budget the exposure is 53%, not 56%, and the in-sample CAGR is 15.6%, not 16%. The 2022 stress figures in earlier replies were buy-and-hold; monthly rebalancing makes them 1.5 to 2 points worse. Covid still binds.
 
+## 2026-10-16: parity network, registered test
+
+Pre-registered in `docs/preregistration-parity-network.md` (commit eaa02e9) and run once from that
+commit with `scripts/parity_study.py`. Before the network was scored, the backtest's six simple
+rules reproduced the discovery harness on the 768 design and 256 null tapes: identical tapes, a
+largest weekly growth difference of 0.0, and identical breaches.
+
+Paired annual difference in net log growth against the best feasible simple rule of each family,
+in points, with 95% intervals. The best rule is the trend gate on `noisy_prior` and CPPI on every
+other family.
+
+| Family (role) | Network | Breaches | Direction off | Gate off | Trend gate with governor |
+| --- | --- | --- | --- | --- | --- |
+| `noisy_prior` (design) | −1.69 [−1.80, −1.58] | 0 | −2.79 | −0.70 | −0.27 |
+| `threshold_signal` (design) | −0.27 [−0.31, −0.23] | 0 | −0.33 | +0.07 | −0.10 |
+| `planted_signal` (design) | −0.29 [−0.31, −0.26] | 0 | −0.30 | −0.07 | −0.04 |
+| `jump_garch` (selection) | −0.32 [−0.36, −0.29] | 0 | −0.36 | +0.19 | −0.16 |
+| `nonlinear_regime_market` (selection) | −0.25 [−0.30, −0.20] | 1 | −0.33 | +0.18 | −0.24 |
+| `gbm` (null) | −0.31 [−0.34, −0.29] | 0 | −0.32 | −0.05 | −0.31 |
+| `break_market` (test, 2,000 tapes) | −0.22 [−0.24, −0.21] | 2 | −0.29 | +0.20 | −0.28 |
+
+- **P1, held-out win: fail.** On the test tapes the network is 0.22 points below CPPI, with 2
+  breaches against CPPI's 0.
+- **P2, robustness: fail.** The network's worst family is `noisy_prior` at −1.69. That beats CPPI
+  (−2.57) and Grossman-Zhou (−2.66), but not the trend gate under the same governor (−0.31). Buy-
+  and-hold, the trend gate alone, volatility targeting and the log-optimal rule are infeasible on at
+  least one family.
+- **P3, null: pass.** On the null tapes the momentum ledgers are deployed in 0.4% of tape-weeks,
+  against a limit of 2%. The future-scramble probe passes on all seven families.
+- **P4, ablations.** Direction adds 1.10 points on `noisy_prior` (paired interval 0.99 to 1.22)
+  and 0.01 to 0.08 points elsewhere. Gate off beats the network on every family, by 0.21 to 0.99
+  points. Its mean exposure falls to 0.2 to 0.3 and its turnover rises to 6 to 8 a year. The governor
+  is needed: without it, the network breaches on 30 test tapes and 35 `threshold_signal` tapes. A
+  default exposure of 1 instead of one half costs 0.31 to 0.48 points on six families and gains 0.21
+  on `noisy_prior`.
+- **P5, sensitivity.** No constant at half or twice its value changes a conclusion. The largest
+  move is the governor multiplier at half (m = 2). It holds more cash, which brings the network to
+  within 0.03 to 0.06 points of CPPI where CPPI is best, and lowers `noisy_prior` to −1.92.
+- **P6, novelty.** New combination, unchecked. No literature search has been run.
+- **Trials.** One candidate. 90 rows in the trial ledger: 7 for the network and 83 diagnostic runs.
+
+**Why it lost.** In every family, buy-and-hold grows between −0.44% and +0.21% a year while cash
+earns 2.6%. The excess return is therefore not symmetric about zero, as the default of one half
+assumes; its mean is about −0.05 weekly standard deviations. Rules that hold mostly cash win. The
+premium learner forecasts this, which is why gate off wins, but its ledger ends the tape with 0.7
+to 1.9 nats of evidence on average in the families where CPPI is best, short of the 3.7 the gate
+requires. Only `noisy_prior`, with its strong momentum, gets the momentum ledgers past the line
+(8.5 to 8.8 nats at the end). The gate did what it was built to do: it blocked edges that one path
+cannot confirm. In these families the blocked edge was real.
+
+**Decision.** As registered, the network fails the held-out test. Seeds 20000 to 21999 of
+`break_market` are not used again. Every family has now scored this version, so a revised network
+needs a new registration and a family it has not seen. The gate-off result is a diagnostic, not a
+finding: it was not a candidate, and the test seeds cannot confirm it.
+
 ## Known data and accounting fixes
 
 Dates are commit dates on main, except where a check date is given.

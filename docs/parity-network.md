@@ -2,7 +2,13 @@
 
 A learning architecture for trading built around one symmetry of returns. Its pre-registered
 test is in [the registration](preregistration-parity-network.md). The code is in
-`src/softedge/parity/`. Until that test has run, this page is a design, not a result.
+`src/softedge/parity/`.
+
+**Result of the registered test: fail.** On the held-out family the network is 0.22 points a year
+below the best simple rule (CPPI), and the trend gate under the same governor is more robust
+across families. It does no harm where there is no edge, and it passes every leak probe. Details
+are in the [research log](research-log.md#2026-10-16-parity-network-registered-test) and in
+[What the test showed](#what-the-test-showed) below.
 
 ## What makes markets hard for learners
 
@@ -117,6 +123,35 @@ parity network is any learner with these four properties:
 Every part is published. What may be new is the arrangement: the default comes from the symmetry,
 and every directional deviation passes through a sign-test ledger that decays. No literature
 search has been run for this page. Until one has, the label is "new combination, unchecked".
+
+## What the test showed
+
+What held up:
+
+- **No harm without an edge.** On the null family the momentum ledgers deploy in 0.4% of
+  tape-weeks, and the network then matches its direction-off version.
+- **No leaks.** The future-scramble probe passes on all seven families.
+- **Feasible everywhere.** At most 2 breaches in 2,000 held-out tapes. Without the governor there
+  are 30.
+- **It finds a strong edge.** On `noisy_prior`, direction adds 1.10 points a year (paired interval
+  0.99 to 1.22) over the same network with direction off.
+
+What did not:
+
+- **The default ignores the cash hurdle.** One half is growth-optimal when the excess return is
+  symmetric about zero. In these synthetic families the asset's log drift is near zero and cash pays
+  2.6% a year, so cash-heavy cushion rules win.
+- **The gate is too strict for one path.** The premium learner sees that cash wins, but its evidence
+  stays below the line. Removing the gate beats the network on every family, by 0.21 to 0.99 points.
+  On `noisy_prior` the gate deploys momentum years late and costs about 1 point.
+
+Questions for a revised version, which needs its own registration and a family this version has
+not seen:
+
+- A default that includes a prior on the premium over cash, rather than assuming none.
+- Evidence pooled across many assets or markets, so that an edge too weak to prove on one path can
+  pass the gate when it recurs.
+- A lower turnover path for deployed forecasts.
 
 ## Known limits
 
