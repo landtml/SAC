@@ -229,6 +229,10 @@ plain rule on every carry run. Against it, the 10-coin cross-venue gain falls fr
 0.50). Of the carry runs, only that one and the cash-and-carry run with the premium feature keep an
 interval above zero.
 
+**Risk-matched DSR.** With the tuned rule scaled to the agent's volatility, no carry gain of the
+agent reaches a DSR of 0.95 (best 0.93, cash-and-carry with the premium feature; 10-coin cross-venue
+spread 0.16). The tuned rule alone scores a DSR of 1.00 in every carry market.
+
 **Decision.** The tuned rule is the baseline for any future agent or model on these markets.
 
 ## Known data and accounting fixes
