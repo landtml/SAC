@@ -40,7 +40,10 @@ def main(argv: list[str] | None = None) -> int:
     act = sub.add_parser("active", help="Sharpe and DSR of each run's active return over its prior")
     act.add_argument("--runs", default="runs")
     act.add_argument("--strategy", default="sac_banded")
-    act.add_argument("--out", required=True, help="file to write")
+    act.add_argument("--baseline", choices=("rule", "tuned"), default="rule",
+                     help="rule: the zero-residual prior; tuned: the prior with a validation-chosen "
+                          "deadzone and band")
+    act.add_argument("--out", default=None, help="file to write (default: print only)")
 
     lb = sub.add_parser("leaderboard", help="rank every saved run by deflated Sharpe ratio")
     lb.add_argument("--runs", default="runs")
@@ -101,8 +104,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "active":
         from softedge.eval.active import active_markdown
 
-        text = active_markdown(args.runs, args.strategy)
-        _write_report(args.out, text)
+        text = active_markdown(args.runs, args.strategy, args.baseline)
+        if args.out:
+            _write_report(args.out, text)
         print(text)
         return 0
     if args.cmd == "download":
