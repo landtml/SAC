@@ -87,4 +87,33 @@ Real data. Live trading. Any change to the long-only registration. The funding-s
 
 ## Amendments
 
-None.
+### Amendment 1 (2026-10-16, before any candidate is generated or scored)
+
+Made after the harness calibration, which found that the future-scramble probe misses a leak at the decision's own row. No candidate has been generated or scored, so no result is affected.
+
+1. **Candidate interface.** A candidate receives only the past weekly returns up to and including week t, its own past exposures, and its own state dictionary. It receives no tape object, no hidden columns and no future rows. Candidate code runs in an isolated process with no access to the parent's variables. A reference to any name outside the candidate's own code and numpy fails the run.
+
+2. **Slots and signatures.** Each candidate defines five functions.
+   - A: `features(past_returns, past_exposures, state) -> vector`
+   - B: `exposure(phi, state) -> float in [0, 1]`
+   - C: `loss(e, r, c, lam) -> float`, where r is the asset return and c the cash return of the week
+   - D: `update(state, phi, e, r, c, lam) -> state`
+   - E: `gate(state, drawdown) -> lam`, a non-negative multiplier
+
+   Defaults for a slot a seed does not use: A returns an empty vector; B returns 1.0; C returns -log(1 + e r + (1 - e) c); D returns the state unchanged; E returns 0.0. The trend gate sets B from the trailing 10-week return. Buy-and-hold uses the defaults.
+
+3. **Returns and cash.** Asset and cash returns are weekly log returns. Cash earns 0.0005 per week, a fixed synthetic rate of about 2.6% a year.
+
+4. **Volatility window.** Trailing 52 weeks, for every volatility-based rule and feature.
+
+5. **Penalty units.** The complexity penalty is 0.0005 per line of slot code above 10 lines. It is subtracted from the annualised score in log-growth units.
+
+6. **Seeds.** DALA and DALA-off are defined in Amendment 1 of the long-only registration (`docs/preregistration-long-only-weekly.md`, commit 13d7b53, with the correction at commit 25777b2). Their slot compositions follow from the signatures above, using the parameters stated there.
+
+7. **Probes, replacing the probe described earlier.**
+   - Isolation: a candidate that reads a name outside its own code or numpy fails to run.
+   - Calibration: a leaky candidate that reads a hidden array of next-week means must fail. Buy-and-hold must pass.
+   - Future-scramble on legal inputs: scrambling returns after week t0 leaves the exposure at every week up to t0 unchanged. Every seed must pass.
+   - The calibration must hold before the search starts.
+
+8. **Static check.** The check still rejects `open`, `exec`, `eval`, `__import__`, and any name beginning with a double underscore.
