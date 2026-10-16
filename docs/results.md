@@ -156,6 +156,26 @@ more exposure than the tuned rule and earns a little more return per year (7.3% 
 10-coin spread). Per unit of risk the gap is the Sharpe difference, which is small. Fewer than three
 runs per universe compare against this baseline, so the active DSR uses the zero-skill variance floor.
 
+**Risk-matched DSR.** To remove the effect of position size, the tuned rule's returns are scaled to
+the agent's volatility on the same test days before the difference is taken. Trial counts are those
+of the table above.
+
+| Market, daily | Active over tuned rule: Sharpe, DSR | Risk-matched: Sharpe, DSR | Tuned rule alone: Sharpe, DSR (trials + 20 rule settings) |
+| --- | --- | --- | --- |
+| Crypto cash-and-carry, 10 coins | 3.02, 1.00 | 1.23, 0.66 | 10.32, 1.00 |
+| Crypto cash-and-carry, 10 coins, premium feature | 3.26, 1.00 | 1.77, 0.93 | 10.32, 1.00 |
+| Crypto cash-and-carry, 32 coins | 2.95, 1.00 | 1.38, 0.76 | 10.46, 1.00 |
+| Cross-venue funding spread, 10 coins | 2.63, 0.96 | 0.54, 0.16 | 6.63, 1.00 |
+| Cross-venue funding spread, 32 coins | 4.48, 1.00 | 1.70, 0.71 | 7.23, 1.00 |
+| Hyperliquid basis, 10 coins | 2.19, 0.88 | 0.51, 0.15 | 8.17, 1.00 |
+| Hyperliquid basis, 32 coins | 0.83, 0.28 | -1.71, 0.00 | 8.86, 1.00 |
+
+At equal risk, no agent gain reaches a DSR of 0.95. The tuned rule alone clears its deflation bar
+(an annualised Sharpe of 1.2 to 1.6 from luck) by a wide margin in every market. Its returns are fat
+tailed (kurtosis 9 to 19), and 1.6 to 3.7 years of daily data contain few of the exchange failures
+and forced deleveraging events that would hit such a strategy, so a DSR of 1.00 rules out luck in
+this sample, not those risks.
+
 ![Carry strategies, equity over time](../assets/png/figures/carry-equity.png)
 
 ## Ablations
