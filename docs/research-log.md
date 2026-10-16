@@ -235,6 +235,26 @@ spread 0.16). The tuned rule alone scores a DSR of 1.00 in every carry market.
 
 **Decision.** The tuned rule is the baseline for any future agent or model on these markets.
 
+## 2026-10-16: drawdown-budget checks, results
+
+Pre-registered in `docs/preregistration-drawdown-frontier.md`. Each check is reported pass or fail, as registered.
+
+- **C1, stress returns: fail on four of ten rows.** All five Covid rows pass. In 2022, the rows at f = 1.00, 0.93, 0.74 and 0.56 miss by 1.5 to 2.1 points, and f = 0.37 passes. The estimates assumed buy-and-hold inside each window. The design rebalances monthly, which keeps BTC at its target weight through the 2022 fall. With buy-and-hold, all ten rows pass.
+- **C2, CAGR and volatility: pass on all ten rows.** The largest gap is 0.1 point on both measures.
+- **C3, source of the gap (descriptive).** At a Covid-window return of −15.0%, BTC adds 4.0 CAGR points: 15.6% against 11.6% with BTC moved to T-bills. Mix B reaches 11.8%.
+- **C4, deflated Sharpe ratio: fail.** Mix A (60/20/20) scores 0.85 at n = 8 with the default variance and 0.79 with the observed variance, against a line of 0.95. Mix B scores 0.75 and 0.67. As a sensitivity outside the registration, n = 4 (the four multi-asset mixes) gives mix A 0.93 and 0.90, and mix B 0.86 and 0.82. Both still fail.
+- **C5, pre-FTX data: data exist.** Cached hourly funding and spot data cover all ten coins from 2020. The window from 1 June 2022 to 31 January 2023 has no gap hours, and November 2022 has no gap days for funding or spot. SOL funding moved to 2-hour and 4-hour steps from 9 to 18 November 2022, which the funding accrual model must handle. The carry sample starts in January 2023, but the cache does not force that start. Whether the premium and borrow inputs also reach back is not checked yet. Extending the sample through FTX would be a new registered check.
+- **C6, sourced figures: 11 of 12 match.** The mixed-portfolio end value is $22,857, not the $22,858 quoted in chat. Of the report's eight rows, four are multi-asset mixes and four are single-sleeve benchmarks: cash, carry only, S&P only and BTC only.
+
+Conventions and data, from the run record:
+
+- The mixed report's stress table gives labels only. The windows were inferred by reproducing its entries under buy-and-hold. The Covid window runs from the 19 February 2020 close to the 23 March 2020 close, and calendar 2022 from the 31 December 2021 close to the 31 December 2022 close.
+- Volatility is calendar-day returns times √365, the report's convention. The registration does not state one.
+- The registration says to report missing data, not fill it. To reproduce the report, twelve carry days with no value are set to 0.0. Filling them with the T-bill return moves CAGR by under 0.1 point.
+- S&P (46 weekdays) and DTB3 gaps are forward-filled, as in the report. Their match to exchange holidays is not verified against a calendar.
+
+**Decision.** The 60/20/20 mix is a candidate, not an established result: it fails the deflated Sharpe test at the registered count. The frontier moves with the rebalancing rule. At the −15% crash budget the exposure is 53%, not 56%, and the in-sample CAGR is 15.6%, not 16%. The 2022 stress figures in earlier replies were buy-and-hold; monthly rebalancing makes them 1.5 to 2 points worse. Covid still binds.
+
 ## Known data and accounting fixes
 
 Dates are commit dates on main, except where a check date is given.
