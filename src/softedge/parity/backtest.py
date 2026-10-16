@@ -6,8 +6,10 @@ the close of week 52, a decision is held over the next week through a no-trade b
 each unit traded costs 0.0005, and cash earns 0.0005 a week. A path breaches when its wealth
 falls more than 25% below its peak in weeks 53 onward.
 
-A policy has two methods: ``observe(logret)`` with the log returns of the week just closed,
-and ``target(wealth, peak)`` for the exposure to hold over the next week.
+A policy has two methods: ``observe(logret, cash)`` with the log returns of the risky asset and
+of cash in the week just closed, and ``target(wealth, peak)`` for the exposure to hold over the
+next week. Real data passes its own weekly cash returns and cost per unit traded; the defaults are
+the registered synthetic values.
 """
 
 from __future__ import annotations
@@ -29,10 +31,17 @@ ANNUAL = 52
 FEASIBLE_FRACTION = 0.01
 
 
-def simulate(logrets, policy) -> dict:
-    """Run a policy on a (paths, weeks) array of weekly log returns."""
+def simulate(logrets, policy, *, cash=None, cost=COST) -> dict:
+    """Run a policy on a (paths, weeks) array of weekly log returns.
+
+    ``cash`` holds weekly cash log returns, shaped like ``logrets`` or (weeks,); by default every
+    week earns ``CASH``. ``cost`` is the cost per unit traded, a scalar or one value per path.
+    """
     r_all = np.asarray(logrets, dtype=float)
     b, n = r_all.shape
+    c_all = np.full((b, n), CASH) if cash is None else np.broadcast_to(
+        np.asarray(cash, dtype=float), (b, n))
+    unit_cost = np.broadcast_to(np.asarray(cost, dtype=float), (b,))
     held = np.zeros((b, n))
     target = np.zeros((b, n))
     wealth = np.ones((b, n))
@@ -40,16 +49,16 @@ def simulate(logrets, policy) -> dict:
     hi = np.ones(b)
     prev_w = np.ones(b)
     prev_h = np.zeros(b)
-    cash_gross = math.exp(CASH)
     for t in range(n):
         h = held[:, t]
         r = r_all[:, t]
-        cost = COST * np.abs(h - prev_h)
-        w = prev_w * (1.0 - cost) * (h * np.exp(r) + (1.0 - h) * cash_gross)
+        c = c_all[:, t]
+        paid = unit_cost * np.abs(h - prev_h)
+        w = prev_w * (1.0 - paid) * (h * np.exp(r) + (1.0 - h) * np.exp(c))
         hi = np.maximum(hi, w)
         wealth[:, t] = w
         peak[:, t] = hi
-        policy.observe(r)
+        policy.observe(r, c)
         if t >= FIRST_DECISION:
             e = np.clip(np.asarray(policy.target(w, hi), dtype=float), 0.0, 1.0)
             target[:, t] = e
@@ -74,7 +83,7 @@ class _History:
     def __init__(self):
         self.cols: list[np.ndarray] = []
 
-    def observe(self, logret) -> None:
+    def observe(self, logret, cash=None) -> None:
         self.cols.append(np.asarray(logret, dtype=float))
 
     def window(self, k: int) -> np.ndarray:
@@ -133,8 +142,8 @@ class Governed:
         self.floor = floor
         self.multiplier = multiplier
 
-    def observe(self, logret) -> None:
-        self.inner.observe(logret)
+    def observe(self, logret, cash=None) -> None:
+        self.inner.observe(logret, cash)
 
     def target(self, wealth, peak):
         w = np.asarray(wealth, dtype=float)
@@ -152,16 +161,18 @@ SIMPLE_RULES = {
 }
 
 
-def run_rules(logrets) -> dict:
+def run_rules(logrets, *, cash=None, cost=COST) -> dict:
     """Every simple rule on the same paths."""
-    return {name: simulate(logrets, make()) for name, make in SIMPLE_RULES.items()}
+    return {name: simulate(logrets, make(), cash=cash, cost=cost)
+            for name, make in SIMPLE_RULES.items()}
 
 
-def run_parity(logrets, config: ParityConfig | None = None, *, trace: bool = False):
+def run_parity(logrets, config: ParityConfig | None = None, *, trace: bool = False, cash=None,
+               cost=COST):
     """The parity network on the paths. Returns the backtest and the network."""
     arr = np.asarray(logrets, dtype=float)
     net = ParityNetwork(arr.shape[0], arr.shape[1], config, trace=trace)
-    return simulate(arr, net), net
+    return simulate(arr, net, cash=cash, cost=cost), net
 
 
 # ---------------------------------------------------------------------- scoring

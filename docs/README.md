@@ -18,6 +18,7 @@ the overview.
 - [Discovery search](preregistration-discovery.md): the pre-registered search for a learner by trial and error on synthetic data, with its kill rules, fixed before any candidate exists.
 - [Parity network](parity-network.md): a learner built around the sign symmetry of returns, with evidence ledgers and a drawdown governor.
 - [Parity network test](preregistration-parity-network.md): the pre-registered evaluation of the parity network on synthetic families, fixed before any registered tape was scored.
+- [Parity network on currencies](preregistration-parity-network-fx.md): the registered real-data check of the same network on 13 currency deposits held by a US-dollar investor.
 - [Technical design](design.md): the reasoning behind each design choice, and its known limitations.
 - [Supervised forecasting architecture](architecture.md): a design for a forecast-then-size research track.
 

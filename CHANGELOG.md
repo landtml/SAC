@@ -12,7 +12,9 @@ All notable changes to this project are recorded here. The format follows
   cash. Its default exposure is one half, the growth-optimal exposure when returns are symmetric.
   Direction learners move it only as far as their sign-test evidence ledgers allow, and a governor
   caps the exposure on the network's own drawdown. `scripts/parity_study.py` runs the registered
-  evaluation in `docs/preregistration-parity-network.md`.
+  evaluation in `docs/preregistration-parity-network.md`. `scripts/parity_fx.py` runs the registered
+  real-data check on 13 currency deposits (`docs/preregistration-parity-network-fx.md`), with weekly
+  cash returns and costs per currency passed to the backtest.
 - Cross-sectional funding rank for crypto cash-and-carry: `softedge.features.crosssec` gives each
   coin its trailing 7-day funding income relative to the other coins listed at the same bar
   (`funding_xs`), and a top-five flag (`funding_topk`): 1 for the coins above the cut, 0 below it,

@@ -113,11 +113,13 @@ class ParityNetwork:
                       "cap": []} if trace else None
 
     # ------------------------------------------------------------------ observation
-    def observe(self, logret) -> None:
+    def observe(self, logret, cash=None) -> None:
+        """Ingest one closed week. ``cash`` is that week's cash log return; default ``cfg.cash``."""
         cfg = self.cfg
         self.t += 1
         t = self.t
-        x = np.asarray(logret, dtype=float) - cfg.cash
+        c = cfg.cash if cash is None else np.asarray(cash, dtype=float)
+        x = np.asarray(logret, dtype=float) - c
         self.x[:, t] = x
         if t + 1 == cfg.vol_seed:
             self.var = np.var(self.x[:, : t + 1], axis=1, ddof=1)

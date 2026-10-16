@@ -152,3 +152,18 @@ def test_ablation_switches_change_the_path():
                    {"default_exposure": 1.0}):
         other = bt.run_parity(r, replace(ParityConfig(), **change))[0]["held"]
         assert not np.array_equal(base, other), change
+
+
+def test_explicit_cash_and_cost_reproduce_the_defaults():
+    r = symmetric_paths(8, 300, 11)
+    a = bt.run_parity(r)[0]
+    b = bt.run_parity(r, cash=np.full(300, bt.CASH), cost=np.full(8, bt.COST))[0]
+    np.testing.assert_array_equal(a["growth"], b["growth"])
+    np.testing.assert_array_equal(a["held"], b["held"])
+
+
+def test_cash_series_moves_the_default_exposure_only_through_direction():
+    r = symmetric_paths(8, 300, 12)
+    cash = np.linspace(0.0, 0.001, 300)
+    res = bt.run_parity(r, replace(ParityConfig(), direction=False, governor=False), cash=cash)[0]
+    assert np.all(res["target"][:, bt.FIRST_DECISION:] == 0.5)
