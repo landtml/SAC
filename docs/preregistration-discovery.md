@@ -117,3 +117,18 @@ Made after the harness calibration, which found that the future-scramble probe m
    - The calibration must hold before the search starts.
 
 8. **Static check.** The check still rejects `open`, `exec`, `eval`, `__import__`, and any name beginning with a double underscore.
+
+### Amendment 2 (2026-10-16, before any candidate is generated or scored)
+
+This amendment settles the open points that the harness calibration recorded. It states conventions the first two versions left open. No candidate has been generated or scored, so no result is affected.
+
+1. **Returns.** Weekly log returns are the inputs. Wealth and the loss use simple returns derived from them: R = exp(r) - 1 for the asset and C = exp(c) - 1 for cash. The score is the log growth of the portfolio, log(1 + P), where P = e R + (1 - e) C, net of costs.
+2. **Volatility.** The 52-week trailing window applies to every volatility-based rule and feature, except DALA's v. DALA keeps the EWMA with lambda 0.94 defined in Amendment 1 of the long-only registration. Its start is the variance of the first 52 weeks. Trailing windows start at week 52.
+3. **Scramble.** The scramble flips the sign of each return after week t0, independently, with probability one half. A permutation is not an accepted scramble. The power pair checks the probe.
+4. **Leak calibration.** A leaky candidate that reads a hidden array fails at the isolation check. The power pair checks the scramble probe. Both checks are required.
+5. **Update inputs.** D receives the realised loss: `update(state, phi, e, r, c, lam, loss)`. The driver stores the loss in state.
+6. **Held exposure.** The loss, the update and the cost use the held exposure e_t, the exposure held over week t+1.
+7. **Penalties.** Seeds and the benchmark rules are scored with no complexity penalty. The penalty applies only to candidates the search produces.
+8. **Constants in force.** Costs of 5 bp per unit traded, the 0.05 band, the 52-week warm-up, the 25% breach rule and the 1% feasibility limit stay as stated in the first version.
+9. **Trial count.** Every candidate evaluation produced by the search is logged and counts toward the cap of 1,000. Seed scores and probe rows are logged but do not count toward the cap.
+10. **Standardisation.** Each feature is standardised with the expanding mean and standard deviation of its own past values. Until 52 values exist, the standardised value is 0.
