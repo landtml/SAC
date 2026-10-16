@@ -10,6 +10,13 @@ across families. It does no harm where there is no edge, and it passes every lea
 are in the [research log](research-log.md#2026-10-16-parity-network-registered-test) and in
 [What the test showed](#what-the-test-showed) below.
 
+**Result of the registered real-data check: pass, narrowly.** On 13 currency deposits from 1971
+to 2026, the same network beats the best feasible simple rule (Grossman-Zhou) by 0.38 points a
+year (95% interval 0.04 to 0.76), its learned direction adds 0.49 points (0.11 to 0.91), and it
+never breaches the 25% budget. Most of the gain comes from BRL, KRW and CNY. It is not significant
+at twice the costs, and the trend gate under the same governor did at least as well. See the
+[research log](research-log.md#2026-10-16-parity-network-on-real-currency-data).
+
 ## What makes markets hard for learners
 
 | Market fact | What it does to a learner | Where the network handles it |

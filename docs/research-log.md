@@ -310,6 +310,53 @@ cannot confirm. In these families the blocked edge was real.
 needs a new registration and a family it has not seen. The gate-off result is a diagnostic, not a
 finding: it was not a candidate, and the test seeds cannot confirm it.
 
+## 2026-10-16: parity network on real currency data
+
+Pre-registered in `docs/preregistration-parity-network-fx.md` (commit d8682c6) and run once from
+that commit with `scripts/parity_fx.py`. The network is the synthetic test's version, unchanged.
+The market is 13 currency deposits held by a US-dollar investor (weekly FX move plus the foreign
+short rate, against Treasury bills), from 1971 to 2026 where the data reach: 26,631 currency-weeks
+after warm-up. Pooled differences in annual net log growth, in points, with 95% block-bootstrap
+intervals over calendar weeks:
+
+| Network minus | Points | 95% interval |
+| --- | --- | --- |
+| Grossman-Zhou, the best feasible simple rule | +0.38 | +0.04 to +0.76 |
+| CPPI | +0.51 | +0.11 to +0.97 |
+| Same network, direction off | +0.49 | +0.11 to +0.91 |
+| Trend gate under the network's governor | −0.35 | −0.78 to +0.05 |
+| Same network, gate off | −0.10 | −0.41 to +0.21 |
+| Grossman-Zhou, both at twice the costs | +0.22 | −0.11 to +0.59 |
+
+- **RD1, beats the best simple rule: pass.** Only CPPI and Grossman-Zhou are feasible on every
+  currency. Buy-and-hold, the trend gate, the volatility target and the log-optimal rule breach the
+  25% budget on at least one. The network breaches on none; its largest drawdown is 21.3% (ZAR).
+- **RD2, direction adds value: pass.**
+- **RD3, no leaks: pass** on all 13 currencies.
+
+Limits of the result, all from the same run:
+
+- **Concentrated.** BRL, KRW and CNY carry 79% of the gain over Grossman-Zhou (38%, 28% and 13%).
+  Without BRL the interval includes zero (+0.25, −0.07 to +0.61). On the seven G10 currencies the
+  gain is +0.13 (−0.23 to +0.53); on the six emerging-market currencies it is +0.72 (+0.13 to
+  +1.37). Those three are where the ledgers grew largest (maximum evidence 17 to 50 nats, against
+  a threshold of 3.7).
+- **A simpler rule did as well.** The trend gate under the same governor breaches on no currency
+  and its pooled log growth is 4.72% a year, against the network's 4.37%. It was a reported comparison, not part
+  of RD1.
+- **Costs.** At twice the costs the gain over Grossman-Zhou is not significant. Turnover is up to
+  10 a year on GBP, where the momentum ledgers are deployed.
+- **The governor is essential.** Without it, 7 of the 13 currencies breach.
+- **Modest returns.** Network CAGR runs from 0.85% (JPY) to 7.78% (BRL). Its Sharpe ratio against
+  T-bills is −0.19 to 0.41 on eleven currencies, 0.77 on BRL and 0.95 on CNY.
+- On real data the gate cost little (gate off −0.10, not significant), unlike on the synthetic
+  families, and a default exposure of 1 made no difference (−0.04).
+
+**Decision.** The network passes the registered real-data check. The gain over the cushion rules
+rests mainly on three emerging-market currencies and does not survive twice the costs. The trend
+gate under the same governor is at least as good. The network is not changed, and this panel
+has now been seen by it.
+
 ## Known data and accounting fixes
 
 Dates are commit dates on main, except where a check date is given.
