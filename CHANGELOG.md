@@ -8,6 +8,11 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- Parity network (`softedge.parity`): a weekly long-only learner for one risky asset against
+  cash. Its default exposure is one half, the growth-optimal exposure when returns are symmetric.
+  Direction learners move it only as far as their sign-test evidence ledgers allow, and a governor
+  caps the exposure on the network's own drawdown. `scripts/parity_study.py` runs the registered
+  evaluation in `docs/preregistration-parity-network.md`.
 - Cross-sectional funding rank for crypto cash-and-carry: `softedge.features.crosssec` gives each
   coin its trailing 7-day funding income relative to the other coins listed at the same bar
   (`funding_xs`), and a top-five flag (`funding_topk`): 1 for the coins above the cut, 0 below it,
