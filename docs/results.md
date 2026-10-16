@@ -21,6 +21,11 @@ train the agent or to pick its settings.
   distinguishable from zero. On a wider list of 32 coins the cross-venue gain holds (+0.66) and
   the cash-and-carry gain shrinks (+0.37, deflated Sharpe 0.13). Under CPCV the cash-and-carry gain
   is positive on all five paths.
+- **Against a tuned rule, most of the carry gain goes away.** The funding rule above trades at every
+  signal change. A second rule gets the agent's no-trade band and a deadzone, both chosen on
+  validation data. Against it, only two carry gains keep a 95% interval above zero: the 32-coin
+  cross-venue spread (+0.27) and the cash-and-carry run with the premium feature (+0.31). The
+  10-coin cross-venue gain falls from +0.47 to +0.13, with an interval that includes zero.
 - **Changes to the agent did not produce a clear win.** On the hidden-regime market, three
   changes raised the Sharpe ratio with intervals that include zero. Three lowered it.
 
@@ -125,6 +130,31 @@ different train and test splits. The agent's Sharpe ratio is above the funding r
 paths: 5.04 to 8.36 against 3.44 to 3.47, a difference of +1.6 to +4.9. CPCV trains on data from
 both sides of each test window, so these levels are more optimistic than walk-forward. The check
 supports the sign of the gain, not its size.
+
+**A tuned rule as second baseline.** The agent's banded policy picks a no-trade band on validation
+data. The funding rule above has no band, so it pays costs on every small change of its signal. The
+tuned rule is the same funding rule with two settings chosen per walk-forward split on that split's
+validation data only: the no-trade band (same grid as the agent) and a deadzone, a funding level
+below which the rule stays flat. The test data never enters the choice (`softedge active --baseline
+tuned`, `src/softedge/eval/tuned_rule.py`). Rebuilt from the cached data, the plain rule matches each
+run's saved `prior_only` series exactly.
+
+| Market, daily | SAC Sharpe | Funding rule | Tuned rule | SAC minus tuned rule, 95% CI, p-value | Active over tuned rule: Sharpe, DSR (trials) |
+| --- | --- | --- | --- | --- | --- |
+| Crypto cash-and-carry, 10 coins | 10.60 | 10.11 | 10.32 | +0.28 [-0.05, 0.64], p=0.051 | 3.02, 1.00 (22) |
+| Crypto cash-and-carry, 10 coins, premium feature | 10.63 | 10.11 | 10.32 | +0.31 [0.05, 0.61], p=0.009 | 3.26, 1.00 (22) |
+| Crypto cash-and-carry, 32 coins | 10.69 | 10.33 | 10.46 | +0.23 [-0.13, 0.53], p=0.092 | 2.95, 1.00 (22) |
+| Cross-venue funding spread, 10 coins | 6.76 | 6.29 | 6.63 | +0.13 [-0.18, 0.44], p=0.22 | 2.63, 0.96 (12) |
+| Cross-venue funding spread, 32 coins | 7.50 | 6.84 | 7.23 | +0.27 [0.04, 0.50], p=0.012 | 4.48, 1.00 (12) |
+| Hyperliquid basis, 10 coins | 8.30 | 8.01 | 8.17 | +0.13 [-0.41, 0.72], p=0.32 | 2.19, 0.84 (12) |
+| Hyperliquid basis, 32 coins | 8.03 | 8.27 | 8.86 | -0.83 [-2.07, 0.16], p=0.94 | 0.83, 0.22 (12) |
+
+The tuned rule beats the plain rule in every row, by 0.14 to 0.59 Sharpe, so a large part of the
+agent's earlier gain came from the no-trade band, not from learning. Two gains keep an interval above
+zero. The deflated Sharpe ratio of the active return stays high in most rows because the agent holds
+more exposure than the tuned rule and earns a little more return per year (7.3% against 6.6% on the
+10-coin spread). Per unit of risk the gap is the Sharpe difference, which is small. Fewer than three
+runs per universe compare against this baseline, so the active DSR uses the zero-skill variance floor.
 
 ![Carry strategies, equity over time](../assets/png/figures/carry-equity.png)
 

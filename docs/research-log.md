@@ -212,6 +212,25 @@ failed configs.
 - **Funding gap between coin- and dollar-margined perpetuals.** The gap is under 1 bp.
 - **FX value from CPI.** The series is too short.
 
+## 2026-10-16: a tuned rule as second baseline
+
+**Why.** The agent's banded policy gets a no-trade band chosen on validation data. The funding rule it
+was measured against had no band, so part of the measured gain could come from trading less.
+
+**What.** `src/softedge/eval/tuned_rule.py`: the zero-residual rule with a deadzone and the no-trade
+band, both chosen per walk-forward split on validation data. `softedge active --baseline tuned`. No
+retraining: the saved SAC returns are compared with the tuned rule on the same test days. Rebuilt
+tapes reproduce each run's saved `prior_only` series exactly. `crypto_perp_1d_rich` could not be
+rebuilt offline (Deribit cache) and is left out.
+
+**Result.** [Results page, robustness checks](results.md#robustness-checks). The tuned rule beats the
+plain rule on every carry run. Against it, the 10-coin cross-venue gain falls from +0.47 to +0.13
+(interval includes zero); the 32-coin cross-venue gain falls from +0.66 to +0.27 (interval 0.04 to
+0.50). Of the carry runs, only that one and the cash-and-carry run with the premium feature keep an
+interval above zero.
+
+**Decision.** The tuned rule is the baseline for any future agent or model on these markets.
+
 ## Known data and accounting fixes
 
 Dates are commit dates on main, except where a check date is given.
