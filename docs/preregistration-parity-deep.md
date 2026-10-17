@@ -5,7 +5,7 @@ Both models are frozen in this commit:
 
 | Model | Role | File | SHA-256 |
 | --- | --- | --- | --- |
-| Deep parity network, trained end to end in JAX | Candidate | `models/parity_deep_jax.npz` | `JAX_SHA` |
+| Deep parity network, trained end to end in JAX | Candidate | `models/parity_deep_jax.npz` | `dc459bcd38089800a47e6cd6f436f814019c311bf6801efaa0588192bc25adba` |
 | Supervised forecaster, numpy | Diagnostic | `models/parity_deep_numpy.npz` | `0be9834ea4dde400dae31aa2788ff3a9a5a41c31076b873c212b9fc182f39bad` |
 
 What was seen before registration: training and validation on simulated markets only, from the
@@ -43,6 +43,10 @@ Code: `src/softedge/parity/jaxnet.py`, trained by `scripts/parity_jax_train.py`.
   1,024 fixed simulated markets against the one-half policy under the same governor. The best of
   those checkpoints is the frozen candidate. A unit test confirms that the differentiable backtest
   reproduces `softedge.parity.backtest.simulate` to 1e-10.
+- **Training result, on simulated markets only.** The best checkpoint is step 1,800 of 2,500. It
+  gains 0.24 points a year of net log growth over the one-half policy on the validation markets:
+  0.36 on markets with an edge and 0.05 on markets without one. The model has 10,062 trained
+  parameters. Training took 57 minutes on CPU.
 - **Simulated markets.** 40% have excess returns symmetric about zero. The rest switch on, each
   with probability one half, a premium, a persistent hidden drift, return autocorrelation,
   two-state regimes, a volatility-linked drift and price mean reversion. 30% of those redraw
