@@ -21,8 +21,9 @@ default of one half ignored the premium over cash. This version changes each:
   towards the asset when they beat it, but only as far as that ledger's evidence allows.
 - **Crash governor.** The exposure is capped at (W - f H) / (W c), where c is a crash size
   estimated for each asset: the largest of its own worst weekly loss so far, its current
-  volatility times the largest weekly loss in volatility units seen on any asset of the panel so
-  far (clipped to [8, 32]), and a minimum. A weekly loss no larger than c cannot take wealth below
+  volatility times a tail multiple, and a minimum. The tail multiple is the median, over the
+  panel's assets, of each asset's largest weekly loss so far in volatility units, clipped to
+  [8, 32]; a median keeps one broken peg from setting every asset's crash size. A weekly loss no larger than c cannot take wealth below
   f H, less the cost of the last trade, which stays above the 25% budget.
 
 The exposure is (1 + tanh(w_p p + w_d g)) / 2, where p is the premium logit, g the odd
@@ -58,7 +59,7 @@ VOL_SEED = jn.VOL_SEED
 FLOOR = 0.76
 TAIL_PRIOR = 8.0
 TAIL_MAX = 32.0
-TAIL_RULE = "panel_max"
+TAIL_RULE = "panel_median"
 MIN_CRASH = 0.10
 V1_FLOOR = 0.78
 V1_MULTIPLIER = 4.0
