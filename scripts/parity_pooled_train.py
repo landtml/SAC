@@ -6,7 +6,9 @@ governor, and both gates open. The premium channel's weight is drawn per panel (
 between them, a third each) and is an input to the network, so the network learns to act with
 and without a deployed premium. Fixed validation panels are scored every 100 steps against one
 half under the same governor, with the premium weight at 0 and at 1; the parameters with the
-best mean gain over the two are kept and written as a flat npz.
+best mean gain over the two are kept and written as a flat npz. The full training state is saved
+at every evaluation, and a rerun with the same arguments resumes from it; the draws depend only on
+the step number, so a resumed run matches an uninterrupted one.
 
     python scripts/parity_pooled_train.py --out <weights.npz> --log <log.json> --ckpt <folder>
 """
@@ -54,6 +56,20 @@ def premium_weights(key, n):
     k1, k2 = jax.random.split(key)
     kind = jax.random.randint(k1, (n,), 0, 3)
     return jnp.where(kind == 0, 0.0, jnp.where(kind == 1, 1.0, jax.random.uniform(k2, (n,))))
+
+
+def save_state(path: str, tree) -> None:
+    leaves = jax.tree_util.tree_leaves(tree)
+    tmp = path + ".tmp.npz"
+    np.savez(tmp, *[np.asarray(x) for x in leaves])
+    os.replace(tmp, path)
+
+
+def load_state(path: str, like):
+    leaves, treedef = jax.tree_util.tree_flatten(like)
+    with np.load(path) as saved:
+        values = [jnp.asarray(saved[f"arr_{i}"], dtype=x.dtype) for i, x in enumerate(leaves)]
+    return jax.tree_util.tree_unflatten(treedef, values)
 
 
 def main(argv=None) -> int:
@@ -134,8 +150,17 @@ def main(argv=None) -> int:
     train_key = jax.random.key(TRAIN_KEY)
     log = {"evals": []}
     best, best_params, best_step = -np.inf, params, 0
+    first = 1
+    state_path = os.path.join(os.path.abspath(args.ckpt), "resume.npz")
+    meta_path = os.path.join(os.path.abspath(args.ckpt), "resume.json")
+    if os.path.exists(state_path) and os.path.exists(meta_path):
+        params, opt_state, best_params = load_state(state_path, (params, opt_state, params))
+        with open(meta_path, encoding="utf-8") as fh:
+            meta = json.load(fh)
+        log, best, best_step, first = meta["log"], meta["best"], meta["best_step"], meta["step"] + 1
+        print(json.dumps({"resumed_after_step": meta["step"]}), flush=True)
     window = []
-    for step in range(1, args.steps + 1):
+    for step in range(first, args.steps + 1):
         params, opt_state, loss, gnorm = train_step(params, opt_state,
                                                     jax.random.fold_in(train_key, step))
         window.append((float(loss), float(gnorm)))
@@ -151,6 +176,9 @@ def main(argv=None) -> int:
                                                                                params)))
             if g["score"] > best:
                 best, best_params, best_step = g["score"], params, step
+            save_state(state_path, (params, opt_state, best_params))
+            with open(meta_path, "w", encoding="utf-8") as fh:
+                json.dump({"log": log, "best": best, "best_step": best_step, "step": step}, fh)
     ckpt.wait_until_finished()
     model = nnx.merge(graphdef, best_params, rest)
     pl.save(model, args.out)
