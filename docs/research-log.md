@@ -357,6 +357,54 @@ rests mainly on three emerging-market currencies and does not survive twice the 
 gate under the same governor is at least as good. The network is not changed, and this panel
 has now been seen by it.
 
+## 2026-10-17: deep parity network, trained in JAX, registered test
+
+Pre-registered in `docs/preregistration-parity-deep.md` (commit ab72bc0, both models frozen by
+SHA-256) and run once from that commit with `scripts/parity_deep_study.py`. The candidate is the
+JAX network trained end to end on 640,000 simulated markets; on its own validation markets it
+gained 0.24 points a year over the one-half policy. Differences are in points of annual net log
+growth.
+
+| Set | Candidate vs best simple rule | 95% interval | Ledger deployed | Breaches |
+| --- | --- | --- | --- | --- |
+| `regime_switching` (held out) | −0.30 vs CPPI | −0.31 to −0.28 | 2.6% of weeks | 0 |
+| `ar_returns` (held out) | −0.31 vs CPPI | −0.32 to −0.29 | 5.5% | 0 |
+| `ou_mean_reverting` (held out) | −0.25 vs CPPI | −0.25 to −0.25 | 0.0% | 0 |
+| Crypto, 406 coins | −0.16 vs CPPI | −1.44 to +0.84 | 0.1% | 93 (CPPI 9) |
+| Currencies, 13 | +0.37 vs Grossman-Zhou | +0.10 to +0.67 | 58.7% | 0 |
+
+- **DL1, held-out synthetic: fail.** −0.28 pooled (−0.29 to −0.28).
+- **DL2, crypto: fail.** No simple rule is feasible on crypto; CPPI has the fewest breaches. The
+  candidate is 0.16 below it, not significantly, and breaches on 93 coins against CPPI's 9.
+- **DL3, depth earns its place: fail.** On crypto the candidate and the first parity network are
+  identical (difference 0.00): neither ledger deploys, so both hold one half under the governor.
+- **DL4, null and leaks: pass.** Deployment on the null tapes is 1.6% of tape-weeks (limit 2%),
+  and the scramble probe passes on every held-out family and on the 32 longest coins.
+
+Diagnostics, from the same run:
+
+- **The gate keeps the network idle.** Crypto histories have a median of 251 weeks and volatility
+  near 100% a year, so evidence never reaches the line. On the held-out families the ledger
+  deploys in at most 5.5% of weeks. There, and on crypto, the candidate is within 0.02 points of
+  its own direction-off version. Where it does deploy, it helps: on `noisy_prior` (deployed in 54%
+  of weeks) direction adds 0.99 points, and on the currencies 0.48 (0.21 to 0.77).
+- **Ungated, the network has some skill, but not robust skill.** It beats CPPI on `ar_returns`
+  (+0.05, +0.01 to +0.08). It earns 3.64% a year on `noisy_prior`, against 2.83% for the first
+  parity network and 3.29% for the numpy forecaster. It loses badly on `ou_mean_reverting`
+  (−0.55). The trend gate under the same governor beats it on `ar_returns` (+0.16) and
+  `noisy_prior` (4.20%).
+- **Depth adds nothing on currencies.** The candidate is −0.01 (−0.31 to +0.26) against the first
+  parity network and −0.09 against the numpy forecaster. Without its gate it would have earned
+  0.22 more (0.06 to 0.40).
+- **The governor is too loose for crypto.** Its cap of 0.88 at the peak cannot absorb weekly
+  crashes of 30% and more. The governor itself held the rest: buy-and-hold loses 47.8% a year of
+  log growth across the panel and breaches on all 406 coins, while the candidate earns 5.5%.
+
+**Decision.** The deep network fails its registered test. Training end to end in JAX produced a
+policy that learns real structure in simulation, but the evidence gate keeps it idle on short
+or noisy histories, and where it does trade it matches the linear version. The held-out seeds
+and the crypto panel are not reused for a revision of this candidate.
+
 ## Known data and accounting fixes
 
 Dates are commit dates on main, except where a check date is given.

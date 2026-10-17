@@ -115,6 +115,11 @@ parity network is any learner with these four properties:
 
 ## Deep version, trained in JAX
 
+**Result of its registered test: fail** on held-out synthetic families, on crypto, and on the
+depth comparison. On the null family it stays out, and every leak probe passes. Its evidence
+gate keeps it idle on short or noisy histories, and where it trades it matches the linear
+version. See the [research log](research-log.md#2026-10-17-deep-parity-network-trained-in-jax-registered-test).
+
 One market's history cannot fit a deep network, so the deep version learns across markets
 instead. It is trained once, on hundreds of thousands of simulated markets, then frozen. On a new
 market it adapts only through its inputs: memories of that market's own history. The weights
