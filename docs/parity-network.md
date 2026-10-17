@@ -113,6 +113,28 @@ parity network is any learner with these four properties:
 3. Every directional deviation is deployed through a sign-test evidence ledger that can decay.
 4. A governor enforces the path budget.
 
+## Deep version, trained in JAX
+
+One market's history cannot fit a deep network, so the deep version learns across markets
+instead. It is trained once, on hundreds of thousands of simulated markets, then frozen. On a new
+market it adapts only through its inputs: memories of that market's own history. The weights
+encode how to read a history, and the history says what this market does. This is in-context
+learning, the idea behind prior-fitted networks.
+
+| Part | JAX tool | What it does |
+| --- | --- | --- |
+| Simulated markets | `jax.random`, `lax.scan`, `jit` | Draws 256 fresh 20-year markets per training step, so no market is seen twice |
+| Memory | Flax NNX parameters | Linear recurrences at 1 to 416 weeks whose decay rates are learned, like a state-space layer |
+| Odd network | Flax NNX | Three hidden layers of 64 units, odd by construction |
+| Backtest | `lax.scan`, `grad`, `vmap` | The weekly backtest with costs, band and governor, differentiable end to end and run over all markets at once |
+| Optimiser | Optax | AdamW, warm-up and cosine decay, gradient clipping |
+| Checkpoints and tests | Orbax, Chex | Training checkpoints; tree assertions in the unit tests |
+
+Training maximises net log growth directly through the backtest, so costs, the band and the
+governor shape the policy. In evaluation, the evidence ledger gates the network's conviction as
+in the first version. A unit test confirms that the differentiable backtest matches the numpy
+backtest to 1e-10. The registered test is [Deep parity network](preregistration-parity-deep.md).
+
 ## What is new and what is not
 
 | Part | Prior work |

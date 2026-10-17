@@ -15,6 +15,12 @@ All notable changes to this project are recorded here. The format follows
   evaluation in `docs/preregistration-parity-network.md`. `scripts/parity_fx.py` runs the registered
   real-data check on 13 currency deposits (`docs/preregistration-parity-network-fx.md`), with weekly
   cash returns and costs per currency passed to the backtest.
+- Deep parity network. `softedge.parity.jaxnet` is a Flax NNX model with learned memory decays and
+  an odd MLP, trained end to end through a differentiable `lax.scan` backtest on markets drawn
+  by `softedge.parity.jax_world` (`scripts/parity_jax_train.py`). `softedge.parity.deep` is a
+  numpy network with hand-written backpropagation, used for a supervised forecaster.
+  `scripts/parity_deep_study.py` runs the registered evaluation. The `jax` extra installs JAX,
+  Flax, Optax, Chex and Orbax.
 - Cross-sectional funding rank for crypto cash-and-carry: `softedge.features.crosssec` gives each
   coin its trailing 7-day funding income relative to the other coins listed at the same bar
   (`funding_xs`), and a top-five flag (`funding_topk`): 1 for the coins above the cut, 0 below it,

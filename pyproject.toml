@@ -43,6 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-xdist>=3", "ruff>=0.5"]
+jax = ["jax>=0.11", "flax>=0.12.10", "optax>=0.2.8", "chex>=0.1.92", "orbax-checkpoint>=0.12.7"]
 
 [project.scripts]
 softedge = "softedge.cli:main"
