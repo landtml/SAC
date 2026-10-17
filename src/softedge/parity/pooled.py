@@ -10,24 +10,28 @@ default of one half ignored the premium over cash. This version changes each:
   short history.
 - **Pooled evidence.** A ledger bets on every listed asset each week and settles on the average
   of the bets. Under the sign-flip null each asset's settlement has mean zero given the past, so
-  their average does too, and the ledger stays a test martingale with any cross-asset
-  dependence. An edge too weak to prove on one asset passes the gate when it recurs across
-  assets.
+  their average does too, and the ledger's capital is a test martingale with any cross-asset
+  dependence. This needs the listing of an asset in a week to be known before that week's
+  return. The gate reads a CUSUM of log capital, so evidence drains when a learner starts
+  losing; its false alarms are bounded per stretch of time, not over all time. An edge too weak
+  to prove on one asset passes the gate when it recurs across assets.
 - **Premium channel.** A second pooled ledger deploys a half-Kelly premium: each asset's
   Sharpe ratio of excess log return, shrunk towards the panel's by a James-Stein weight. The
   default of one half moves towards cash when the panel shows that the assets lose to cash, and
   towards the asset when they beat it, but only as far as that ledger's evidence allows.
 - **Crash governor.** The exposure is capped at (W - f H) / (W c), where c is a crash size
-  estimated for each asset: the largest of its own worst weekly loss so far, a pooled tail
-  multiple of its current volatility, and a minimum. A weekly loss no larger than c cannot take
-  wealth below f H, which is above the 25% budget.
+  estimated for each asset: the largest of its own worst weekly loss so far, its current
+  volatility times the largest weekly loss in volatility units seen on any asset of the panel so
+  far (clipped to [8, 32]), and a minimum. A weekly loss no larger than c cannot take wealth below
+  f H, less the cost of the last trade, which stays above the 25% budget.
 
 The exposure is (1 + tanh(w_p p + w_d g)) / 2, where p is the premium logit, g the odd
 network's conviction and w_p, w_d the two ledgers' weights. With no evidence it is one half.
 Mirroring every excess return maps it to one minus itself when the governor is off.
 
 ``rollout`` runs the weekly backtest of ``softedge.parity.backtest.simulate`` for a whole panel
-as one ``lax.scan``, with each asset on its own clock from its listing week. It is
+as one ``lax.scan``, with each asset on its own clock from its listing week. One rule differs:
+an asset held above its cap is traded down to it even inside the no-trade band. The backtest is
 differentiable, and training maximises its net log growth with the gates open.
 """
 
@@ -142,8 +146,8 @@ class Premium(NamedTuple):
 def premium_logit(prem: Premium, var_long: jax.Array, valid: jax.Array) -> jax.Array:
     """Half-Kelly logit of each asset's excess-return Sharpe ratio, shrunk towards the panel's.
 
-    The Sharpe ratio s_i uses an EWMA mean with a five-year half-life and the five-year
-    volatility. Its sampling variance is 1 / n_i, with n_i the effective number of weeks. The
+    The Sharpe ratio s_i uses an EWMA mean with decay 1/260 (a half-life of about 3.5 years)
+    and the 260-week EWMA volatility. Its sampling variance is 1 / n_i, with n_i the effective number of weeks. The
     shrinkage weight is tau^2 / (tau^2 + 1 / n_i), where tau^2 is the cross-sectional variance of
     s beyond sampling noise. On one asset tau^2 is zero and the target is the asset itself.
     """
@@ -266,7 +270,7 @@ def rollout(model: PooledPolicy, r: jax.Array, c: jax.Array, listed: jax.Array, 
         u = model.panel_inputs(mem, ready, w_p)
         g = model.conviction(u)
         p = premium_logit(prem, mem.var_long, ready & (mem.n >= PREMIUM_MIN_WEEKS))
-        led_p = place(led_p, p, z_ok)
+        led_p = place(led_p, p, z_ok & (mem.n >= PREMIUM_MIN_WEEKS))
         led_d = place(led_d, g, z_ok)
 
         e = 0.5 * (1.0 + jnp.tanh(w_p * p + w_d * g))
