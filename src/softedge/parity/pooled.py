@@ -58,6 +58,7 @@ VOL_SEED = jn.VOL_SEED
 FLOOR = 0.76
 TAIL_PRIOR = 8.0
 TAIL_MAX = 32.0
+TAIL_RULE = "panel_max"
 MIN_CRASH = 0.10
 V1_FLOOR = 0.78
 V1_MULTIPLIER = 4.0
@@ -242,7 +243,7 @@ def rollout(model: PooledPolicy, r: jax.Array, c: jax.Array, listed: jax.Array, 
         loss = -jnp.expm1(r_t)
         worst = jnp.where(lst, jnp.maximum(worst, loss), worst)
         z_ok = lst & (tau >= VOL_SEED)
-        tail = jnp.maximum(tail, jnp.max(jnp.where(z_ok, loss / sig_prev, 0.0)))
+        tail = jnp.where(z_ok, jnp.maximum(tail, loss / sig_prev), tail)
 
         x = r_t - c_t
         new_mem, z, _ = model.step(mem, x, tau)
@@ -277,7 +278,15 @@ def rollout(model: PooledPolicy, r: jax.Array, c: jax.Array, listed: jax.Array, 
         if cfg.fixed >= 0.0:
             e = jnp.full_like(e, cfg.fixed)
         sig = jnp.sqrt(jnp.where(mem.var > 0.0, mem.var, 1.0))
-        tail_mult = jnp.clip(tail, TAIL_PRIOR, TAIL_MAX)
+        if TAIL_RULE == "own":
+            pooled_tail = tail
+        elif TAIL_RULE == "panel_median":
+            seen = tail > -jnp.inf
+            pooled_tail = jnp.nanmedian(jnp.where(seen, tail, jnp.nan))
+            pooled_tail = jnp.where(seen.any(), pooled_tail, TAIL_PRIOR)
+        else:
+            pooled_tail = jnp.max(tail)
+        tail_mult = jnp.clip(pooled_tail, TAIL_PRIOR, TAIL_MAX)
         crash = jnp.clip(jnp.maximum(worst, tail_mult * sig), MIN_CRASH, 1.0)
         cap = governor_cap(cfg, wealth, peak, crash)
         e = jnp.where(tau >= FIRST_DECISION, jnp.minimum(e, cap), 0.0)
@@ -297,7 +306,7 @@ def rollout(model: PooledPolicy, r: jax.Array, c: jax.Array, listed: jax.Array, 
     ones = jnp.ones(n_assets, dtype=r.dtype)
     carry0 = (jn.init_memory((n_assets,)), jnp.zeros(n_assets, jnp.int32), zero, zero, ones,
               ones, Premium(zero, zero, zero), jnp.full(n_assets, -jnp.inf, dtype=r.dtype),
-              jnp.zeros((), r.dtype), init_ledger(n_assets), init_ledger(n_assets))
+              jnp.full(n_assets, -jnp.inf, dtype=r.dtype), init_ledger(n_assets), init_ledger(n_assets))
     _, out = jax.lax.scan(body, carry0, (r.T, c, listed.T))
     return {k: jnp.swapaxes(v, 0, 1) for k, v in out.items()}
 
