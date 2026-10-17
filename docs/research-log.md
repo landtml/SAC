@@ -405,6 +405,67 @@ policy that learns real structure in simulation, but the evidence gate keeps it 
 or noisy histories, and where it does trade it matches the linear version. The held-out seeds
 and the crypto panel are not reused for a revision of this candidate.
 
+## 2026-10-17: pooled parity network, registered test
+
+Pre-registered in `docs/preregistration-parity-pooled.md` (commit bac4f5a, weights frozen by
+SHA-256) and run once from that commit with `scripts/parity_pooled_study.py --test`. The
+candidate pools memories and evidence across a panel of assets, gates a shrunk half-Kelly
+premium, and caps each asset by a crash size estimated from its history and the panel's. The
+blind panels come from `research/parity/blind_panels.py`, built to a brief without access to
+the parity code; its SHA-256 matched the registered one at load and the file is committed
+unchanged. Differences are in points of annual net log growth.
+
+| Set | Candidate vs best simple rule | 95% interval | Gate deployed | Breaching assets |
+| --- | --- | --- | --- | --- |
+| `mom_rebound`, 100 panels of 10 | +0.04 vs CPPI | -0.05 to +0.14 | 0.3% | 17 (CPPI 1) |
+| `vol_premium` | +0.20 vs CPPI | +0.10 to +0.30 | 0.5% | 15 (CPPI 3) |
+| `slow_state` | +0.04 vs CPPI | -0.06 to +0.13 | 0.1% | 18 (CPPI 2) |
+| `tails_contagion` (no edge) | +0.03 vs CPPI | -0.04 to +0.11 | 0.2% | 50 (CPPI 6) |
+| Macro, 7 series to 2005 | +1.80 vs Grossman-Zhou | +0.90 to +2.74 | 98% | 0 (Grossman-Zhou 0) |
+
+- **P1, blind synthetic: fail.** Growth passes: +0.08 pooled over 400 panels (+0.03 to +0.13).
+  Breaches fail: 15 to 50 assets per family against a limit of 10.
+- **P2, macro: pass.** +1.80 against Grossman-Zhou with no breach. The candidate earns 8.30% a
+  year of log growth; buy-and-hold earns 7.13% with 5 of 7 series breaching.
+- **P3, pooling earns its place: fail.** +0.00 against the same network on each asset alone
+  (-0.005 to +0.006). The gate almost never opened on the blind panels, so both versions held
+  one half.
+- **P4, null and leaks: pass.** The gate deployed in 0.006% of null asset-weeks, and the scramble
+  probe passed on every family and on the macro panel.
+
+Diagnostics, from the same run:
+
+- **The governor failed on crashes larger than its estimate.** The blind families have common,
+  self-exciting jumps and t3 or t4 shocks at weekly volatility up to 12%. In every breach the
+  week's loss exceeded the crash estimate: median loss 41%, median estimate 33%, largest loss
+  77%. A crash estimate learned from history is too small before the first large crash. CPPI
+  (multiplier 2, floor 0.8) assumes a 50% crash from the start, and breached on 1 to 6 assets.
+  The first network's governor breached on 30 to 74.
+- **The gate correctly found almost nothing.** The blind edges are weak by design (oracle
+  Sharpe ratios of about 0.2 to 0.35 a year). Opening the gate loses 0.21 to 0.46.
+- **On the macro panel the direction signal does the work.** Direction off costs 1.65 (+0.72 to
+  +2.69); premium off costs 0.05 (not significant). The candidate beats the trend gate under
+  the first governor by 0.87 (+0.01 to +1.71) and the deep network by 1.34 (+0.47 to +2.27).
+  Pooling adds 0.39 (-0.31 to +1.12), not significant. Per series it beats CPPI on NASDAQ
+  (13.6% against 7.6%), NIKKEI and the three Treasuries, and loses on WTI (3.7% against 5.7%)
+  and Brent.
+
+Exploratory, after the test and not claimed: on the blind panels with exposure fixed at one
+half, the panel maximum of tail multiples (rejected in development) breaches on 10, 9, 10 and
+33 assets, and each asset's own tail on 17, 15, 18 and 47. No tail rule tried meets the 1%
+limit on `tails_contagion`.
+
+**Decision.** The pooled network fails its registered test: it breaches the drawdown budget on
+synthetic markets with large common crashes, and pooling showed no gain where there was no edge
+to find. It passes on the macro panel, where it beats every simple rule and every earlier
+network with no breach. That is one panel of seven series over one period, and the period
+1971 to 2005 contains long trends that this kind of signal suits; it is evidence for a trend
+and premium allocator under a drawdown governor, not a proof. The governor's crash estimate
+needs a floor large enough for a first crash, which is a new design and a new registration. The
+blind panels with seeds 1 to 100 and the macro panel to 2005 are not reused to evaluate a
+revision of this candidate. For the long-only weekly search this counts as one trial on its
+development window.
+
 ## Known data and accounting fixes
 
 Dates are commit dates on main, except where a check date is given.

@@ -68,3 +68,7 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Kept byte for byte: its SHA-256 is fixed by docs/preregistration-parity-pooled.md.
+"research/parity/blind_panels.py" = ["B905"]

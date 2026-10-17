@@ -21,6 +21,14 @@ All notable changes to this project are recorded here. The format follows
   numpy network with hand-written backpropagation, used for a supervised forecaster.
   `scripts/parity_deep_study.py` runs the registered evaluation. The `jax` extra installs JAX,
   Flax, Optax, Chex and Orbax.
+- Pooled parity network. `softedge.parity.pooled` runs a panel of assets with pooled memories
+  and evidence ledgers, a gated premium tilt and a crash-sized drawdown governor; the panel
+  backtest gives each asset its own clock from its listing week. `softedge.parity.panel_world`
+  simulates training panels. `scripts/parity_pooled_train.py` trains it and resumes after an
+  interruption, `scripts/parity_pooled_study.py` runs the registered evaluation
+  (`docs/preregistration-parity-pooled.md`), and `scripts/parity_macro.py` builds the weekly
+  macro panel to 2005. `research/parity/blind_panels.py` is the generator of the blind test
+  panels, kept unchanged.
 - Cross-sectional funding rank for crypto cash-and-carry: `softedge.features.crosssec` gives each
   coin its trailing 7-day funding income relative to the other coins listed at the same bar
   (`funding_xs`), and a top-five flag (`funding_topk`): 1 for the coins above the cut, 0 below it,

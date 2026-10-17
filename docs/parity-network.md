@@ -140,6 +140,30 @@ governor shape the policy. In evaluation, the evidence ledger gates the network'
 in the first version. A unit test confirms that the differentiable backtest matches the numpy
 backtest to 1e-10. The registered test is [Deep parity network](preregistration-parity-deep.md).
 
+## Pooled version
+
+**Result of its registered test: fail** on blind synthetic panels, where it breaches the 25%
+budget on 15 to 50 of 1,000 assets per family, and on the pooling claim. **Pass** on the macro
+panel (equity indices, oil and Treasuries to 2005): 1.80 points a year above Grossman-Zhou
+(95% interval 0.90 to 2.74) with no breach. On null panels it stays out and every leak probe
+passes. See the [research log](research-log.md#2026-10-17-pooled-parity-network-registered-test).
+
+The deep version could not prove an edge on one history. The pooled version reads a panel of
+assets and changes three parts (`src/softedge/parity/pooled.py`):
+
+- **Pooled memory and evidence.** The network reads each asset's memories and the panel's mean
+  memories. One ledger bets on every listed asset each week and settles on the average, so an
+  edge that recurs across assets builds evidence faster. Its capital stays a test martingale
+  under the sign-flip null with any cross-asset dependence.
+- **Gated premium.** Each asset's Sharpe ratio over cash, shrunk towards the panel's, gives a
+  half-Kelly tilt that a second ledger must earn before it moves the default of one half.
+- **Crash governor.** The exposure cap is (W - 0.76 H) / (W c), with c a crash size estimated per
+  asset. A weekly loss no larger than c cannot breach the budget. The test showed the weak
+  point: c comes from history, so a crash larger than any seen before breaks the guarantee.
+
+It is trained in JAX on simulated panels with shared drifts, common shocks and crashes, and
+assets that list late, through the panel backtest with the gates open.
+
 ## What is new and what is not
 
 | Part | Prior work |
